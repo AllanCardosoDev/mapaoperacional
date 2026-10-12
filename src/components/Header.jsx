@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Flame, 
   Plane, 
@@ -11,17 +11,19 @@ import {
   Upload, 
   Trash2, 
   Maximize, 
-  RotateCcw,
-  Sparkles,
-  Leaf,
-  Eye,
-  EyeOff
+  Sparkles, 
+  Leaf, 
+  Eye, 
+  EyeOff,
+  Share2,
+  Check
 } from 'lucide-react';
 
 export function Header({
   stats,
   showAllTokens,
   onToggleShowAllTokens,
+  onShareLink,
   onLoadRealScenario,
   onExportImage,
   onSaveMission,
@@ -29,6 +31,14 @@ export function Header({
   onClearMap,
   onToggleFullscreen
 }) {
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareClick = () => {
+    onShareLink();
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
   return (
     <header className="app-header">
       {/* Lado Esquerdo: Brasões e Título Oficial */}
@@ -136,6 +146,25 @@ export function Header({
             <>
               <Eye size={14} />
               Exibir Ícones
+            </>
+          )}
+        </button>
+
+        {/* COMPARTILHAR MISSÃO DIRETO PELO LINK */}
+        <button
+          className="btn-tactical btn-accent"
+          onClick={handleShareClick}
+          title="Copiar link com todas as viaturas e tropas atuais para abrir em outro PC"
+        >
+          {copiedLink ? (
+            <>
+              <Check size={14} color="#86efac" />
+              Link Copiado!
+            </>
+          ) : (
+            <>
+              <Share2 size={14} />
+              Copiar Link
             </>
           )}
         </button>

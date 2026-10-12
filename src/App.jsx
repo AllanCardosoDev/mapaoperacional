@@ -7,14 +7,19 @@ import { TokenEditModal } from './components/TokenEditModal';
 import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
+import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v2';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v2';
 const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v2';
 
 export default function App() {
+  // Inicializa a partir de link compartilhado (URL hash) se existir, ou do localStorage, ou do cenário padrão
+  const sharedMission = useMemo(() => parseShareableUrl(), []);
+
   // Estado dos recursos posicionados no mapa
   const [tokens, setTokens] = useState(() => {
+    if (sharedMission && sharedMission.tokens) return sharedMission.tokens;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKENS);
       if (saved) return JSON.parse(saved);
@@ -26,6 +31,7 @@ export default function App() {
 
   // Status de cada município
   const [muniStatuses, setMuniStatuses] = useState(() => {
+    if (sharedMission && sharedMission.muniStatuses) return sharedMission.muniStatuses;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STATUSES);
       if (saved) return JSON.parse(saved);
@@ -44,6 +50,7 @@ export default function App() {
 
   // Notas operacionais de cada município
   const [muniNotes, setMuniNotes] = useState(() => {
+    if (sharedMission && sharedMission.muniNotes) return sharedMission.muniNotes;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_NOTES);
       if (saved) return JSON.parse(saved);
@@ -61,7 +68,7 @@ export default function App() {
   const [showArcoDoFogo, setShowArcoDoFogo] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
 
-  // NOVO: Controle de visibilidade de todos os ícones no mapa
+  // Controle de visibilidade de todos os ícones no mapa
   const [showAllTokens, setShowAllTokens] = useState(true);
 
   // Persistência automática no localStorage
@@ -241,6 +248,20 @@ export default function App() {
     setMuniNotes(prev => ({ ...prev, [muniName]: notes }));
   };
 
+  // NOVO: Gerar e Copiar Link com todo o Cenário Atual
+  const handleShareLink = () => {
+    const url = generateShareableUrl(tokens, muniStatuses, muniNotes);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        window.history.replaceState(null, '', url);
+      }).catch(() => {
+        prompt('Copie o link abaixo para enviar para outro PC:', url);
+      });
+    } else {
+      prompt('Copie o link abaixo para enviar para outro PC:', url);
+    }
+  };
+
   // Ação: Carregar Cenário Real (Foto)
   const handleLoadRealScenario = () => {
     if (window.confirm('Deseja carregar a disposição oficial com Militares, Brigadistas e Prevfogo?')) {
@@ -314,11 +335,12 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Cabeçalho Oficial com KPIs de Militares, Brigadistas e Prevfogo */}
+      {/* Cabeçalho Oficial com KPIs e Compartilhamento de Link */}
       <Header 
         stats={stats}
         showAllTokens={showAllTokens}
         onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
+        onShareLink={handleShareLink}
         onLoadRealScenario={handleLoadRealScenario}
         onExportImage={handleExportImage}
         onSaveMission={handleSaveMission}
@@ -338,7 +360,7 @@ export default function App() {
           onSelectMuni={setSelectedMuniName}
         />
 
-        {/* Mapa Operacional Central com controle de visibilidade */}
+        {/* Mapa Operacional Central */}
         <OperationalMap 
           placedTokens={tokens}
           selectedMuniName={selectedMuniName}
@@ -355,7 +377,7 @@ export default function App() {
           setShowAllTokens={setShowAllTokens}
         />
 
-        {/* Gaveta Lateral com todas as informações detalhadas ao clicar no município */}
+        {/* Gaveta Lateral de Detalhes do Município Selecionado */}
         {selectedMuni && (
           <MunicipalityDrawer 
             muni={selectedMuni}
