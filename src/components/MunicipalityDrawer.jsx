@@ -27,8 +27,21 @@ export function MunicipalityDrawer({
   onClose
 }) {
   const [personnelToAdd, setPersonnelToAdd] = useState(10);
+  const [personnelType, setPersonnelType] = useState('efetivo_militar');
 
   if (!muni) return null;
+
+  const handleAddPersonnel = () => {
+    let label = `${personnelToAdd} Bombeiros`;
+    if (personnelType === 'efetivo_brigadista') label = `${personnelToAdd} Brigadistas`;
+    if (personnelType === 'efetivo_prevfogo') label = `${personnelToAdd} Prevfogo`;
+
+    onAddToken(muni, {
+      type: personnelType,
+      count: personnelToAdd,
+      label
+    });
+  };
 
   return (
     <aside className="details-drawer">
@@ -114,7 +127,7 @@ export function MunicipalityDrawer({
           <div className="allocated-resources-list">
             {muniTokens.length === 0 ? (
               <div style={{ color: '#64748b', fontSize: 11, fontStyle: 'italic', padding: '12px 0', textAlign: 'center' }}>
-                Nenhum recurso alocado neste município. Use os botões abaixo ou arraste do menu lateral.
+                Nenhum recurso alocado neste município. Use os botões abaixo ou arraste da barra lateral.
               </div>
             ) : (
               muniTokens.map((tk) => (
@@ -125,7 +138,14 @@ export function MunicipalityDrawer({
                     </div>
                     <div>
                       <div className="alloc-item-name">{tk.label || tk.type}</div>
-                      {tk.count && <div style={{ fontSize: 9.5, color: '#ef4444' }}>{tk.count} Militares</div>}
+                      {tk.count && (
+                        <div style={{ 
+                          fontSize: 9.5, 
+                          color: tk.type === 'efetivo_prevfogo' ? '#22c55e' : (tk.type === 'efetivo_brigadista' ? '#f97316' : '#ef4444')
+                        }}>
+                          {tk.count} operacionais
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -144,12 +164,35 @@ export function MunicipalityDrawer({
           </div>
         </div>
 
-        {/* Adição Rápida de Recursos */}
+        {/* Adição Rápida de Efetivo por Categoria */}
         <div className="info-card-block">
-          <span className="block-title">Adicionar Recursos Imediatos</span>
+          <span className="block-title">Alocar Efetivo (Tropa)</span>
 
-          {/* Efetivo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            <button
+              className={`status-opt-btn ${personnelType === 'efetivo_militar' ? 'active' : ''}`}
+              style={{ flex: 1, fontSize: 10, padding: 4 }}
+              onClick={() => setPersonnelType('efetivo_militar')}
+            >
+              Militares
+            </button>
+            <button
+              className={`status-opt-btn ${personnelType === 'efetivo_brigadista' ? 'active' : ''}`}
+              style={{ flex: 1, fontSize: 10, padding: 4 }}
+              onClick={() => setPersonnelType('efetivo_brigadista')}
+            >
+              Brigadistas
+            </button>
+            <button
+              className={`status-opt-btn ${personnelType === 'efetivo_prevfogo' ? 'active' : ''}`}
+              style={{ flex: 1, fontSize: 10, padding: 4 }}
+              onClick={() => setPersonnelType('efetivo_prevfogo')}
+            >
+              Prevfogo
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input 
               type="number"
               min="1"
@@ -169,13 +212,23 @@ export function MunicipalityDrawer({
             />
             <button
               className="btn-tactical btn-primary"
-              style={{ flex: 1, padding: '5px 8px', fontSize: 11 }}
-              onClick={() => onAddToken(muni, { type: 'efetivo', count: personnelToAdd, label: `${personnelToAdd} Militares` })}
+              style={{ 
+                flex: 1, 
+                padding: '5px 8px', 
+                fontSize: 11,
+                background: personnelType === 'efetivo_prevfogo' ? '#15803d' : (personnelType === 'efetivo_brigadista' ? '#c2410c' : undefined)
+              }}
+              onClick={handleAddPersonnel}
             >
               <Users size={13} />
-              + Efetivo ({personnelToAdd} BM)
+              + Alocar ({personnelToAdd} Op.)
             </button>
           </div>
+        </div>
+
+        {/* Adição Rápida de Viaturas e Aeronaves */}
+        <div className="info-card-block">
+          <span className="block-title">Adicionar Meios de Apoio</span>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             <button

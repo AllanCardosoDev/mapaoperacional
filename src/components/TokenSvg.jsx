@@ -75,23 +75,86 @@ export function TokenSvg({ type, count = 10, width, height, className = "" }) {
         </svg>
       );
 
+    // 1. EFETIVO MILITAR (BOMBEIROS MILITARES CBMAM)
     case 'efetivo':
+    case 'efetivo_militar':
       return (
-        <svg viewBox="0 0 130 90" width={width || 68} height={height || 48} className={className}>
+        <svg viewBox="0 0 135 90" width={width || 72} height={height || 48} className={className}>
           <defs>
             <filter id="ef-shd" x="-10%" y="-10%" width="130%" height="130%">
               <feDropShadow dx="2" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.6"/>
             </filter>
           </defs>
-          <rect x="4" y="4" width="122" height="82" rx="10" fill="#ffffff" stroke="#e2e8f0" strokeWidth="2.5" filter="url(#ef-shd)"/>
+          <rect x="4" y="4" width="127" height="82" rx="10" fill="#ffffff" stroke="#e2e8f0" strokeWidth="2.5" filter="url(#ef-shd)"/>
+          {/* Lado Esquerdo: Bombeiro com capacete vermelho e máscara SCBA */}
           <rect x="8" y="8" width="56" height="74" rx="8" fill="#dc2626" stroke="#b91c1c" strokeWidth="1.5"/>
           <path d="M 18 42 Q 18 20 36 18 Q 54 20 54 42 Q 46 44 36 44 Q 26 44 18 42 Z" fill="#ef4444"/>
+          <polygon points="36,15 39,21 46,21 40,25 42,31 36,27 30,31 32,25 26,21 33,21" fill="#facc15"/>
           <rect x="24" y="32" width="24" height="10" rx="3" fill="#0284c7"/>
           <circle cx="36" cy="56" r="10" fill="#0f172a"/>
           <circle cx="36" cy="56" r="4.5" fill="#38bdf8"/>
-          <rect x="68" y="8" width="54" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1.5"/>
-          <text x="95" y="58" fontSize="42" fontWeight="900" fontFamily="'Impact', 'Arial Black', sans-serif" fill="#0f172a" textAnchor="middle">{count}</text>
-          <text x="95" y="74" fontSize="8" fontWeight="800" fontFamily="Arial, sans-serif" fill="#dc2626" textAnchor="middle">MILITARES</text>
+          <path d="M 27 54 L 20 62 L 20 72" stroke="#475569" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          <path d="M 45 54 L 52 62 L 52 72" stroke="#475569" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          {/* Lado Direito: Contador numérico */}
+          <rect x="68" y="8" width="59" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1.5"/>
+          <text x="97" y="56" fontSize="40" fontWeight="900" fontFamily="'Impact', 'Arial Black', sans-serif" fill="#0f172a" textAnchor="middle">{count}</text>
+          <text x="97" y="73" fontSize="7.5" fontWeight="900" fontFamily="Arial, sans-serif" fill="#dc2626" textAnchor="middle" letterSpacing="0.3">BOMBEIROS</text>
+        </svg>
+      );
+
+    // 2. EFETIVO BRIGADISTAS FLORESTAIS
+    case 'efetivo_brigadista':
+      return (
+        <svg viewBox="0 0 135 90" width={width || 72} height={height || 48} className={className}>
+          <defs>
+            <filter id="br-shd" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="2" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.6"/>
+            </filter>
+          </defs>
+          <rect x="4" y="4" width="127" height="82" rx="10" fill="#ffffff" stroke="#fed7aa" strokeWidth="2.5" filter="url(#br-shd)"/>
+          {/* Lado Esquerdo: Brigadista com capacete amarelo florestal e bandana */}
+          <rect x="8" y="8" width="56" height="74" rx="8" fill="#ea580c" stroke="#c2410c" strokeWidth="1.5"/>
+          {/* Capacete Florestal Amarelo com Aba */}
+          <path d="M 16 40 Q 16 20 36 17 Q 56 20 56 40 L 59 44 L 13 44 Z" fill="#facc15" stroke="#ca8a04" strokeWidth="1.2"/>
+          {/* Óculos de Proteção Ampla Visão */}
+          <rect x="23" y="30" width="26" height="11" rx="3" fill="#1e293b" stroke="#0f172a" strokeWidth="1"/>
+          <rect x="25" y="32" width="22" height="7" rx="2" fill="#38bdf8"/>
+          {/* Bandana / Máscara Protetora Laranja e Abafador */}
+          <path d="M 22 45 L 36 62 L 50 45 Z" fill="#fb923c"/>
+          {/* Chamas no emblema */}
+          <path d="M 36 21 Q 40 27 36 30 Q 32 27 36 21 Z" fill="#ef4444"/>
+          {/* Lado Direito: Contador numérico */}
+          <rect x="68" y="8" width="59" height="74" rx="8" fill="#fff7ed" stroke="#fdba74" strokeWidth="1.5"/>
+          <text x="97" y="56" fontSize="40" fontWeight="900" fontFamily="'Impact', 'Arial Black', sans-serif" fill="#7c2d12" textAnchor="middle">{count}</text>
+          <text x="97" y="73" fontSize="7.5" fontWeight="900" fontFamily="Arial, sans-serif" fill="#ea580c" textAnchor="middle" letterSpacing="0.3">BRIGADISTAS</text>
+        </svg>
+      );
+
+    // 3. EFETIVO PREVFOGO / IBAMA
+    case 'efetivo_prevfogo':
+      return (
+        <svg viewBox="0 0 135 90" width={width || 72} height={height || 48} className={className}>
+          <defs>
+            <filter id="pf-shd" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="2" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.6"/>
+            </filter>
+          </defs>
+          <rect x="4" y="4" width="127" height="82" rx="10" fill="#ffffff" stroke="#bbf7d0" strokeWidth="2.5" filter="url(#pf-shd)"/>
+          {/* Lado Esquerdo: Emblema Oficial Prevfogo / IBAMA com Verde Floresta */}
+          <rect x="8" y="8" width="56" height="74" rx="8" fill="#15803d" stroke="#166534" strokeWidth="1.5"/>
+          {/* Capacete Verde Oliva / Aba Total Prevfogo */}
+          <path d="M 16 38 Q 16 18 36 16 Q 56 18 56 38 L 60 42 L 12 42 Z" fill="#14532d" stroke="#052e16" strokeWidth="1.2"/>
+          {/* Símbolo do Prevfogo: Sol e Árvore / Fogo */}
+          <circle cx="36" cy="54" r="14" fill="#facc15" stroke="#ca8a04" strokeWidth="1.2"/>
+          {/* Árvore / Folha verde */}
+          <path d="M 36 43 L 42 55 L 30 55 Z" fill="#15803d"/>
+          {/* Chama de Fogo */}
+          <path d="M 36 47 Q 40 52 36 57 Q 33 53 36 47 Z" fill="#dc2626"/>
+          <text x="36" y="74" fontSize="7" fontWeight="900" fontFamily="Arial, sans-serif" fill="#facc15" textAnchor="middle">IBAMA</text>
+          {/* Lado Direito: Contador numérico */}
+          <rect x="68" y="8" width="59" height="74" rx="8" fill="#f0fdf4" stroke="#86efac" strokeWidth="1.5"/>
+          <text x="97" y="56" fontSize="40" fontWeight="900" fontFamily="'Impact', 'Arial Black', sans-serif" fill="#14532d" textAnchor="middle">{count}</text>
+          <text x="97" y="73" fontSize="7.5" fontWeight="900" fontFamily="Arial, sans-serif" fill="#15803d" textAnchor="middle" letterSpacing="0.3">PREVFOGO</text>
         </svg>
       );
 

@@ -9,7 +9,8 @@ import {
   ChevronRight, 
   Flame, 
   HelpCircle,
-  MapPin
+  MapPin,
+  Leaf
 } from 'lucide-react';
 import { TACTICAL_TOKENS } from '../data/tacticalAssets';
 import { TokenSvg } from './TokenSvg';
@@ -21,7 +22,8 @@ export function TacticalSidebar({
   deployedMunis = [],
   onSelectMuni
 }) {
-  const [activeTab, setActiveTab] = useState('aeronaves');
+  const [activeTab, setActiveTab] = useState('efetivo'); // Abre direto em efetivo por padrão ou aeronaves
+  const [personnelCategory, setPersonnelCategory] = useState('efetivo_militar'); // 'efetivo_militar' | 'efetivo_brigadista' | 'efetivo_prevfogo'
   const [personnelCount, setPersonnelCount] = useState(10);
 
   const getFilteredTokens = () => {
@@ -32,13 +34,18 @@ export function TacticalSidebar({
         return TACTICAL_TOKENS.filter(t => t.category === 'viatura');
       case 'fluvial':
         return TACTICAL_TOKENS.filter(t => t.category === 'fluvial');
-      case 'efetivo':
-        return TACTICAL_TOKENS.filter(t => t.category === 'efetivo');
       case 'brasoes':
         return TACTICAL_TOKENS.filter(t => t.category === 'brasao');
       default:
-        return TACTICAL_TOKENS;
+        return [];
     }
+  };
+
+  const getPersonnelLabel = () => {
+    if (personnelCategory === 'efetivo_militar') return `${personnelCount} Bombeiros Militares`;
+    if (personnelCategory === 'efetivo_brigadista') return `${personnelCount} Brigadistas Florestais`;
+    if (personnelCategory === 'efetivo_prevfogo') return `${personnelCount} Prevfogo IBAMA`;
+    return `${personnelCount} Operacionais`;
   };
 
   return (
@@ -49,13 +56,21 @@ export function TacticalSidebar({
           <Shield size={16} color="#38bdf8" />
           Hangar & Prontidão
         </div>
-        <span className="drag-instruction" title="Você pode arrastar para o mapa ou clicar com um município selecionado">
+        <span className="drag-instruction" title="Arraste para qualquer município do mapa">
           Arraste p/ o mapa
         </span>
       </div>
 
       {/* Abas de Categorias */}
       <div className="sidebar-tabs">
+        <button 
+          className={`sidebar-tab-btn ${activeTab === 'efetivo' ? 'active' : ''}`}
+          onClick={() => setActiveTab('efetivo')}
+          title="Efetivo: Bombeiros Militares, Brigadistas e Prevfogo IBAMA"
+        >
+          <Users size={13} style={{ display: 'inline', marginRight: 4 }} />
+          Efetivo
+        </button>
         <button 
           className={`sidebar-tab-btn ${activeTab === 'aeronaves' ? 'active' : ''}`}
           onClick={() => setActiveTab('aeronaves')}
@@ -71,14 +86,6 @@ export function TacticalSidebar({
         >
           <Truck size={13} style={{ display: 'inline', marginRight: 4 }} />
           Viaturas
-        </button>
-        <button 
-          className={`sidebar-tab-btn ${activeTab === 'efetivo' ? 'active' : ''}`}
-          onClick={() => setActiveTab('efetivo')}
-          title="Efetivo de Militares"
-        >
-          <Users size={13} style={{ display: 'inline', marginRight: 4 }} />
-          Efetivo
         </button>
         <button 
           className={`sidebar-tab-btn ${activeTab === 'fluvial' ? 'active' : ''}`}
@@ -99,17 +106,73 @@ export function TacticalSidebar({
       </div>
 
       <div className="sidebar-content">
-        {/* Seção especial para Efetivo com seletor de número dinâmico */}
+        {/* =================================================================
+            SEÇÃO ESPECIAL DE EFETIVO: MILITARES, BRIGADISTAS E PREVFOGO IBAMA
+            ================================================================= */}
         {activeTab === 'efetivo' && (
           <div className="personnel-config-box">
             <span className="resource-section-title">
-              Contingente por Posição
-              <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{personnelCount} BM</span>
+              Tipo de Força / Contingente
             </span>
 
-            {/* Presets comuns vistos no quadro (4, 7, 9, 14...) */}
+            {/* Seletor entre Militares, Brigadistas e Prevfogo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {/* 1. Bombeiros Militares */}
+              <button
+                className={`btn-tactical ${personnelCategory === 'efetivo_militar' ? 'btn-primary' : ''}`}
+                style={{
+                  justifyContent: 'flex-start',
+                  padding: '7px 10px',
+                  border: personnelCategory === 'efetivo_militar' ? '1.5px solid #ef4444' : '1px solid #334155',
+                  background: personnelCategory === 'efetivo_militar' ? 'rgba(220, 38, 38, 0.25)' : '#0f172a'
+                }}
+                onClick={() => setPersonnelCategory('efetivo_militar')}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
+                <span style={{ fontWeight: 800 }}>Militares (CBMAM)</span>
+              </button>
+
+              {/* 2. Brigadistas Florestais */}
+              <button
+                className={`btn-tactical ${personnelCategory === 'efetivo_brigadista' ? 'btn-primary' : ''}`}
+                style={{
+                  justifyContent: 'flex-start',
+                  padding: '7px 10px',
+                  border: personnelCategory === 'efetivo_brigadista' ? '1.5px solid #f97316' : '1px solid #334155',
+                  background: personnelCategory === 'efetivo_brigadista' ? 'rgba(234, 88, 12, 0.25)' : '#0f172a',
+                  color: personnelCategory === 'efetivo_brigadista' ? '#fdba74' : 'inherit'
+                }}
+                onClick={() => setPersonnelCategory('efetivo_brigadista')}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316' }} />
+                <span style={{ fontWeight: 800 }}>Brigadistas Florestais</span>
+              </button>
+
+              {/* 3. Prevfogo IBAMA */}
+              <button
+                className={`btn-tactical ${personnelCategory === 'efetivo_prevfogo' ? 'btn-primary' : ''}`}
+                style={{
+                  justifyContent: 'flex-start',
+                  padding: '7px 10px',
+                  border: personnelCategory === 'efetivo_prevfogo' ? '1.5px solid #22c55e' : '1px solid #334155',
+                  background: personnelCategory === 'efetivo_prevfogo' ? 'rgba(21, 128, 61, 0.25)' : '#0f172a',
+                  color: personnelCategory === 'efetivo_prevfogo' ? '#86efac' : 'inherit'
+                }}
+                onClick={() => setPersonnelCategory('efetivo_prevfogo')}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ fontWeight: 800 }}>Prevfogo / IBAMA</span>
+              </button>
+            </div>
+
+            <span className="resource-section-title">
+              Quantidade de Operacionais
+              <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>{personnelCount} Op.</span>
+            </span>
+
+            {/* Presets comuns de tropa (4, 7, 9, 10, 14, 15, 20) */}
             <div className="preset-buttons-row">
-              {[4, 7, 9, 14, 20].map(val => (
+              {[4, 7, 9, 10, 14, 15, 20].map(val => (
                 <button
                   key={val}
                   className={`preset-btn ${personnelCount === val ? 'active' : ''}`}
@@ -122,7 +185,7 @@ export function TacticalSidebar({
 
             {/* Seletor numérico personalizado */}
             <div className="custom-number-input">
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>Personalizado:</span>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>Outro valor:</span>
               <input 
                 type="number" 
                 min="1" 
@@ -132,22 +195,39 @@ export function TacticalSidebar({
               />
             </div>
 
+            {/* Card para Arrastar para o Mapa */}
             <div 
               className="token-item-card"
               draggable="true"
-              onDragStart={(e) => onDragStartToken(e, { type: 'efetivo', count: personnelCount })}
-              style={{ marginTop: 8 }}
+              onDragStart={(e) => onDragStartToken(e, { 
+                type: personnelCategory, 
+                count: personnelCount, 
+                label: getPersonnelLabel() 
+              })}
+              onClick={() => {
+                if (selectedMuni) {
+                  onAddTokenToMuni(selectedMuni, { 
+                    type: personnelCategory, 
+                    count: personnelCount, 
+                    label: getPersonnelLabel() 
+                  });
+                }
+              }}
+              style={{ marginTop: 6 }}
+              title={selectedMuni ? `Clique para alocar em ${selectedMuni.name} ou arraste para qualquer ponto do mapa` : 'Arraste para o município desejado no mapa'}
             >
               <div className="token-preview">
-                <TokenSvg type="efetivo" count={personnelCount} width={75} height={52} />
+                <TokenSvg type={personnelCategory} count={personnelCount} width={76} height={50} />
               </div>
-              <div className="token-title">Guarnição de {personnelCount} Bombeiros</div>
-              <div className="token-desc">Arraste para alocar no município</div>
+              <div className="token-title">{getPersonnelLabel()}</div>
+              <div className="token-desc">Arraste para o mapa ou clique</div>
             </div>
           </div>
         )}
 
-        {/* Lista de Tokens Draggables da Categoria Ativa */}
+        {/* =================================================================
+            OUTRAS CATEGORIAS (AERONAVES, VIATURAS, FLUVIAL, BRASÕES)
+            ================================================================= */}
         {activeTab !== 'efetivo' && (
           <div className="resource-section">
             <div className="resource-section-title">
@@ -164,7 +244,7 @@ export function TacticalSidebar({
                   onDragStart={(e) => onDragStartToken(e, { type: item.type, label: item.label })}
                   onClick={() => {
                     if (selectedMuni) {
-                      onAddTokenToMuni(selectedMuni, item.type);
+                      onAddTokenToMuni(selectedMuni, item);
                     }
                   }}
                   title={selectedMuni ? `Clique para adicionar a ${selectedMuni.name} ou arraste para o mapa` : 'Arraste para qualquer município do mapa'}
@@ -194,7 +274,7 @@ export function TacticalSidebar({
               Município Ativo: {selectedMuni.name}
             </div>
             <div style={{ color: '#cbd5e1', fontSize: 10, marginTop: 2 }}>
-              Qualquer recurso arrastado ou adicionado será vinculado a este município.
+              Qualquer recurso arrastado ou clicado será vinculado a este município.
             </div>
           </div>
         )}

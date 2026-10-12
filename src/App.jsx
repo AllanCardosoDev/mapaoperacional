@@ -8,9 +8,9 @@ import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
 
-const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v1';
-const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v1';
-const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v1';
+const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v2';
+const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v2';
+const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v2';
 
 export default function App() {
   // Estado dos recursos posicionados no mapa
@@ -110,9 +110,11 @@ export default function App() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [tokens]);
 
-  // Estatísticas e KPIs em tempo real
+  // Estatísticas e KPIs em tempo real por categoria (Militares, Brigadistas, Prevfogo)
   const stats = useMemo(() => {
-    let efetivo = 0;
+    let militares = 0;
+    let brigadistas = 0;
+    let prevfogo = 0;
     let asaFixa = 0;
     let rotativa = 0;
     let viaturas = 0;
@@ -123,9 +125,17 @@ export default function App() {
       const muniObj = AMAZONAS_DATA.municipalities.find(m => m.name === t.muni);
       const isArco = muniObj?.in_arco_fogo;
 
-      if (t.type === 'efetivo') {
+      if (t.type === 'efetivo_militar' || t.type === 'efetivo') {
         const c = t.count || 10;
-        efetivo += c;
+        militares += c;
+        if (isArco) arcoFogo += c;
+      } else if (t.type === 'efetivo_brigadista') {
+        const c = t.count || 10;
+        brigadistas += c;
+        if (isArco) arcoFogo += c;
+      } else if (t.type === 'efetivo_prevfogo') {
+        const c = t.count || 10;
+        prevfogo += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'air_tractor' || t.type === 'kc390') {
         asaFixa += 1;
@@ -142,7 +152,17 @@ export default function App() {
       }
     });
 
-    return { efetivo, asaFixa, rotativa, viaturas, fluvial, arcoFogo };
+    return { 
+      militares, 
+      brigadistas, 
+      prevfogo, 
+      totalEfetivo: militares + brigadistas + prevfogo,
+      asaFixa, 
+      rotativa, 
+      viaturas, 
+      fluvial, 
+      arcoFogo 
+    };
   }, [tokens]);
 
   // Início do Drag a partir da Barra Lateral
@@ -192,7 +212,6 @@ export default function App() {
 
   // Adicionar Token via Drawer do Município
   const handleAddTokenToMuni = (muni, tokenInfo) => {
-    // Espalha um pouco para não cair exatamente sobre o outro se houver vários
     const countInMuni = tokens.filter(t => t.muni === muni.name).length;
     const offsetX = (countInMuni % 4) * 35 - 35;
     const offsetY = Math.floor(countInMuni / 4) * 35;
@@ -221,7 +240,7 @@ export default function App() {
 
   // Ação: Carregar Cenário Real (Foto)
   const handleLoadRealScenario = () => {
-    if (window.confirm('Deseja carregar a disposição oficial idêntica ao quadro físico das fotos?')) {
+    if (window.confirm('Deseja carregar a disposição oficial com Militares, Brigadistas e Prevfogo?')) {
       setTokens(INITIAL_REAL_SCENARIO);
     }
   };
@@ -292,7 +311,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Cabeçalho Oficial com KPIs e Ferramentas */}
+      {/* Cabeçalho Oficial com KPIs de Militares, Brigadistas e Prevfogo */}
       <Header 
         stats={stats}
         onLoadRealScenario={handleLoadRealScenario}
@@ -305,7 +324,7 @@ export default function App() {
 
       {/* Espaço de Trabalho Tático */}
       <div className="app-workspace">
-        {/* Barra Lateral: Hangar de Recursos */}
+        {/* Barra Lateral: Hangar e Seletor de Efetivo */}
         <TacticalSidebar 
           onDragStartToken={handleDragStartToken}
           selectedMuni={selectedMuni}

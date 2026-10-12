@@ -11,24 +11,28 @@ export function TokenEditModal({
 }) {
   if (!token) return null;
 
+  const isPersonnel = token.type.startsWith('efetivo');
+
   const [label, setLabel] = useState(token.label || '');
   const [count, setCount] = useState(token.count || 10);
+  const [type, setType] = useState(token.type);
 
   const handleSave = () => {
     onSave({
       ...token,
+      type,
       label,
-      count: token.type === 'efetivo' ? count : undefined
+      count: isPersonnel ? count : undefined
     });
     onClose();
   };
 
   return (
     <div className="tactical-modal-overlay open" onClick={onClose}>
-      <div className="tactical-modal-box" onClick={(e) => e.stopPropagation()} style={{ width: 380 }}>
+      <div className="tactical-modal-box" onClick={(e) => e.stopPropagation()} style={{ width: 400 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TokenSvg type={token.type} count={count} width={34} height={24} />
+            <TokenSvg type={type} count={count} width={36} height={26} />
             <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>
               Gerenciar Recurso
             </h3>
@@ -39,6 +43,40 @@ export function TokenEditModal({
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {isPersonnel && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                Corporação / Categoria do Efetivo
+              </label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  className={`status-opt-btn ${type === 'efetivo_militar' || type === 'efetivo' ? 'active opt-red' : ''}`}
+                  style={{ flex: 1, fontSize: 10, padding: 6 }}
+                  onClick={() => setType('efetivo_militar')}
+                >
+                  Militares CBM
+                </button>
+                <button
+                  type="button"
+                  className={`status-opt-btn ${type === 'efetivo_brigadista' ? 'active opt-orange' : ''}`}
+                  style={{ flex: 1, fontSize: 10, padding: 6 }}
+                  onClick={() => setType('efetivo_brigadista')}
+                >
+                  Brigadistas
+                </button>
+                <button
+                  type="button"
+                  className={`status-opt-btn ${type === 'efetivo_prevfogo' ? 'active opt-green' : ''}`}
+                  style={{ flex: 1, fontSize: 10, padding: 6 }}
+                  onClick={() => setType('efetivo_prevfogo')}
+                >
+                  Prevfogo IBAMA
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
               Identificador / Prefixo Tático
@@ -47,7 +85,7 @@ export function TokenEditModal({
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Ex: AT-01, Harpia 02, ABT-10..."
+              placeholder="Ex: AT-01, Harpia 02, ABT-10, 10 Militares..."
               style={{
                 width: '100%',
                 background: '#0f172a',
@@ -60,10 +98,10 @@ export function TokenEditModal({
             />
           </div>
 
-          {token.type === 'efetivo' && (
+          {isPersonnel && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-                Quantidade de Militares
+                Quantidade de Militares / Operacionais
               </label>
               <input 
                 type="number"

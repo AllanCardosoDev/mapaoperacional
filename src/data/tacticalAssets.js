@@ -1,5 +1,6 @@
 // Definições de Ativos Táticos, SVGs e Cenário Base Oficial CBMAM
 export const TACTICAL_TOKENS = [
+  // --- AERONAVES ---
   {
     id: 'air_tractor',
     name: 'Air Tractor (AT-802F)',
@@ -33,6 +34,8 @@ export const TACTICAL_TOKENS = [
     desc: 'Cargueiro militar pesado FAB/CBM',
     color: '#64748b'
   },
+
+  // --- VIATURAS TERRESTRES ---
   {
     id: 'vtr_abt',
     name: 'Viatura ABT',
@@ -66,6 +69,8 @@ export const TACTICAL_TOKENS = [
     desc: 'Atendimento pré-hospitalar',
     color: '#0284c7'
   },
+
+  // --- FLUVIAL ---
   {
     id: 'embarcacao',
     name: 'Lancha Rápida Fluvial',
@@ -77,18 +82,49 @@ export const TACTICAL_TOKENS = [
     desc: 'Patrulha e socorro nos rios',
     color: '#0369a1'
   },
+
+  // --- EFETIVO / CONTINGENTE ---
   {
-    id: 'efetivo',
-    name: 'Efetivo de Bombeiros',
+    id: 'efetivo_militar',
+    name: 'Bombeiros Militares (CBMAM)',
     category: 'efetivo',
-    type: 'efetivo',
-    label: 'Efetivo Militar',
-    width: 68,
+    type: 'efetivo_militar',
+    subType: 'militar',
+    label: 'Militares CBMAM',
+    width: 72,
     height: 48,
     count: 10,
-    desc: 'Guarnição militar com SCBA',
+    desc: 'Guarnição militar com SCBA e EPI',
     color: '#dc2626'
   },
+  {
+    id: 'efetivo_brigadista',
+    name: 'Brigadistas Florestais',
+    category: 'efetivo',
+    type: 'efetivo_brigadista',
+    subType: 'brigadista',
+    label: 'Brigadistas',
+    width: 72,
+    height: 48,
+    count: 10,
+    desc: 'Brigada de combate a incêndio florestal',
+    color: '#ea580c'
+  },
+  {
+    id: 'efetivo_prevfogo',
+    name: 'Prevfogo / IBAMA',
+    category: 'efetivo',
+    type: 'efetivo_prevfogo',
+    subType: 'prevfogo',
+    label: 'Prevfogo IBAMA',
+    width: 72,
+    height: 48,
+    count: 10,
+    desc: 'Brigada Federal Prevfogo IBAMA',
+    color: '#15803d'
+  },
+
+  // --- BRASÕES ---
   {
     id: 'brasao_cbi',
     name: 'Brasão CBI CBMAM',
@@ -113,7 +149,7 @@ export const TACTICAL_TOKENS = [
   }
 ];
 
-// Cenário inicial idêntico ao quadro físico operacional da foto do CBMAM
+// Cenário inicial idêntico ao quadro físico operacional da foto do CBMAM com suporte aos novos efetivos
 export const INITIAL_REAL_SCENARIO = [
   // --- MANAUS ---
   { id: 'tk-1', type: 'air_tractor', muni: 'Manaus', x: 1610, y: 560, label: 'AT-01' },
@@ -126,17 +162,17 @@ export const INITIAL_REAL_SCENARIO = [
 
   // --- PRESIDENTE FIGUEIREDO ---
   { id: 'tk-8', type: 'brasao_cibm', muni: 'Presidente Figueiredo', x: 1650, y: 390, label: 'Pelotão P. Fig' },
-  { id: 'tk-9', type: 'efetivo', count: 9, muni: 'Presidente Figueiredo', x: 1630, y: 440, label: '9 Militares' },
+  { id: 'tk-9', type: 'efetivo_militar', count: 9, muni: 'Presidente Figueiredo', x: 1630, y: 440, label: '9 Bombeiros' },
   { id: 'tk-10', type: 'air_tractor', muni: 'Presidente Figueiredo', x: 1625, y: 495, label: 'AT-05' },
 
   // --- ITACOATIARA ---
-  { id: 'tk-11', type: 'efetivo', count: 14, muni: 'Itacoatiara', x: 1780, y: 615, label: '14 Militares' },
+  { id: 'tk-11', type: 'efetivo_militar', count: 14, muni: 'Itacoatiara', x: 1780, y: 615, label: '14 Bombeiros' },
   { id: 'tk-12', type: 'air_tractor', muni: 'Itacoatiara', x: 1780, y: 670, label: 'AT-06' },
   { id: 'tk-13', type: 'brasao_cbi', muni: 'Itacoatiara', x: 1720, y: 630, label: 'Base Leste' },
 
   // --- PARINTINS / NHAMUNDÁ ---
-  { id: 'tk-14', type: 'efetivo', count: 7, muni: 'Nhamundá', x: 1960, y: 520, label: '7 Militares' },
-  { id: 'tk-15', type: 'efetivo', count: 4, muni: 'Parintins', x: 1960, y: 575, label: '4 Militares' },
+  { id: 'tk-14', type: 'efetivo_militar', count: 7, muni: 'Nhamundá', x: 1960, y: 520, label: '7 Bombeiros' },
+  { id: 'tk-15', type: 'efetivo_militar', count: 4, muni: 'Parintins', x: 1960, y: 575, label: '4 Bombeiros' },
   { id: 'tk-16', type: 'kc390', muni: 'Parintins', x: 1980, y: 630, label: 'KC-390' },
   { id: 'tk-17', type: 'brasao_cibm', muni: 'Parintins', x: 1910, y: 550, label: '3ª CIBM' },
 
@@ -151,11 +187,14 @@ export const INITIAL_REAL_SCENARIO = [
   // --- HUMAITÁ (ARCO DO FOGO) ---
   { id: 'tk-22', type: 'brasao_cibm', muni: 'Humaitá', x: 1390, y: 1060, label: 'Base Sul' },
   { id: 'tk-23', type: 'vtr_florestal', muni: 'Humaitá', x: 1390, y: 1110, label: 'VF-01' },
-  { id: 'tk-24', type: 'efetivo', count: 12, muni: 'Humaitá', x: 1320, y: 1080, label: '12 Militares' },
+  { id: 'tk-24', type: 'efetivo_militar', count: 12, muni: 'Humaitá', x: 1320, y: 1080, label: '12 Bombeiros' },
+  { id: 'tk-25', type: 'efetivo_prevfogo', count: 15, muni: 'Humaitá', x: 1450, y: 1080, label: '15 Prevfogo' },
 
   // --- LÁBREA (ARCO DO FOGO) ---
-  { id: 'tk-25', type: 'vtr_abt', muni: 'Lábrea', x: 960, y: 1140, label: 'ABT-08' },
+  { id: 'tk-26', type: 'vtr_abt', muni: 'Lábrea', x: 960, y: 1140, label: 'ABT-08' },
+  { id: 'tk-27', type: 'efetivo_brigadista', count: 8, muni: 'Lábrea', x: 960, y: 1090, label: '8 Brigadistas' },
 
   // --- BOCA DO ACRE (ARCO DO FOGO) ---
-  { id: 'tk-26', type: 'vtr_florestal', muni: 'Boca do Acre', x: 745, y: 1190, label: 'VF-02' }
+  { id: 'tk-28', type: 'vtr_florestal', muni: 'Boca do Acre', x: 745, y: 1190, label: 'VF-02' },
+  { id: 'tk-29', type: 'efetivo_prevfogo', count: 10, muni: 'Boca do Acre', x: 800, y: 1190, label: '10 Prevfogo' }
 ];

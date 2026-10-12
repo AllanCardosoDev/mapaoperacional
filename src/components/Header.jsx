@@ -12,7 +12,8 @@ import {
   Trash2, 
   Maximize, 
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Leaf
 } from 'lucide-react';
 
 export function Header({
@@ -63,40 +64,52 @@ export function Header({
         </div>
       </div>
 
-      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) */}
+      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) com Militares, Brigadistas e Prevfogo */}
       <div className="header-stats">
-        <div className="kpi-chip" title="Efetivo total mobilizado no estado">
-          <Users size={15} color="#38bdf8" />
-          <span className="kpi-label">Efetivo:</span>
-          <span className="kpi-value">{stats.efetivo}</span>
+        <div className="kpi-chip highlight-red" title="Efetivo de Bombeiros Militares CBMAM">
+          <Users size={14} color="#ef4444" />
+          <span className="kpi-label">Militares:</span>
+          <span className="kpi-value">{stats.militares}</span>
+        </div>
+
+        <div className="kpi-chip highlight-amber" title="Brigadistas Florestais Municipais e Voluntários">
+          <Users size={14} color="#f97316" />
+          <span className="kpi-label">Brigadistas:</span>
+          <span className="kpi-value">{stats.brigadistas}</span>
+        </div>
+
+        <div className="kpi-chip" style={{ borderColor: 'rgba(34, 197, 94, 0.5)', background: 'rgba(34, 197, 94, 0.12)' }} title="Brigadas Federais Prevfogo / IBAMA">
+          <Leaf size={14} color="#22c55e" />
+          <span className="kpi-label" style={{ color: '#86efac' }}>Prevfogo:</span>
+          <span className="kpi-value" style={{ color: '#86efac' }}>{stats.prevfogo}</span>
         </div>
 
         <div className="kpi-chip" title="Aeronaves de Asa Fixa (Air Tractor + KC-390)">
-          <Plane size={15} color="#facc15" />
+          <Plane size={14} color="#facc15" />
           <span className="kpi-label">Asa Fixa:</span>
           <span className="kpi-value">{stats.asaFixa}</span>
         </div>
 
         <div className="kpi-chip" title="Helicópteros de Resgate e Combate (Harpia)">
-          <Shield size={15} color="#a3e635" />
+          <Shield size={14} color="#a3e635" />
           <span className="kpi-label">Rotativa:</span>
           <span className="kpi-value">{stats.rotativa}</span>
         </div>
 
         <div className="kpi-chip" title="Viaturas Terrestres Operacionais (ABT + 4x4 + UR)">
-          <Truck size={15} color="#f87171" />
+          <Truck size={14} color="#f87171" />
           <span className="kpi-label">Viaturas:</span>
           <span className="kpi-value">{stats.viaturas}</span>
         </div>
 
         <div className="kpi-chip" title="Embarcações Rápidas Fluviais">
-          <Anchor size={15} color="#38bdf8" />
+          <Anchor size={14} color="#38bdf8" />
           <span className="kpi-label">Fluvial:</span>
           <span className="kpi-value">{stats.fluvial}</span>
         </div>
 
-        <div className="kpi-chip highlight-amber" title="Força-tarefa mobilizada na região do Arco do Fogo">
-          <Flame size={15} color="#ea580c" />
+        <div className="kpi-chip highlight-amber" title="Força-tarefa total mobilizada na região do Arco do Fogo">
+          <Flame size={14} color="#ea580c" />
           <span className="kpi-label">Arco Fogo:</span>
           <span className="kpi-value">{stats.arcoFogo}</span>
         </div>
