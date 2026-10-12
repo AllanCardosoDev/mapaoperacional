@@ -61,6 +61,9 @@ export default function App() {
   const [showArcoDoFogo, setShowArcoDoFogo] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
 
+  // NOVO: Controle de visibilidade de todos os ícones no mapa
+  const [showAllTokens, setShowAllTokens] = useState(true);
+
   // Persistência automática no localStorage
   useEffect(() => {
     try {
@@ -314,6 +317,8 @@ export default function App() {
       {/* Cabeçalho Oficial com KPIs de Militares, Brigadistas e Prevfogo */}
       <Header 
         stats={stats}
+        showAllTokens={showAllTokens}
+        onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
         onLoadRealScenario={handleLoadRealScenario}
         onExportImage={handleExportImage}
         onSaveMission={handleSaveMission}
@@ -333,7 +338,7 @@ export default function App() {
           onSelectMuni={setSelectedMuniName}
         />
 
-        {/* Mapa Operacional Central */}
+        {/* Mapa Operacional Central com controle de visibilidade */}
         <OperationalMap 
           placedTokens={tokens}
           selectedMuniName={selectedMuniName}
@@ -346,9 +351,11 @@ export default function App() {
           setShowArcoDoFogo={setShowArcoDoFogo}
           showLabels={showLabels}
           setShowLabels={setShowLabels}
+          showAllTokens={showAllTokens}
+          setShowAllTokens={setShowAllTokens}
         />
 
-        {/* Gaveta Lateral de Detalhes do Município Selecionado */}
+        {/* Gaveta Lateral com todas as informações detalhadas ao clicar no município */}
         {selectedMuni && (
           <MunicipalityDrawer 
             muni={selectedMuni}

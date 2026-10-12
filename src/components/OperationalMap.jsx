@@ -1,14 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   ZoomIn, 
   ZoomOut, 
   Maximize2, 
   Flame, 
   Tag, 
-  Grid, 
   Search, 
   X,
-  Compass
+  Eye,
+  EyeOff,
+  Layers,
+  MapPin,
+  Users,
+  Truck,
+  Plane
 } from 'lucide-react';
 import { AMAZONAS_DATA } from '../data/amazonasData';
 import { TokenSvg } from './TokenSvg';
@@ -24,7 +29,9 @@ export function OperationalMap({
   showArcoDoFogo = true,
   setShowArcoDoFogo,
   showLabels = true,
-  setShowLabels
+  setShowLabels,
+  showAllTokens = true,
+  setShowAllTokens
 }) {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -48,8 +55,55 @@ export function OperationalMap({
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
-  // Tooltip
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: null });
+  // Mapa de recursos agrupados por município
+  const muniResourcesSummary = useMemo(() => {
+    const map = new Map();
+    placedTokens.forEach(tk => {
+      const mName = tk.muni;
+      if (!mName) return;
+      if (!map.has(mName)) {
+        map.set(mName, {
+          muni: mName,
+          totalItems: 0,
+          militares: 0,
+          brigadistas: 0,
+          prevfogo: 0,
+          aeronaves: 0,
+          viaturas: 0,
+          fluvial: 0,
+          tokens: []
+        });
+      }
+      const entry = map.get(mName);
+      entry.totalItems += 1;
+      entry.tokens.push(tk);
+
+      if (tk.type === 'efetivo_militar' || tk.type === 'efetivo') {
+        entry.militares += (tk.count || 10);
+      } else if (tk.type === 'efetivo_brigadista') {
+        entry.brigadistas += (tk.count || 10);
+      } else if (tk.type === 'efetivo_prevfogo') {
+        entry.prevfogo += (tk.count || 10);
+      } else if (tk.type === 'air_tractor' || tk.type === 'kc390' || tk.type === 'helicoptero') {
+        entry.aeronaves += 1;
+      } else if (tk.type.startsWith('vtr_')) {
+        entry.viaturas += 1;
+      } else if (tk.type === 'embarcacao') {
+        entry.fluvial += 1;
+      }
+    });
+    return map;
+  }, [placedTokens]);
+
+  // Tokens visíveis (todos ou apenas os do município selecionado quando oculto)
+  const visibleTokens = useMemo(() => {
+    if (showAllTokens) {
+      return placedTokens;
+    }
+    // Quando oculto: mostra os tokens apenas do município atualmente selecionado (foco)
+    if (!selectedMuniName) return [];
+    return placedTokens.filter(t => t.muni === selectedMuniName);
+  }, [placedTokens, showAllTokens, selectedMuniName]);
 
   // Filtragem de busca
   useEffect(() => {
@@ -97,7 +151,6 @@ export function OperationalMap({
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
     const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.4), 3.5);
 
-    // Ajusta o pan para dar zoom em direção ao cursor do mouse
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -126,7 +179,6 @@ export function OperationalMap({
       });
     }
 
-    // Se estiver reposicionando um token colocado
     if (draggingPlacedTokenId && svgRef.current) {
       const CTM = svgRef.current.getScreenCTM();
       if (CTM) {
@@ -164,7 +216,6 @@ export function OperationalMap({
 
     try {
       const tokenData = JSON.parse(tokenDataStr);
-      // Converter coordenadas da tela para coordenadas do SVG
       const CTM = svgRef.current.getScreenCTM();
       let dropX = muni.cx;
       let dropY = muni.cy;
@@ -262,7 +313,17 @@ export function OperationalMap({
           </button>
         </div>
 
+        {/* CONTROLE DE EXIBIÇÃO / OCULTAÇÃO DE ÍCONES */}
         <div className="control-pill-group">
+          <button 
+            className={`ctrl-btn ${!showAllTokens ? 'active' : ''}`}
+            onClick={() => setShowAllTokens(!showAllTokens)}
+            title={showAllTokens ? "Ocultar todos os ícones (Modo Limpo / Ver detalhes ao clicar)" : "Exibir todos os ícones no mapa"}
+            style={{ color: !showAllTokens ? '#38bdf8' : 'currentColor' }}
+          >
+            {showAllTokens ? <Eye size={18} /> : <EyeOff size={18} color="#38bdf8" />}
+          </button>
+
           <button 
             className={`ctrl-btn ${showArcoDoFogo ? 'active' : ''}`}
             onClick={() => setShowArcoDoFogo(!showArcoDoFogo)}
@@ -280,6 +341,38 @@ export function OperationalMap({
           </button>
         </div>
       </div>
+
+      {/* Notificação / Banner quando os ícones estão ocultos */}
+      {!showAllTokens && (
+        <div style={{
+          position: 'absolute',
+          top: 64,
+          left: 14,
+          zIndex: 40,
+          background: 'rgba(15, 23, 42, 0.9)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid #0284c7',
+          borderRadius: 6,
+          padding: '6px 12px',
+          fontSize: 11,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
+        }}>
+          <EyeOff size={14} color="#38bdf8" />
+          <span style={{ color: '#f8fafc', fontWeight: 600 }}>
+            Modo Ícones Ocultos ativo: Clique em qualquer município para ver suas viaturas e efetivo.
+          </span>
+          <button 
+            className="btn-tactical btn-accent"
+            style={{ padding: '2px 8px', fontSize: 10 }}
+            onClick={() => setShowAllTokens(true)}
+          >
+            Exibir Todos
+          </button>
+        </div>
+      )}
 
       {/* Legenda Tática Inferior */}
       <div className="map-bottom-legend">
@@ -302,7 +395,7 @@ export function OperationalMap({
         {showArcoDoFogo && (
           <div className="legend-item" style={{ color: '#ea580c', fontWeight: 'bold' }}>
             <Flame size={14} />
-            <span>Operação Arco do Fogo Ativa</span>
+            <span>Operação Arco do Fogo</span>
           </div>
         )}
       </div>
@@ -318,7 +411,6 @@ export function OperationalMap({
         }}
       >
         <defs>
-          {/* Filtros de Sombra e Brilho Tático */}
           <filter id="muni-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#38bdf8" floodOpacity="0.7"/>
           </filter>
@@ -329,7 +421,6 @@ export function OperationalMap({
             <stop offset="100%" stopColor="#dc2626"/>
           </linearGradient>
 
-          {/* Seta do Arco do Fogo */}
           <marker id="fire-arrowhead" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto">
             <polygon points="0 0, 12 6, 0 12, 4 6" fill="#ea580c"/>
           </marker>
@@ -339,7 +430,6 @@ export function OperationalMap({
             EFEITO 3D ISOMÉTRICO INFERIOR (BORDA DE RELEVO DA PLACA FÍSICA)
             ------------------------------------------------------------------ */}
         <g id="isometric-relief-block" opacity="0.85">
-          {/* Bloco 3D que dá profundidade e volume ao sul do estado */}
           <path 
             d="M 680 1250 L 760 1290 L 1000 1260 L 1400 1180 L 1750 1220 L 1950 1080 L 1950 1140 L 1750 1280 L 1400 1240 L 1000 1320 L 760 1350 L 680 1310 Z"
             fill="#090e17" 
@@ -355,6 +445,8 @@ export function OperationalMap({
           {AMAZONAS_DATA.municipalities.map(muni => {
             const isSelected = selectedMuniName === muni.name;
             const isDragOver = dragOverMuniName === muni.name;
+            const summary = muniResourcesSummary.get(muni.name);
+            const hasResources = summary && summary.totalItems > 0;
 
             return (
               <path
@@ -371,12 +463,70 @@ export function OperationalMap({
                 onDrop={(e) => handleDrop(e, muni)}
                 onMouseEnter={() => setHoveredMuni(muni)}
                 onMouseLeave={() => setHoveredMuni(null)}
+                style={{
+                  stroke: isSelected ? '#ef4444' : (hasResources && !showAllTokens ? '#0284c7' : '#1e293b'),
+                  strokeWidth: isSelected ? '3.5px' : (hasResources && !showAllTokens ? '2px' : '1.2px')
+                }}
               >
-                <title>{`${muni.name} - ${muni.region_info?.macro}`}</title>
+                <title>{`${muni.name} - ${muni.region_info?.macro} ${hasResources ? `(${summary.totalItems} recursos alocados)` : ''}`}</title>
               </path>
             );
           })}
         </g>
+
+        {/* ------------------------------------------------------------------
+            INDICADORES E CHIPS TÁTICOS (QUANDO OS ÍCONES GLOBAIS ESTÃO OCULTOS)
+            ------------------------------------------------------------------ */}
+        {!showAllTokens && (
+          <g id="muni-resource-indicators">
+            {AMAZONAS_DATA.municipalities.map(muni => {
+              const summary = muniResourcesSummary.get(muni.name);
+              if (!summary || summary.totalItems === 0) return null;
+              const isSelected = selectedMuniName === muni.name;
+
+              // Calcula o total de efetivo combinado
+              const totalOp = summary.militares + summary.brigadistas + summary.prevfogo;
+
+              return (
+                <g 
+                  key={`ind-${muni.id}`}
+                  transform={`translate(${muni.cx}, ${muni.cy - 12})`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectMuni(muni.name);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Badge circular ou retangular brilhante */}
+                  <rect
+                    x="-32"
+                    y="-14"
+                    width="64"
+                    height="28"
+                    rx="6"
+                    fill={isSelected ? '#ef4444' : '#0f172a'}
+                    stroke={isSelected ? '#ffffff' : '#38bdf8'}
+                    strokeWidth="1.8"
+                    filter="drop-shadow(0 2px 5px rgba(0,0,0,0.8))"
+                  />
+                  <text
+                    x="0"
+                    y="3"
+                    fontSize="11"
+                    fontWeight="900"
+                    fontFamily="Arial, sans-serif"
+                    fill="#ffffff"
+                    textAnchor="middle"
+                  >
+                    {totalOp > 0 ? `${totalOp} Op.` : `${summary.totalItems} Rec.`}
+                  </text>
+                  {/* Ponto indicador de alerta */}
+                  <circle cx="26" cy="-10" r="4.5" fill="#facc15" stroke="#0f172a" strokeWidth="1.5" />
+                </g>
+              );
+            })}
+          </g>
+        )}
 
         {/* ------------------------------------------------------------------
             LINHAS INDICADORAS E CALLOUTS (ÁREA METROPOLITANA / DENSA)
@@ -387,7 +537,6 @@ export function OperationalMap({
               .filter(m => m.has_callout)
               .map(m => (
                 <g key={`callout-${m.id}`} onClick={() => onSelectMuni(m.name)}>
-                  {/* Linha indicadora amarela */}
                   <line 
                     x1={m.cx} 
                     y1={m.cy} 
@@ -395,9 +544,7 @@ export function OperationalMap({
                     y2={m.callout_y} 
                     className="callout-line"
                   />
-                  {/* Ponto de fixação no município */}
                   <circle cx={m.cx} cy={m.cy} r={3.5} className="callout-dot" />
-                  {/* Rótulo do município com traço externo para legibilidade máxima */}
                   <text 
                     x={m.callout_x + 6} 
                     y={m.callout_y + 4} 
@@ -431,11 +578,10 @@ export function OperationalMap({
         )}
 
         {/* ------------------------------------------------------------------
-            CAMADA TÁTICA: ARCO DO FOGO (SETA CURVA GLOWING OFICIAL)
+            CAMADA TÁTICA: ARCO DO FOGO
             ------------------------------------------------------------------ */}
         {showArcoDoFogo && (
           <g id="arco-do-fogo-layer" className="arco-fogo-group">
-            {/* Seta curva de grande porte atravessando Boca do Acre, Lábrea, Humaitá e Apuí */}
             <path
               d="M 680 1260 Q 980 1200 1390 1090 Q 1580 1090 1820 1140"
               className="arco-arrow-body"
@@ -445,8 +591,6 @@ export function OperationalMap({
               d="M 680 1260 Q 980 1200 1390 1090 Q 1580 1090 1820 1140"
               className="arco-arrow-core"
             />
-
-            {/* Texto em relevo estilizado exatamente como nas fotos */}
             <g transform="translate(1330, 1180) rotate(-7)">
               <text className="arco-text-label">
                 ARCO DO FOGO
@@ -456,10 +600,10 @@ export function OperationalMap({
         )}
 
         {/* ------------------------------------------------------------------
-            RECURSOS E TOKENS TÁTICOS ALOCADOS (AVIÕES, HELIS, EFETIVO, BRASÕES)
+            RECURSOS E TOKENS TÁTICOS (VISÍVEIS CONFORME MODO ATIVO)
             ------------------------------------------------------------------ */}
         <g id="tokens-layer">
-          {placedTokens.map(token => (
+          {visibleTokens.map(token => (
             <g
               key={token.id}
               className="placed-token-group"

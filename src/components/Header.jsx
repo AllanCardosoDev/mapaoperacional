@@ -13,11 +13,15 @@ import {
   Maximize, 
   RotateCcw,
   Sparkles,
-  Leaf
+  Leaf,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export function Header({
   stats,
+  showAllTokens,
+  onToggleShowAllTokens,
   onLoadRealScenario,
   onExportImage,
   onSaveMission,
@@ -117,13 +121,32 @@ export function Header({
 
       {/* Lado Direito: Ações de Comando e Gestão */}
       <div className="header-actions">
+        {/* BOTÃO PARA OCULTAR OU EXIBIR TODOS OS ÍCONES */}
+        <button
+          className={`btn-tactical ${!showAllTokens ? 'btn-primary' : ''}`}
+          onClick={onToggleShowAllTokens}
+          title={showAllTokens ? "Ocultar todos os ícones do mapa (Clique no município para ver viaturas e efetivo)" : "Exibir todos os ícones espalhados no mapa"}
+        >
+          {showAllTokens ? (
+            <>
+              <EyeOff size={14} />
+              Ocultar Ícones
+            </>
+          ) : (
+            <>
+              <Eye size={14} />
+              Exibir Ícones
+            </>
+          )}
+        </button>
+
         <button 
-          className="btn-tactical btn-primary"
+          className="btn-tactical"
           onClick={onLoadRealScenario}
           title="Carregar exatamente o cenário das fotos do quadro operacional"
         >
-          <Sparkles size={14} />
-          Cenário Real (Foto)
+          <Sparkles size={14} color="#facc15" />
+          Cenário Real
         </button>
 
         <button 
