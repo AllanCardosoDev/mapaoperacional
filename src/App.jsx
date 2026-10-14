@@ -77,6 +77,9 @@ export default function App() {
   // Controle de expansão/recolhimento da barra lateral para ver o mapa na totalidade
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Controle de expansão/subida da barra superior para ver o mapa na totalidade
+  const [isHeaderOpen, setIsHeaderOpen] = useState(true);
+
   // Modais de Efetivo e Aeronaves
   const [showRelatorioModal, setShowRelatorioModal] = useState(false);
   const [showEfetivoModal, setShowEfetivoModal] = useState(false);
@@ -377,6 +380,8 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenEfetivo={() => setShowEfetivoModal(true)}
         onOpenAeronaves={() => setShowAeronavesModal(true)}
+        isHeaderOpen={isHeaderOpen}
+        onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
       />
 
       {/* Espaço de Trabalho Tático */}

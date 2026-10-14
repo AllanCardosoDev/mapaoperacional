@@ -55,6 +55,7 @@ body {
    CABEÇALHO TÁTICO / HEADER
    -------------------------------------------------------------------------- */
 .app-header {
+  position: relative;
   background: linear-gradient(180deg, #131c2e 0%, #0c121e 100%);
   border-bottom: 2px solid #1e293b;
   padding: 8px 18px;
@@ -64,6 +65,70 @@ body {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
   z-index: 50;
   flex-shrink: 0;
+}
+
+/* Aba na borda inferior da barra superior para subir com 1 clique */
+.header-edge-tab {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 68px;
+  height: 20px;
+  background: #0f172a;
+  border: 1.5px solid #0284c7;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 55;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+.header-edge-tab:hover {
+  background: #1e293b;
+  height: 24px;
+  bottom: -24px;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.6);
+}
+
+/* Botão flutuante para descer a barra superior quando recolhida */
+.floating-header-toggle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #0284c7;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 6px 20px;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.85);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-header-toggle:hover {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #38bdf8;
+  padding-top: 10px;
+  box-shadow: 0 8px 26px rgba(2, 132, 199, 0.7);
 }
 
 .header-left {

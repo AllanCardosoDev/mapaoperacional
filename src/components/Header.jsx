@@ -19,7 +19,9 @@ import {
   Check,
   FileText,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 export function Header({
@@ -37,7 +39,9 @@ export function Header({
   isSidebarOpen,
   onToggleSidebar,
   onOpenEfetivo,
-  onOpenAeronaves
+  onOpenAeronaves,
+  isHeaderOpen = true,
+  onToggleHeader
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -47,8 +51,31 @@ export function Header({
     setTimeout(() => setCopiedLink(false), 3000);
   };
 
+  // Se a barra de cima estiver recolhida para o mapa ser visto na totalidade
+  if (!isHeaderOpen) {
+    return (
+      <button 
+        className="floating-header-toggle"
+        onClick={onToggleHeader}
+        title="Descer Barra Superior (Painel de Comando e Indicadores)"
+      >
+        <ChevronDown size={16} color="#38bdf8" />
+        <span>Descer Barra Superior / Indicadores</span>
+      </button>
+    );
+  }
+
   return (
     <header className="app-header">
+      {/* Aba na borda inferior da barra de cima para subir/recolher com 1 clique */}
+      <button 
+        className="header-edge-tab"
+        onClick={onToggleHeader}
+        title="Clique para subir a barra superior e ver o mapa na totalidade"
+      >
+        <ChevronUp size={16} color="#38bdf8" />
+      </button>
+
       {/* Lado Esquerdo: Brasões e Título Oficial */}
       <div className="header-left">
         <div className="brand-emblems">
@@ -334,6 +361,17 @@ export function Header({
           title="Modo Tela Cheia (Apresentação / Sala de Situação)"
         >
           <Maximize size={15} />
+        </button>
+
+        {/* BOTÃO PARA SUBIR A BARRA SUPERIOR (VER O MAPA NA TOTALIDADE) */}
+        <button
+          className="btn-tactical"
+          onClick={onToggleHeader}
+          title="Subir barra superior para ver o mapa na totalidade"
+          style={{ background: '#090d16', borderColor: '#334155', color: '#94a3b8' }}
+        >
+          <ChevronUp size={14} color="#38bdf8" />
+          <span>Subir Barra</span>
         </button>
       </div>
     </header>
