@@ -5,14 +5,16 @@ import { OperationalMap } from './components/OperationalMap';
 import { MunicipalityDrawer } from './components/MunicipalityDrawer';
 import { TokenEditModal } from './components/TokenEditModal';
 import { RelatorioOficialModal } from './components/RelatorioOficialModal';
+import { EfetivoModal } from './components/EfetivoModal';
+import { AeronavesModal } from './components/AeronavesModal';
 import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
 import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
 
-const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v2';
-const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v2';
-const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v2';
+const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v4';
+const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v4';
+const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v4';
 
 export default function App() {
   // Inicializa a partir de link compartilhado (URL hash) se existir, ou do localStorage, ou do cenário padrão
@@ -75,8 +77,10 @@ export default function App() {
   // Controle de expansão/recolhimento da barra lateral para ver o mapa na totalidade
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Modal do Relatório Oficial de Efetivo
+  // Modais de Efetivo e Aeronaves
   const [showRelatorioModal, setShowRelatorioModal] = useState(false);
+  const [showEfetivoModal, setShowEfetivoModal] = useState(false);
+  const [showAeronavesModal, setShowAeronavesModal] = useState(false);
 
   // Persistência automática no localStorage
   useEffect(() => {
@@ -371,6 +375,8 @@ export default function App() {
         onToggleFullscreen={handleToggleFullscreen}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onOpenEfetivo={() => setShowEfetivoModal(true)}
+        onOpenAeronaves={() => setShowAeronavesModal(true)}
       />
 
       {/* Espaço de Trabalho Tático */}
@@ -384,6 +390,8 @@ export default function App() {
           onAddTokenToMuni={handleAddTokenToMuni}
           deployedMunis={deployedMunis}
           onSelectMuni={setSelectedMuniName}
+          onOpenEfetivo={() => setShowEfetivoModal(true)}
+          onOpenAeronaves={() => setShowAeronavesModal(true)}
         />
 
         {/* Mapa Operacional Central */}
@@ -437,6 +445,32 @@ export default function App() {
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
             setShowRelatorioModal(false);
+          }}
+        />
+      )}
+
+      {/* Modal da Soma Total de Tudo & Detalhamento do Efetivo (623 Operacionais) */}
+      {showEfetivoModal && (
+        <EfetivoModal 
+          onClose={() => setShowEfetivoModal(false)}
+          onSelectMuni={(name) => {
+            setSelectedMuniName(name);
+            setShowEfetivoModal(false);
+          }}
+          onSyncOfficialTokens={() => {
+            setTokens(INITIAL_REAL_SCENARIO);
+            localStorage.setItem(STORAGE_KEY_TOKENS, JSON.stringify(INITIAL_REAL_SCENARIO));
+          }}
+        />
+      )}
+
+      {/* Modal de Localização das Aeronaves (Onde estão as Aeronaves) */}
+      {showAeronavesModal && (
+        <AeronavesModal 
+          onClose={() => setShowAeronavesModal(false)}
+          onSelectMuni={(name) => {
+            setSelectedMuniName(name);
+            setShowAeronavesModal(false);
           }}
         />
       )}

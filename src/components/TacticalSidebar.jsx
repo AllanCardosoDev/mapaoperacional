@@ -23,7 +23,9 @@ export function TacticalSidebar({
   deployedMunis = [],
   onSelectMuni,
   isOpen = true,
-  onToggleSidebar
+  onToggleSidebar,
+  onOpenEfetivo,
+  onOpenAeronaves
 }) {
   const [activeTab, setActiveTab] = useState('efetivo'); // Abre direto em efetivo por padrão ou aeronaves
   const [personnelCategory, setPersonnelCategory] = useState('efetivo_militar'); // 'efetivo_militar' | 'efetivo_seg' | 'efetivo_brigadista' | 'efetivo_brigadista_sema' | 'efetivo_prevfogo'
@@ -160,6 +162,29 @@ export function TacticalSidebar({
             ================================================================= */}
         {activeTab === 'efetivo' && (
           <div className="personnel-config-box">
+            {onOpenEfetivo && (
+              <button
+                className="btn-tactical"
+                onClick={onOpenEfetivo}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)',
+                  border: '1.5px solid #ef4444',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  justifyContent: 'center',
+                  marginBottom: 12,
+                  padding: '8px 10px',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
+                }}
+                title="Clique para ver a soma total de tudo e as informações referentes ao efetivo"
+              >
+                <Users size={15} color="#ffffff" />
+                <span>Soma Total do Efetivo (623)</span>
+              </button>
+            )}
+
             <span className="resource-section-title">
               Tipo de Força / Contingente
             </span>
@@ -312,6 +337,29 @@ export function TacticalSidebar({
             ================================================================= */}
         {activeTab !== 'efetivo' && (
           <div className="resource-section">
+            {activeTab === 'aeronaves' && onOpenAeronaves && (
+              <button
+                className="btn-tactical"
+                onClick={onOpenAeronaves}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: '1.5px solid #38bdf8',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  justifyContent: 'center',
+                  marginBottom: 12,
+                  padding: '8px 10px',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)'
+                }}
+                title="Clique para ver a localização das 10 aeronaves empregadas"
+              >
+                <Plane size={15} color="#facc15" />
+                <span>Onde estão as Aeronaves (10)</span>
+              </button>
+            )}
+
             <div className="resource-section-title">
               Recursos Disponíveis
               <span className="drag-instruction">Arraste p/ o mapa</span>

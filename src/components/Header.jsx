@@ -35,7 +35,9 @@ export function Header({
   onClearMap,
   onToggleFullscreen,
   isSidebarOpen,
-  onToggleSidebar
+  onToggleSidebar,
+  onOpenEfetivo,
+  onOpenAeronaves
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -84,42 +86,84 @@ export function Header({
         </div>
       </div>
 
-      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) com Militares (Ord/SEG), Brigadistas (Geral/SEMA) e Focos */}
+      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) Oficiais da OPERAÇÃO AMAZONAS */}
       <div className="header-stats">
-        <div className="kpi-chip highlight-red" title="Militares CBMAM - Serviço Ordinário">
+        {/* SOMA TOTAL DE TUDO */}
+        <div 
+          className="kpi-chip highlight-gold" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer', border: '1.5px solid #eab308', background: 'rgba(234, 179, 8, 0.18)' }}
+          title="Clique para ver a Soma Total de Tudo (623 operacionais) e a tabela detalhada"
+        >
+          <Users size={14} color="#facc15" />
+          <span className="kpi-label" style={{ color: '#fef08a' }}>TOTAL EFETIVO:</span>
+          <span className="kpi-value" style={{ color: '#ffffff', fontWeight: 900 }}>{stats.totalEfetivo || 623}</span>
+        </div>
+
+        <div 
+          className="kpi-chip highlight-red" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer' }}
+          title="Militares CBMAM - Serviço Ordinário (117 Capital + 150 Interior = 267 Total)"
+        >
           <Users size={14} color="#ef4444" />
           <span className="kpi-label">SV ORD:</span>
           <span className="kpi-value">{stats.militares}</span>
         </div>
 
-        <div className="kpi-chip" style={{ borderColor: 'rgba(234, 179, 8, 0.5)', background: 'rgba(234, 179, 8, 0.12)' }} title="Militares CBMAM - Serviço Extraordinário Gratificado (SEG)">
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer', borderColor: 'rgba(234, 179, 8, 0.5)', background: 'rgba(234, 179, 8, 0.12)' }} 
+          title="Militares CBMAM - Serviço Extraordinário Gratificado (SEG)"
+        >
           <Users size={14} color="#facc15" />
           <span className="kpi-label" style={{ color: '#fde047' }}>SEG:</span>
           <span className="kpi-value" style={{ color: '#fde047' }}>{stats.seg || 0}</span>
         </div>
 
-        <div className="kpi-chip highlight-amber" title="Brigadistas Florestais Municipais">
+        <div 
+          className="kpi-chip highlight-amber" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer' }}
+          title="Brigadistas Florestais Municipais / Geral (167 Municípios + 30 Bases = 197 Total)"
+        >
           <Users size={14} color="#f97316" />
           <span className="kpi-label">Brigadistas:</span>
           <span className="kpi-value">{stats.brigadistas}</span>
         </div>
 
-        <div className="kpi-chip" style={{ borderColor: 'rgba(16, 185, 129, 0.5)', background: 'rgba(16, 185, 129, 0.12)' }} title="Brigadistas SEMA-AM (Secretaria de Estado do Meio Ambiente)">
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer', borderColor: 'rgba(16, 185, 129, 0.5)', background: 'rgba(16, 185, 129, 0.12)' }} 
+          title="Brigadistas da Secretaria de Estado do Meio Ambiente (109 Municípios + 44 Bases = 153 Total)"
+        >
           <Leaf size={14} color="#10b981" />
           <span className="kpi-label" style={{ color: '#86efac' }}>Brig. SEMA:</span>
           <span className="kpi-value" style={{ color: '#86efac' }}>{stats.brigadistasSema || 0}</span>
         </div>
 
-        <div className="kpi-chip" title="Aeronaves de Asa Fixa (Air Tractor + KC-390)">
-          <Plane size={14} color="#facc15" />
-          <span className="kpi-label">Asa Fixa:</span>
-          <span className="kpi-value">{stats.asaFixa}</span>
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenAeronaves}
+          style={{ cursor: 'pointer', borderColor: 'rgba(2, 132, 199, 0.6)', background: 'rgba(2, 132, 199, 0.15)' }}
+          title="Clique para ver a localização das 7 Aeronaves de Asa Fixa (4 Flores, 1 P. Fig, 1 Itacoatiara, 1 Parintins)"
+        >
+          <Plane size={14} color="#38bdf8" />
+          <span className="kpi-label" style={{ color: '#7dd3fc' }}>Asa Fixa:</span>
+          <span className="kpi-value" style={{ color: '#ffffff' }}>{stats.asaFixa}</span>
         </div>
 
-        <div className="kpi-chip" title="Helicópteros Harpia">
-          <Shield size={14} color="#a3e635" />
-          <span className="kpi-label">Rotativa:</span>
-          <span className="kpi-value">{stats.rotativa}</span>
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenAeronaves}
+          style={{ cursor: 'pointer', borderColor: 'rgba(16, 185, 129, 0.6)', background: 'rgba(16, 185, 129, 0.15)' }}
+          title="Clique para ver a localização dos 3 Helicópteros Harpia (2 Manaus, 1 Novo Airão)"
+        >
+          <Shield size={14} color="#34d399" />
+          <span className="kpi-label" style={{ color: '#a7f3d0' }}>Rotativa:</span>
+          <span className="kpi-value" style={{ color: '#ffffff' }}>{stats.rotativa}</span>
         </div>
 
         <div className="kpi-chip" title="Viaturas Terrestres Operacionais (ABT + 4x4 + UR)">
@@ -143,6 +187,28 @@ export function Header({
 
       {/* Lado Direito: Ações de Comando e Gestão */}
       <div className="header-actions">
+        {/* BOTÃO SOMA TOTAL DE TUDO (EFETIVO 623) */}
+        <button
+          className="btn-tactical"
+          onClick={onOpenEfetivo}
+          title="Clique para ver a soma total de tudo e as informações referentes ao efetivo (623 operacionais)"
+          style={{ background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)', borderColor: '#ef4444', color: '#ffffff', fontWeight: 800 }}
+        >
+          <Users size={14} color="#ffffff" />
+          Soma Total (623)
+        </button>
+
+        {/* BOTÃO ONDE ESTÃO AS AERONAVES (10 AERONAVES) */}
+        <button
+          className="btn-tactical"
+          onClick={onOpenAeronaves}
+          title="Clique para ver onde estão as 10 aeronaves empregadas (7 Asa Fixa e 3 Helicópteros)"
+          style={{ background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)', borderColor: '#38bdf8', color: '#ffffff', fontWeight: 800 }}
+        >
+          <Plane size={14} color="#facc15" />
+          Aeronaves (10)
+        </button>
+
         {/* RECOLHER / EXPANDIR BARRA LATERAL (MAPA NA TOTALIDADE) */}
         <button
           className={`btn-tactical ${!isSidebarOpen ? 'btn-accent' : ''}`}
