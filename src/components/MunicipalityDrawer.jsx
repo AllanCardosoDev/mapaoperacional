@@ -14,9 +14,12 @@ import {
   FileText,
   Info,
   CheckCircle2,
-  Leaf
+  Leaf,
+  Compass,
+  Radio
 } from 'lucide-react';
 import { TokenSvg } from './TokenSvg';
+import { PREVFOGO_RECURSOS_DISPONIVEIS, FOCOS_COMBATE_ATIVOS } from '../data/operacaoAmazonasData';
 
 export function MunicipalityDrawer({
   muni,
@@ -34,6 +37,16 @@ export function MunicipalityDrawer({
 
   if (!muni) return null;
 
+  // Informações de Prevfogo / IBAMA deste município se houver
+  const prevfogoData = useMemo(() => {
+    return PREVFOGO_RECURSOS_DISPONIVEIS.find(p => p.muni.toLowerCase() === muni.name.toLowerCase()) || null;
+  }, [muni.name]);
+
+  // Focos de Combate Ativos deste município se houver
+  const focosData = useMemo(() => {
+    return FOCOS_COMBATE_ATIVOS.filter(f => f.muni.toLowerCase() === muni.name.toLowerCase());
+  }, [muni.name]);
+
   // Totalizadores específicos deste município
   const breakdown = useMemo(() => {
     let militares = 0;
@@ -44,9 +57,9 @@ export function MunicipalityDrawer({
     let fluvial = 0;
 
     muniTokens.forEach(tk => {
-      if (tk.type === 'efetivo_militar' || tk.type === 'efetivo') {
+      if (tk.type === 'efetivo_militar' || tk.type === 'efetivo' || tk.type === 'serv_ord' || tk.type === 'efetivo_seg') {
         militares += (tk.count || 10);
-      } else if (tk.type === 'efetivo_brigadista') {
+      } else if (tk.type === 'efetivo_brigadista' || tk.type === 'efetivo_brigadista_sema') {
         brigadistas += (tk.count || 10);
       } else if (tk.type === 'efetivo_prevfogo') {
         prevfogo += (tk.count || 10);
@@ -163,6 +176,148 @@ export function MunicipalityDrawer({
             </div>
           </div>
         </div>
+
+        {/* PREVFOGO / IBAMA - SEÇÃO EXECUTIVA SE HOUVER RECURSOS NESTE MUNICÍPIO */}
+        {prevfogoData && (
+          <div className="info-card-block" style={{ background: 'rgba(21, 128, 61, 0.12)', border: '1.5px solid #22c55e' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={16} color="#4ade80" />
+                <span className="block-title" style={{ color: '#86efac', fontWeight: 900 }}>
+                  Prevfogo / IBAMA Disponível
+                </span>
+              </div>
+              <span style={{ 
+                background: '#15803d', 
+                color: '#ffffff', 
+                fontWeight: 900, 
+                fontSize: 11, 
+                padding: '2px 8px', 
+                borderRadius: 12 
+              }}>
+                {prevfogoData.total} Brigadistas
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {prevfogoData.bases.map((b, bIdx) => (
+                <div 
+                  key={bIdx}
+                  style={{ 
+                    background: 'rgba(15, 23, 42, 0.7)', 
+                    border: '1px solid rgba(74, 222, 128, 0.3)', 
+                    borderRadius: 6, 
+                    padding: '6px 10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: '#f0fdf4' }}>{b.local}</div>
+                    <div style={{ fontSize: 10, color: '#86efac' }}>{b.detalhe}</div>
+                  </div>
+                  <div style={{ 
+                    fontSize: 13, 
+                    fontWeight: 900, 
+                    color: '#4ade80', 
+                    fontFamily: 'monospace' 
+                  }}>
+                    {String(b.efetivo).padStart(2, '0')} <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>brig.</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* COMBATES ATIVOS GEORREFERENCIADOS NO MUNICÍPIO */}
+        {focosData.length > 0 && (
+          <div className="info-card-block" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1.5px solid #ef4444' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Flame size={16} color="#ef4444" />
+                <span className="block-title" style={{ color: '#fca5a5', fontWeight: 900 }}>
+                  Combates Ativos Georreferenciados
+                </span>
+              </div>
+              <span style={{ 
+                background: '#b91c1c', 
+                color: '#ffffff', 
+                fontWeight: 900, 
+                fontSize: 11, 
+                padding: '2px 8px', 
+                borderRadius: 12 
+              }}>
+                {focosData.length} {focosData.length === 1 ? 'Foco' : 'Focos'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {focosData.map((foco) => {
+                const isAtivo = foco.status === 'ativo';
+                const isControlado = foco.status === 'controlado';
+                const isExtinto = foco.status === 'extinto';
+
+                let statusBadgeBg = '#991b1b';
+                let statusBadgeColor = '#fef2f2';
+                let statusLabel = 'Em combate / Ativo';
+
+                if (isControlado) {
+                  statusBadgeBg = '#b45309';
+                  statusBadgeColor = '#fef3c7';
+                  statusLabel = 'Controlado';
+                } else if (isExtinto) {
+                  statusBadgeBg = '#065f46';
+                  statusBadgeColor = '#d1fae5';
+                  statusLabel = 'Extinto';
+                }
+
+                return (
+                  <div 
+                    key={foco.id}
+                    style={{ 
+                      background: 'rgba(15, 23, 42, 0.85)', 
+                      border: `1px solid ${isAtivo ? '#ef4444' : (isControlado ? '#f59e0b' : '#10b981')}`, 
+                      borderRadius: 6, 
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#ffffff' }}>
+                        {foco.local}
+                      </div>
+                      <span style={{
+                        background: statusBadgeBg,
+                        color: statusBadgeColor,
+                        fontSize: 9.5,
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        textTransform: 'uppercase'
+                      }}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 4 }}>
+                      {foco.detalhe}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, color: '#cbd5e1', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
+                      <span style={{ fontFamily: 'monospace', color: '#38bdf8' }}>
+                        {foco.lat_dms} • {foco.lon_dms}
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#facc15' }}>
+                        {String(foco.efetivo).padStart(2, '0')} brigadistas
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Nível de Prontidão Operacional */}
         <div className="info-card-block">

@@ -15,29 +15,33 @@ export const OPERACAO_EFETIVO_MUNICIPIOS = [
   { muni: 'Itapiranga', serv_ord: 6, seg: 0, brigadista: 11, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Jutaí', serv_ord: 1, seg: 0, brigadista: 11, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Lábrea', serv_ord: 4, seg: 0, brigadista: 13, brigadista_sema: 15, tipo: 'interior' },
+  { muni: 'Manaquiri', serv_ord: 6, seg: 0, brigadista: 7, brigadista_sema: 9, tipo: 'interior' },
   { muni: 'Manacapuru', serv_ord: 11, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Manicoré', serv_ord: 3, seg: 0, brigadista: 20, brigadista_sema: 7, tipo: 'interior' },
-  { muni: 'Maués', serv_ord: 2, seg: 0, brigadista: 13, brigadista_sema: 0, tipo: 'interior' },
+  { muni: 'Maués', serv_ord: 2, seg: 0, brigadista: 13, brigadista_sema: 0, prevfogo: 14, tipo: 'interior' },
   { muni: 'Nhamundá', serv_ord: 2, seg: 0, brigadista: 14, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Novo Airão', serv_ord: 2, seg: 0, brigadista: 2, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Novo Aripuanã', serv_ord: 3, seg: 0, brigadista: 0, brigadista_sema: 12, tipo: 'interior' },
-  { muni: 'Parintins', serv_ord: 4, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'interior' },
+  { muni: 'Parintins', serv_ord: 4, seg: 0, brigadista: 0, brigadista_sema: 0, prevfogo: 8, tipo: 'interior' },
   { muni: 'Presidente Figueiredo', serv_ord: 11, seg: 0, brigadista: 10, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Rio Preto da Eva', serv_ord: 7, seg: 0, brigadista: 2, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Tabatinga', serv_ord: 5, seg: 0, brigadista: 3, brigadista_sema: 0, tipo: 'interior' },
   { muni: 'Tapauá', serv_ord: 3, seg: 0, brigadista: 5, brigadista_sema: 12, tipo: 'interior' },
   { muni: 'Tefé', serv_ord: 7, seg: 0, brigadista: 5, brigadista_sema: 0, tipo: 'interior' },
   // Bases Temporárias
-  { muni: 'Manaus (Reforço SP)', serv_ord: 25, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Manaus' },
-  { muni: 'Autazes (Posto Km 53)', serv_ord: 6, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Autazes' },
+  { muni: 'Militares São Paulo-SP', serv_ord: 25, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Manaus' },
+  { muni: 'Autazes Posto Km 53', serv_ord: 6, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Autazes' },
   { muni: 'Boa Vista do Ramos', serv_ord: 3, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Boa Vista do Ramos' },
   { muni: 'Boca do Acre', serv_ord: 4, seg: 0, brigadista: 0, brigadista_sema: 15, tipo: 'base_temporaria', muni_ref: 'Boca do Acre' },
-  { muni: 'Borba', serv_ord: 2, seg: 0, brigadista: 3, brigadista_sema: 10, tipo: 'base_temporaria', muni_ref: 'Borba' },
+  { muni: 'Borba', serv_ord: 2, seg: 0, brigadista: 3, brigadista_sema: 10, prevfogo: 20, tipo: 'base_temporaria', muni_ref: 'Borba' },
   { muni: 'Caapiranga', serv_ord: 3, seg: 0, brigadista: 9, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Caapiranga' },
   { muni: 'Canutama', serv_ord: 2, seg: 0, brigadista: 0, brigadista_sema: 11, tipo: 'base_temporaria', muni_ref: 'Canutama' },
   { muni: 'Careiro Castanho', serv_ord: 8, seg: 0, brigadista: 0, brigadista_sema: 8, tipo: 'base_temporaria', muni_ref: 'Careiro' },
-  { muni: 'Careiro da Várzea', serv_ord: 4, seg: 0, brigadista: 0, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Careiro da Várzea' },
-  { muni: 'Urucurituba', serv_ord: 1, seg: 0, brigadista: 18, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Urucurituba' }
+  { muni: 'Careiro da Várzea', serv_ord: 4, seg: 0, brigadista: 0, brigadista_sema: 0, prevfogo: 18, tipo: 'base_temporaria', muni_ref: 'Careiro da Várzea' },
+  { muni: 'Urucurituba', serv_ord: 1, seg: 0, brigadista: 18, brigadista_sema: 0, tipo: 'base_temporaria', muni_ref: 'Urucurituba' },
+  // Municípios de Operação Prevfogo
+  { muni: 'Barreirinha', serv_ord: 0, seg: 0, brigadista: 0, brigadista_sema: 0, prevfogo: 21, tipo: 'prevfogo' },
+  { muni: 'Nova Olinda do Norte', serv_ord: 0, seg: 0, brigadista: 0, brigadista_sema: 0, prevfogo: 15, tipo: 'prevfogo' }
 ];
 
 // Resumo Executivo Oficial Consolidado (100% fiel à planilha do CBMAM)
@@ -47,8 +51,67 @@ export const RESUMO_EXECUTIVO_OFICIAL = {
   brigadistas_gerais: { capital: 0, interior: 197, total: 197 },
   brigadistas_sema: { capital: 0, interior: 153, total: 153 },
   brigadistas: { capital: 0, interior: 350, total: 350 },
+  prevfogo: { capital: 0, interior: 134, total: 134 },
   total_geral: { capital: 123, interior: 500, total: 623 }
 };
+
+// Recursos Operacionais Disponíveis do Prevfogo / IBAMA por Município e Terra Indígena / PA (Total: 134)
+export const PREVFOGO_RECURSOS_DISPONIVEIS = [
+  {
+    muni: 'Autazes',
+    total: 38,
+    bases: [
+      { local: 'TI SÃO FÉLIX', efetivo: 17, detalhe: 'Terra Indígena São Félix' },
+      { local: 'TI CUIA', efetivo: 7, detalhe: 'Terra Indígena Cuia' },
+      { local: 'TI MURUTINGA', efetivo: 7, detalhe: 'Terra Indígena Murutinga' },
+      { local: 'TI GUAPENU', efetivo: 7, detalhe: 'Terra Indígena Guapenu' }
+    ]
+  },
+  {
+    muni: 'Barreirinha',
+    total: 21,
+    bases: [
+      { local: 'TI ANDIRÁ-MARAU - Calha Andirá', efetivo: 21, detalhe: 'Calha do Rio Andirá' }
+    ]
+  },
+  {
+    muni: 'Borba',
+    total: 20,
+    bases: [
+      { local: 'PDS AXININ', efetivo: 12, detalhe: 'Projeto de Desenvolvimento Sustentável Axinin' },
+      { local: 'TI COATA-LARANJAL', efetivo: 8, detalhe: 'Terra Indígena Coata-Laranjal' }
+    ]
+  },
+  {
+    muni: 'Careiro da Várzea',
+    total: 18,
+    bases: [
+      { local: 'TI SISSAÍMA', efetivo: 8, detalhe: 'Terra Indígena Sissaíma' },
+      { local: 'TI PONCIANO', efetivo: 10, detalhe: 'Terra Indígena Ponciano' }
+    ]
+  },
+  {
+    muni: 'Nova Olinda do Norte',
+    total: 15,
+    bases: [
+      { local: 'PAE CURUPIRA', efetivo: 15, detalhe: 'Assentamento Agroextrativista Curupira' }
+    ]
+  },
+  {
+    muni: 'Maués',
+    total: 14,
+    bases: [
+      { local: 'TI ANDIRÁ-MARAU - Calha Marau', efetivo: 14, detalhe: 'Calha do Rio Marau' }
+    ]
+  },
+  {
+    muni: 'Parintins',
+    total: 8,
+    bases: [
+      { local: 'PA VILA AMAZÔNIA', efetivo: 8, detalhe: 'Projeto de Assentamento Vila Amazônia' }
+    ]
+  }
+];
 
 // 2. Frota Aérea Empregada na OPERAÇÃO AMAZONAS (Localização Exata)
 export const OPERACAO_AERONAVES = [

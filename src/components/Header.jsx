@@ -153,11 +153,22 @@ export function Header({
           className="kpi-chip highlight-amber" 
           onClick={onOpenEfetivo}
           style={{ cursor: 'pointer' }}
-          title="Brigadistas Florestais Municipais / Geral (167 Municípios + 30 Bases = 197 Total)"
+          title="Brigadistas Florestais Municipais / Geral (Total: 197 • Inclui 134 Prevfogo/IBAMA)"
         >
           <Users size={14} color="#f97316" />
-          <span className="kpi-label">Brigadistas:</span>
+          <span className="kpi-label">Brig. Gerais:</span>
           <span className="kpi-value">{stats.brigadistas}</span>
+        </div>
+
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer', borderColor: 'rgba(34, 197, 94, 0.6)', background: 'rgba(34, 197, 94, 0.15)' }} 
+          title="Prevfogo / IBAMA: 134 Brigadistas em 7 municípios (Autazes 38, Barreirinha 21, Borba 20, Careiro Várzea 18, Nova Olinda 15, Maués 14, Parintins 8)"
+        >
+          <Shield size={14} color="#4ade80" />
+          <span className="kpi-label" style={{ color: '#86efac' }}>Prevfogo:</span>
+          <span className="kpi-value" style={{ color: '#bbf7d0', fontWeight: 800 }}>{stats.prevfogo || 134}</span>
         </div>
 
         <div 
@@ -169,6 +180,17 @@ export function Header({
           <Leaf size={14} color="#10b981" />
           <span className="kpi-label" style={{ color: '#86efac' }}>Brig. SEMA:</span>
           <span className="kpi-value" style={{ color: '#86efac' }}>{stats.brigadistasSema || 0}</span>
+        </div>
+
+        <div 
+          className="kpi-chip" 
+          onClick={onOpenEfetivo}
+          style={{ cursor: 'pointer', borderColor: 'rgba(56, 189, 248, 0.5)', background: 'rgba(56, 189, 248, 0.12)' }} 
+          title="Total de Brigadistas da Operação (197 Gerais + 153 SEMA = 350 Total)"
+        >
+          <Users size={14} color="#38bdf8" />
+          <span className="kpi-label" style={{ color: '#7dd3fc' }}>Total Brig.:</span>
+          <span className="kpi-value" style={{ color: '#e0f2fe', fontWeight: 800 }}>{stats.totalBrigadistas || 350}</span>
         </div>
 
         <div 
