@@ -16,20 +16,26 @@ import {
   Eye, 
   EyeOff,
   Share2,
-  Check
+  Check,
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 export function Header({
   stats,
   showAllTokens,
   onToggleShowAllTokens,
+  onOpenRelatorio,
   onShareLink,
   onLoadRealScenario,
   onExportImage,
   onSaveMission,
   onLoadMission,
   onClearMap,
-  onToggleFullscreen
+  onToggleFullscreen,
+  isSidebarOpen,
+  onToggleSidebar
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -78,24 +84,30 @@ export function Header({
         </div>
       </div>
 
-      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) com Militares, Brigadistas e Prevfogo */}
+      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) com Militares (Ord/SEG), Brigadistas (Geral/SEMA) e Focos */}
       <div className="header-stats">
-        <div className="kpi-chip highlight-red" title="Efetivo de Bombeiros Militares CBMAM">
+        <div className="kpi-chip highlight-red" title="Militares CBMAM - Serviço Ordinário">
           <Users size={14} color="#ef4444" />
-          <span className="kpi-label">Militares:</span>
+          <span className="kpi-label">SV ORD:</span>
           <span className="kpi-value">{stats.militares}</span>
         </div>
 
-        <div className="kpi-chip highlight-amber" title="Brigadistas Florestais Municipais e Voluntários">
+        <div className="kpi-chip" style={{ borderColor: 'rgba(234, 179, 8, 0.5)', background: 'rgba(234, 179, 8, 0.12)' }} title="Militares CBMAM - Serviço Extraordinário Gratificado (SEG)">
+          <Users size={14} color="#facc15" />
+          <span className="kpi-label" style={{ color: '#fde047' }}>SEG:</span>
+          <span className="kpi-value" style={{ color: '#fde047' }}>{stats.seg || 0}</span>
+        </div>
+
+        <div className="kpi-chip highlight-amber" title="Brigadistas Florestais Municipais">
           <Users size={14} color="#f97316" />
           <span className="kpi-label">Brigadistas:</span>
           <span className="kpi-value">{stats.brigadistas}</span>
         </div>
 
-        <div className="kpi-chip" style={{ borderColor: 'rgba(34, 197, 94, 0.5)', background: 'rgba(34, 197, 94, 0.12)' }} title="Brigadas Federais Prevfogo / IBAMA">
-          <Leaf size={14} color="#22c55e" />
-          <span className="kpi-label" style={{ color: '#86efac' }}>Prevfogo:</span>
-          <span className="kpi-value" style={{ color: '#86efac' }}>{stats.prevfogo}</span>
+        <div className="kpi-chip" style={{ borderColor: 'rgba(16, 185, 129, 0.5)', background: 'rgba(16, 185, 129, 0.12)' }} title="Brigadistas SEMA-AM (Secretaria de Estado do Meio Ambiente)">
+          <Leaf size={14} color="#10b981" />
+          <span className="kpi-label" style={{ color: '#86efac' }}>Brig. SEMA:</span>
+          <span className="kpi-value" style={{ color: '#86efac' }}>{stats.brigadistasSema || 0}</span>
         </div>
 
         <div className="kpi-chip" title="Aeronaves de Asa Fixa (Air Tractor + KC-390)">
@@ -104,7 +116,7 @@ export function Header({
           <span className="kpi-value">{stats.asaFixa}</span>
         </div>
 
-        <div className="kpi-chip" title="Helicópteros de Resgate e Combate (Harpia)">
+        <div className="kpi-chip" title="Helicópteros Harpia">
           <Shield size={14} color="#a3e635" />
           <span className="kpi-label">Rotativa:</span>
           <span className="kpi-value">{stats.rotativa}</span>
@@ -131,6 +143,37 @@ export function Header({
 
       {/* Lado Direito: Ações de Comando e Gestão */}
       <div className="header-actions">
+        {/* RECOLHER / EXPANDIR BARRA LATERAL (MAPA NA TOTALIDADE) */}
+        <button
+          className={`btn-tactical ${!isSidebarOpen ? 'btn-accent' : ''}`}
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Recolher barra lateral para visualizar o mapa na totalidade" : "Abrir barra lateral com hangar de viaturas e contingente"}
+          style={!isSidebarOpen ? { background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderColor: '#38bdf8' } : {}}
+        >
+          {isSidebarOpen ? (
+            <>
+              <ChevronLeft size={14} color="#38bdf8" />
+              Recolher Lateral
+            </>
+          ) : (
+            <>
+              <ChevronRight size={14} color="#38bdf8" />
+              Ver Lateral
+            </>
+          )}
+        </button>
+
+        {/* BOTÃO PARA ABRIR O RELATÓRIO OFICIAL DE EFETIVO */}
+        <button
+          className="btn-tactical btn-accent"
+          onClick={onOpenRelatorio}
+          title="Abrir o Relatório Oficial de Efetivo e Combates Ativos (Tabela Completa da Operação)"
+          style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', borderColor: '#3b82f6', color: '#ffffff' }}
+        >
+          <FileText size={14} />
+          Relatório Oficial
+        </button>
+
         {/* BOTÃO PARA OCULTAR OU EXIBIR TODOS OS ÍCONES */}
         <button
           className={`btn-tactical ${!showAllTokens ? 'btn-primary' : ''}`}

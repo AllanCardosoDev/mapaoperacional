@@ -7,9 +7,10 @@ import {
   Shield, 
   Plus, 
   ChevronRight, 
+  ChevronLeft,
   Flame, 
   HelpCircle,
-  MapPin,
+  MapPin, 
   Leaf
 } from 'lucide-react';
 import { TACTICAL_TOKENS } from '../data/tacticalAssets';
@@ -20,11 +21,27 @@ export function TacticalSidebar({
   selectedMuni, 
   onAddTokenToMuni,
   deployedMunis = [],
-  onSelectMuni
+  onSelectMuni,
+  isOpen = true,
+  onToggleSidebar
 }) {
   const [activeTab, setActiveTab] = useState('efetivo'); // Abre direto em efetivo por padrão ou aeronaves
-  const [personnelCategory, setPersonnelCategory] = useState('efetivo_militar'); // 'efetivo_militar' | 'efetivo_brigadista' | 'efetivo_prevfogo'
+  const [personnelCategory, setPersonnelCategory] = useState('efetivo_militar'); // 'efetivo_militar' | 'efetivo_seg' | 'efetivo_brigadista' | 'efetivo_brigadista_sema' | 'efetivo_prevfogo'
   const [personnelCount, setPersonnelCount] = useState(10);
+
+  // Se a barra estiver recolhida para o mapa ser visto na totalidade
+  if (!isOpen) {
+    return (
+      <button 
+        className="floating-sidebar-toggle"
+        onClick={onToggleSidebar}
+        title="Expandir Hangar de Recursos e Contingente"
+      >
+        <ChevronRight size={18} color="#38bdf8" />
+        <span>Hangar / Efetivo</span>
+      </button>
+    );
+  }
 
   const getFilteredTokens = () => {
     switch (activeTab) {
@@ -42,23 +59,55 @@ export function TacticalSidebar({
   };
 
   const getPersonnelLabel = () => {
-    if (personnelCategory === 'efetivo_militar') return `${personnelCount} Bombeiros Militares`;
-    if (personnelCategory === 'efetivo_brigadista') return `${personnelCount} Brigadistas Florestais`;
+    if (personnelCategory === 'efetivo_militar') return `${personnelCount} Militares (Serv. Ord.)`;
+    if (personnelCategory === 'efetivo_seg') return `${personnelCount} Militares (SEG)`;
+    if (personnelCategory === 'efetivo_brigadista') return `${personnelCount} Brigadistas`;
+    if (personnelCategory === 'efetivo_brigadista_sema') return `${personnelCount} Brigadistas SEMA`;
     if (personnelCategory === 'efetivo_prevfogo') return `${personnelCount} Prevfogo IBAMA`;
     return `${personnelCount} Operacionais`;
   };
 
   return (
     <aside className="tactical-sidebar">
-      {/* Topo da barra lateral */}
+      {/* Botão de aba na borda lateral para recolher com 1 clique */}
+      <button 
+        className="sidebar-edge-tab"
+        onClick={onToggleSidebar}
+        title="Recolher barra lateral para ver o mapa na totalidade"
+      >
+        <ChevronLeft size={16} color="#38bdf8" />
+      </button>
+
+      {/* Topo da barra lateral com botão de fechar/recolher */}
       <div className="sidebar-header">
         <div className="sidebar-title">
           <Shield size={16} color="#38bdf8" />
           Hangar & Prontidão
         </div>
-        <span className="drag-instruction" title="Arraste para qualquer município do mapa">
-          Arraste p/ o mapa
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button 
+            className="sidebar-close-btn"
+            onClick={onToggleSidebar}
+            title="Fechar lateral para ver o mapa na totalidade"
+            style={{
+              background: '#090d16',
+              border: '1px solid #0284c7',
+              borderRadius: 6,
+              padding: '4px 10px',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 11,
+              fontWeight: 800,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <ChevronLeft size={14} color="#38bdf8" />
+            <span>Fechar Lateral</span>
+          </button>
+        </div>
       </div>
 
       {/* Abas de Categorias */}
@@ -107,7 +156,7 @@ export function TacticalSidebar({
 
       <div className="sidebar-content">
         {/* =================================================================
-            SEÇÃO ESPECIAL DE EFETIVO: MILITARES, BRIGADISTAS E PREVFOGO IBAMA
+            SEÇÃO ESPECIAL DE EFETIVO: MILITARES (ORD/SEG), BRIGADISTAS (GERAL/SEMA) E PREVFOGO
             ================================================================= */}
         {activeTab === 'efetivo' && (
           <div className="personnel-config-box">
@@ -115,29 +164,45 @@ export function TacticalSidebar({
               Tipo de Força / Contingente
             </span>
 
-            {/* Seletor entre Militares, Brigadistas e Prevfogo */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              {/* 1. Bombeiros Militares */}
+            {/* Seletor entre Militares (Ord / SEG), Brigadistas (Geral / SEMA) e Prevfogo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>
+              {/* 1. Bombeiros Militares - Serv. Ordinário */}
               <button
                 className={`btn-tactical ${personnelCategory === 'efetivo_militar' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '7px 10px',
+                  padding: '6px 10px',
                   border: personnelCategory === 'efetivo_militar' ? '1.5px solid #ef4444' : '1px solid #334155',
                   background: personnelCategory === 'efetivo_militar' ? 'rgba(220, 38, 38, 0.25)' : '#0f172a'
                 }}
                 onClick={() => setPersonnelCategory('efetivo_militar')}
               >
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-                <span style={{ fontWeight: 800 }}>Militares (CBMAM)</span>
+                <span style={{ fontWeight: 800 }}>Militar (Serv. Ordinário)</span>
               </button>
 
-              {/* 2. Brigadistas Florestais */}
+              {/* 2. Militares - SEG */}
+              <button
+                className={`btn-tactical ${personnelCategory === 'efetivo_seg' ? 'btn-primary' : ''}`}
+                style={{
+                  justifyContent: 'flex-start',
+                  padding: '6px 10px',
+                  border: personnelCategory === 'efetivo_seg' ? '1.5px solid #eab308' : '1px solid #334155',
+                  background: personnelCategory === 'efetivo_seg' ? 'rgba(234, 179, 8, 0.25)' : '#0f172a',
+                  color: personnelCategory === 'efetivo_seg' ? '#fde047' : 'inherit'
+                }}
+                onClick={() => setPersonnelCategory('efetivo_seg')}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308' }} />
+                <span style={{ fontWeight: 800 }}>Militar (SEG Gratificado)</span>
+              </button>
+
+              {/* 3. Brigadistas (Municipal / Geral) */}
               <button
                 className={`btn-tactical ${personnelCategory === 'efetivo_brigadista' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '7px 10px',
+                  padding: '6px 10px',
                   border: personnelCategory === 'efetivo_brigadista' ? '1.5px solid #f97316' : '1px solid #334155',
                   background: personnelCategory === 'efetivo_brigadista' ? 'rgba(234, 88, 12, 0.25)' : '#0f172a',
                   color: personnelCategory === 'efetivo_brigadista' ? '#fdba74' : 'inherit'
@@ -145,15 +210,31 @@ export function TacticalSidebar({
                 onClick={() => setPersonnelCategory('efetivo_brigadista')}
               >
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316' }} />
-                <span style={{ fontWeight: 800 }}>Brigadistas Florestais</span>
+                <span style={{ fontWeight: 800 }}>Brigadista (Geral / Município)</span>
               </button>
 
-              {/* 3. Prevfogo IBAMA */}
+              {/* 4. Brigadistas SEMA-AM */}
+              <button
+                className={`btn-tactical ${personnelCategory === 'efetivo_brigadista_sema' ? 'btn-primary' : ''}`}
+                style={{
+                  justifyContent: 'flex-start',
+                  padding: '6px 10px',
+                  border: personnelCategory === 'efetivo_brigadista_sema' ? '1.5px solid #10b981' : '1px solid #334155',
+                  background: personnelCategory === 'efetivo_brigadista_sema' ? 'rgba(16, 185, 129, 0.25)' : '#0f172a',
+                  color: personnelCategory === 'efetivo_brigadista_sema' ? '#86efac' : 'inherit'
+                }}
+                onClick={() => setPersonnelCategory('efetivo_brigadista_sema')}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
+                <span style={{ fontWeight: 800 }}>Brigadista SEMA (Estadual)</span>
+              </button>
+
+              {/* 5. Prevfogo IBAMA */}
               <button
                 className={`btn-tactical ${personnelCategory === 'efetivo_prevfogo' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '7px 10px',
+                  padding: '6px 10px',
                   border: personnelCategory === 'efetivo_prevfogo' ? '1.5px solid #22c55e' : '1px solid #334155',
                   background: personnelCategory === 'efetivo_prevfogo' ? 'rgba(21, 128, 61, 0.25)' : '#0f172a',
                   color: personnelCategory === 'efetivo_prevfogo' ? '#86efac' : 'inherit'
@@ -170,13 +251,14 @@ export function TacticalSidebar({
               <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>{personnelCount} Op.</span>
             </span>
 
-            {/* Presets comuns de tropa (4, 7, 9, 10, 14, 15, 20) */}
-            <div className="preset-buttons-row">
-              {[4, 7, 9, 10, 14, 15, 20].map(val => (
+            {/* Presets comuns de tropa conforme Relatório Operacional */}
+            <div className="preset-buttons-row" style={{ flexWrap: 'wrap', gap: 4 }}>
+              {[4, 6, 7, 8, 10, 12, 14, 15, 17, 20, 21, 38].map(val => (
                 <button
                   key={val}
                   className={`preset-btn ${personnelCount === val ? 'active' : ''}`}
                   onClick={() => setPersonnelCount(val)}
+                  style={{ minWidth: 28 }}
                 >
                   {val}
                 </button>

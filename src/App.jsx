@@ -4,6 +4,7 @@ import { TacticalSidebar } from './components/TacticalSidebar';
 import { OperationalMap } from './components/OperationalMap';
 import { MunicipalityDrawer } from './components/MunicipalityDrawer';
 import { TokenEditModal } from './components/TokenEditModal';
+import { RelatorioOficialModal } from './components/RelatorioOficialModal';
 import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
@@ -71,6 +72,12 @@ export default function App() {
   // Controle de visibilidade de todos os ícones no mapa
   const [showAllTokens, setShowAllTokens] = useState(true);
 
+  // Controle de expansão/recolhimento da barra lateral para ver o mapa na totalidade
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Modal do Relatório Oficial de Efetivo
+  const [showRelatorioModal, setShowRelatorioModal] = useState(false);
+
   // Persistência automática no localStorage
   useEffect(() => {
     try {
@@ -120,10 +127,12 @@ export default function App() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [tokens]);
 
-  // Estatísticas e KPIs em tempo real por categoria (Militares, Brigadistas, Prevfogo)
+  // Estatísticas e KPIs em tempo real por categoria (Militares Ord/SEG, Brigadistas Geral/SEMA, Prevfogo)
   const stats = useMemo(() => {
     let militares = 0;
+    let seg = 0;
     let brigadistas = 0;
+    let brigadistasSema = 0;
     let prevfogo = 0;
     let asaFixa = 0;
     let rotativa = 0;
@@ -135,13 +144,21 @@ export default function App() {
       const muniObj = AMAZONAS_DATA.municipalities.find(m => m.name === t.muni);
       const isArco = muniObj?.in_arco_fogo;
 
-      if (t.type === 'efetivo_militar' || t.type === 'efetivo') {
+      if (t.type === 'serv_ord' || t.type === 'efetivo_militar' || t.type === 'efetivo') {
         const c = t.count || 10;
         militares += c;
         if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_brigadista') {
+      } else if (t.type === 'efetivo_seg' || t.type === 'seg') {
+        const c = t.count || 6;
+        seg += c;
+        if (isArco) arcoFogo += c;
+      } else if (t.type === 'efetivo_brigadista' || t.type === 'brigadista') {
         const c = t.count || 10;
         brigadistas += c;
+        if (isArco) arcoFogo += c;
+      } else if (t.type === 'efetivo_brigadista_sema' || t.type === 'brigadista_sema' || t.type === 'brigadista_semais') {
+        const c = t.count || 10;
+        brigadistasSema += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'efetivo_prevfogo') {
         const c = t.count || 10;
@@ -163,10 +180,14 @@ export default function App() {
     });
 
     return { 
-      militares, 
+      militares,
+      seg,
       brigadistas, 
+      brigadistasSema,
+      totalBrigadistas: brigadistas + brigadistasSema,
       prevfogo, 
-      totalEfetivo: militares + brigadistas + prevfogo,
+      totalEfetivo: militares + seg + brigadistas + brigadistasSema + prevfogo,
+      focosCombate: 14,
       asaFixa, 
       rotativa, 
       viaturas, 
@@ -340,6 +361,7 @@ export default function App() {
         stats={stats}
         showAllTokens={showAllTokens}
         onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
+        onOpenRelatorio={() => setShowRelatorioModal(true)}
         onShareLink={handleShareLink}
         onLoadRealScenario={handleLoadRealScenario}
         onExportImage={handleExportImage}
@@ -347,12 +369,16 @@ export default function App() {
         onLoadMission={handleLoadMission}
         onClearMap={handleClearMap}
         onToggleFullscreen={handleToggleFullscreen}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
       {/* Espaço de Trabalho Tático */}
       <div className="app-workspace">
         {/* Barra Lateral: Hangar e Seletor de Efetivo */}
         <TacticalSidebar 
+          isOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onDragStartToken={handleDragStartToken}
           selectedMuni={selectedMuni}
           onAddTokenToMuni={handleAddTokenToMuni}
@@ -401,6 +427,17 @@ export default function App() {
           onDelete={handleDeleteToken}
           onDuplicate={handleDuplicateToken}
           onClose={() => setEditingToken(null)}
+        />
+      )}
+
+      {/* Modal do Relatório Oficial de Efetivo e Combates Ativos */}
+      {showRelatorioModal && (
+        <RelatorioOficialModal 
+          onClose={() => setShowRelatorioModal(false)}
+          onSelectMuni={(name) => {
+            setSelectedMuniName(name);
+            setShowRelatorioModal(false);
+          }}
         />
       )}
     </div>

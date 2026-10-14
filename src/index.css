@@ -249,10 +249,79 @@ body {
   box-shadow: 4px 0 15px rgba(0, 0, 0, 0.4);
   flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+/* Aba lateral de clique rápido para recolher na borda da barra */
+.sidebar-edge-tab {
+  position: absolute;
+  top: 50%;
+  right: -20px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 54px;
+  background: #0f172a;
+  border: 1.5px solid #0284c7;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  box-shadow: 3px 0 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+.sidebar-edge-tab:hover {
+  background: #1e293b;
+  width: 24px;
+  right: -24px;
+  border-color: #38bdf8;
+  box-shadow: 4px 0 16px rgba(2, 132, 199, 0.6);
 }
 
 .tactical-sidebar.collapsed {
   transform: translateX(-100%);
+}
+
+/* Botão Flutuante quando a barra lateral está recolhida */
+.floating-sidebar-toggle {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #0284c7;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  padding: 8px 14px;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-sidebar-toggle:hover {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #38bdf8;
+  padding-left: 18px;
+  box-shadow: 0 6px 22px rgba(2, 132, 199, 0.5);
+}
+
+.sidebar-close-btn:hover {
+  background: #1e293b !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
 }
 
 .sidebar-header {
@@ -520,16 +589,44 @@ body {
 /* Nomes dos Municípios no Mapa */
 .muni-label {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 800;
-  fill: #0f172a;
+  fill: #090d16;
   text-anchor: middle;
-  pointer-events: none;
+  cursor: pointer;
   letter-spacing: 0.3px;
   paint-order: stroke fill;
-  stroke: rgba(255, 255, 255, 0.85);
-  stroke-width: 2.5px;
+  stroke: #ffffff;
+  stroke-width: 3px;
   stroke-linejoin: round;
+  transition: fill 0.2s ease, stroke-width 0.2s ease;
+  user-select: none;
+}
+
+.muni-label:hover {
+  fill: #dc2626;
+  stroke: #ffffff;
+  stroke-width: 4px;
+}
+
+@keyframes focoPulse {
+  0% {
+    r: 13px;
+    opacity: 0.9;
+  }
+  50% {
+    r: 28px;
+    opacity: 0.15;
+  }
+  100% {
+    r: 13px;
+    opacity: 0.9;
+  }
+}
+
+.foco-pulse-ring {
+  animation: focoPulse 2.2s infinite ease-in-out;
+  pointer-events: none;
 }
 
 /* Linhas Indicadoras / Callouts */

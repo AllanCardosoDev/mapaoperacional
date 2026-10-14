@@ -13,7 +13,8 @@ import {
   MapPin,
   Users,
   Truck,
-  Plane
+  Plane,
+  Shield
 } from 'lucide-react';
 import { AMAZONAS_DATA } from '../data/amazonasData';
 import { TokenSvg } from './TokenSvg';
@@ -329,13 +330,13 @@ export function OperationalMap({
             onClick={() => setShowArcoDoFogo(!showArcoDoFogo)}
             title="Exibir/Ocultar Camada Tática do Arco do Fogo"
           >
-            <Flame size={18} color={showArcoDoFogo ? '#ea580c' : 'currentColor'} />
+            <Shield size={17} color={showArcoDoFogo ? '#ea580c' : 'currentColor'} />
           </button>
 
           <button 
             className={`ctrl-btn ${showLabels ? 'active' : ''}`}
             onClick={() => setShowLabels(!showLabels)}
-            title="Exibir/Ocultar Nomes dos Municípios e Indicadores"
+            title="Exibir/Ocultar Nomes dos Municípios"
           >
             <Tag size={17} />
           </button>
@@ -529,53 +530,29 @@ export function OperationalMap({
         )}
 
         {/* ------------------------------------------------------------------
-            LINHAS INDICADORAS E CALLOUTS (ÁREA METROPOLITANA / DENSA)
-            ------------------------------------------------------------------ */}
-        {showLabels && (
-          <g id="callouts-layer">
-            {AMAZONAS_DATA.municipalities
-              .filter(m => m.has_callout)
-              .map(m => (
-                <g key={`callout-${m.id}`} onClick={() => onSelectMuni(m.name)}>
-                  <line 
-                    x1={m.cx} 
-                    y1={m.cy} 
-                    x2={m.callout_x} 
-                    y2={m.callout_y} 
-                    className="callout-line"
-                  />
-                  <circle cx={m.cx} cy={m.cy} r={3.5} className="callout-dot" />
-                  <text 
-                    x={m.callout_x + 6} 
-                    y={m.callout_y + 4} 
-                    className="callout-label"
-                  >
-                    {m.name}
-                  </text>
-                </g>
-              ))}
-          </g>
-        )}
-
-        {/* ------------------------------------------------------------------
-            NOMES DOS MUNICÍPIOS NO CENTRO DO POLÍGONO
+            NOMES DE TODOS OS 62 MUNICÍPIOS DO AMAZONAS
             ------------------------------------------------------------------ */}
         {showLabels && (
           <g id="labels-layer">
-            {AMAZONAS_DATA.municipalities
-              .filter(m => !m.has_callout)
-              .map(m => (
-                <text
-                  key={`label-${m.id}`}
-                  x={m.cx}
-                  y={m.cy}
-                  className="muni-label"
-                >
-                  {m.name}
-                </text>
-              ))}
+            {AMAZONAS_DATA.municipalities.map(m => (
+              <text
+                key={`label-${m.id}`}
+                x={m.cx}
+                y={m.cy}
+                className="muni-label"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectMuni(m.name);
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                {m.name}
+              </text>
+            ))}
           </g>
         )}
+
+
 
         {/* ------------------------------------------------------------------
             CAMADA TÁTICA: ARCO DO FOGO
