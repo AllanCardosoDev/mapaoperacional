@@ -162,32 +162,34 @@ export function TacticalSidebar({
             ================================================================= */}
         {activeTab === 'efetivo' && (
           <div className="personnel-config-box">
-            {onOpenEfetivo && (
-              <button
-                className="btn-tactical"
-                onClick={onOpenEfetivo}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)',
-                  border: '1.5px solid #ef4444',
-                  color: '#ffffff',
-                  fontWeight: 900,
-                  fontSize: 12,
-                  justifyContent: 'center',
-                  marginBottom: 12,
-                  padding: '8px 10px',
-                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.4)'
-                }}
-                title="Clique para ver a soma total de tudo e as informações referentes ao efetivo"
-              >
-                <Users size={15} color="#ffffff" />
-                <span>Soma Total do Efetivo (623)</span>
-              </button>
-            )}
-
-            <span className="resource-section-title">
-              Tipo de Força / Contingente
-            </span>
+            {/* Cabeçalho de contingente limpo */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span className="resource-section-title" style={{ margin: 0 }}>
+                Tipo de Força / Contingente
+              </span>
+              {onOpenEfetivo && (
+                <button
+                  onClick={onOpenEfetivo}
+                  style={{
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    border: '1px solid rgba(234, 179, 8, 0.4)',
+                    color: '#facc15',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    borderRadius: 4,
+                    padding: '2px 7px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                  title="Ver Painel Completo de Efetivo (623 Operacionais)"
+                >
+                  <Users size={11} />
+                  <span>Total 623 ↗</span>
+                </button>
+              )}
+            </div>
 
             {/* Seletor entre Militares (Ord / SEG), Brigadistas (Geral / SEMA) e Prevfogo */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>

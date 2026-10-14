@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Flame, 
   Plane, 
   Shield, 
   Truck, 
@@ -21,7 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Settings
 } from 'lucide-react';
 
 export function Header({
@@ -44,12 +44,29 @@ export function Header({
   onToggleHeader
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const handleShareClick = () => {
     onShareLink();
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
   };
+
+  // Fechar menu de ferramentas se clicar fora
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   // Se a barra de cima estiver recolhida para o mapa ser visto na totalidade
   if (!isHeaderOpen) {
@@ -65,6 +82,17 @@ export function Header({
     );
   }
 
+  // Cálculos consolidados para os pods executivos
+  const totalEfetivo = stats.totalEfetivo || 623;
+  const svOrd = stats.militares || 267;
+  const seg = stats.seg || 6;
+  const brigGerais = stats.brigadistas || 197;
+  const brigSema = stats.brigadistasSema || 153;
+  const totalBrig = stats.totalBrigadistas || 350;
+  const prevfogo = stats.prevfogo || 134;
+  const totalAeronaves = (stats.asaFixa || 7) + (stats.rotativa || 3);
+  const totalMeios = totalAeronaves + (stats.viaturas || 4) + (stats.fluvial || 1);
+
   return (
     <header className="app-header">
       {/* Aba na borda inferior da barra de cima para subir/recolher com 1 clique */}
@@ -76,12 +104,12 @@ export function Header({
         <ChevronUp size={16} color="#38bdf8" />
       </button>
 
-      {/* Lado Esquerdo: Brasões e Título Oficial */}
+      {/* 1. LADO ESQUERDO: IDENTIDADE OFICIAL & STATUS OPERACIONAL */}
       <div className="header-left">
         <div className="brand-emblems">
           {/* Brasão Oficial CBMAM */}
           <div className="emblem-badge" title="Corpo de Bombeiros Militar do Amazonas - Desde 1876">
-            <svg viewBox="0 0 100 100" width="38" height="38">
+            <svg viewBox="0 0 100 100" width="36" height="36">
               <circle cx="50" cy="50" r="46" fill="#1e3a8a" stroke="#eab308" strokeWidth="3"/>
               <circle cx="50" cy="50" r="38" fill="#b91c1c"/>
               <polygon points="50,22 55,38 72,38 58,48 64,64 50,54 36,64 42,48 28,38 45,38" fill="#facc15"/>
@@ -93,9 +121,9 @@ export function Header({
 
           {/* Brasão CBI */}
           <div className="emblem-badge" title="Comando de Bombeiros do Interior (CBI)">
-            <svg viewBox="0 0 100 100" width="38" height="38">
+            <svg viewBox="0 0 100 100" width="36" height="36">
               <circle cx="50" cy="50" r="46" fill="#047857" stroke="#38bdf8" strokeWidth="2.5"/>
-              <circle cx="50" cy="50" r="36" fill="#f8fafc"/>
+              <circle cx="50" cy="36" r="36" fill="#f8fafc"/>
               <path d="M 35 48 L 46 34 L 66 34 L 55 48 Z" fill="#facc15"/>
               <circle cx="50" cy="46" r="10" fill="#dc2626"/>
               <text x="50" y="74" fontSize="12" fontWeight="900" fill="#0f172a" textAnchor="middle">CBI</text>
@@ -104,296 +132,272 @@ export function Header({
         </div>
 
         <div className="header-title-box">
-          <h1 className="header-main-title">
-            MAPA OPERACIONAL <span style={{ color: '#ef4444' }}>•</span> INTERIOR
-          </h1>
+          <div className="header-title-row">
+            <h1 className="header-main-title">
+              MAPA OPERACIONAL <span style={{ color: '#ef4444' }}>•</span> INTERIOR
+            </h1>
+            <span className="op-status-badge">
+              <span className="op-status-dot"></span>
+              OPERAÇÃO AMAZONAS
+            </span>
+          </div>
           <div className="header-subtitle">
             CBMAM • COMANDO DE BOMBEIROS DO INTERIOR (CBI)
           </div>
         </div>
       </div>
 
-      {/* Centro: Indicadores Numéricos de Prontidão (KPIs) Oficiais da OPERAÇÃO AMAZONAS */}
-      <div className="header-stats">
-        {/* SOMA TOTAL DE TUDO */}
+      {/* 2. CENTRO: PODS EXECUTIVOS CONSOLIDADOS (LIMPOS, ELEGANTES E PROFISSIONAIS) */}
+      <div className="header-stats-hub">
+        {/* POD 1: TOTAL GERAL EMPREGADO (DESTAQUE OURO / RUBRO) */}
         <div 
-          className="kpi-chip highlight-gold" 
+          className="exec-kpi-pod pod-gold"
           onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer', border: '1.5px solid #eab308', background: 'rgba(234, 179, 8, 0.18)' }}
-          title="Clique para ver a Soma Total de Tudo (623 operacionais) e a tabela detalhada"
+          title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (623 Operacionais)"
         >
-          <Users size={14} color="#facc15" />
-          <span className="kpi-label" style={{ color: '#fef08a' }}>TOTAL EFETIVO:</span>
-          <span className="kpi-value" style={{ color: '#ffffff', fontWeight: 900 }}>{stats.totalEfetivo || 623}</span>
+          <div className="pod-icon-wrap">
+            <Users size={16} color="#facc15" />
+          </div>
+          <div className="pod-body">
+            <div className="pod-top-row">
+              <span className="pod-label">TOTAL GERAL EMPREGADO</span>
+              <span className="pod-badge">OFICIAL</span>
+            </div>
+            <div className="pod-value-row">
+              <span className="pod-hero-number">{totalEfetivo}</span>
+              <span className="pod-subdetail">
+                <b>{svOrd}</b> SV ORD • <b>{seg}</b> SEG • <b>{totalBrig}</b> BRIG
+              </span>
+            </div>
+          </div>
         </div>
 
+        {/* POD 2: BRIGADAS FLORESTAIS (VERDE FLORESTA / PREVFOGO & SEMA) */}
         <div 
-          className="kpi-chip highlight-red" 
+          className="exec-kpi-pod pod-forest"
           onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer' }}
-          title="Militares CBMAM - Serviço Ordinário (117 Capital + 150 Interior = 267 Total)"
+          title="Clique para ver detalhes dos Brigadistas Gerais, Prevfogo IBAMA (134) e SEMA (153)"
         >
-          <Users size={14} color="#ef4444" />
-          <span className="kpi-label">SV ORD:</span>
-          <span className="kpi-value">{stats.militares}</span>
+          <div className="pod-icon-wrap">
+            <Leaf size={16} color="#4ade80" />
+          </div>
+          <div className="pod-body">
+            <div className="pod-top-row">
+              <span className="pod-label">BRIGADAS FLORESTAIS</span>
+              <span className="pod-badge green">350 TOTAL</span>
+            </div>
+            <div className="pod-value-row">
+              <span className="pod-hero-number">{totalBrig}</span>
+              <span className="pod-subdetail">
+                <b>{brigGerais}</b> Gerais (<b>{prevfogo}</b> Prevfogo) • <b>{brigSema}</b> SEMA
+              </span>
+            </div>
+          </div>
         </div>
 
+        {/* POD 3: MEIOS OPERACIONAIS (AZUL TÁTICO / AERONAVES & VTRS) */}
         <div 
-          className="kpi-chip" 
-          onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer', borderColor: 'rgba(234, 179, 8, 0.5)', background: 'rgba(234, 179, 8, 0.12)' }} 
-          title="Militares CBMAM - Serviço Extraordinário Gratificado (SEG)"
-        >
-          <Users size={14} color="#facc15" />
-          <span className="kpi-label" style={{ color: '#fde047' }}>SEG:</span>
-          <span className="kpi-value" style={{ color: '#fde047' }}>{stats.seg || 0}</span>
-        </div>
-
-        <div 
-          className="kpi-chip highlight-amber" 
-          onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer' }}
-          title="Brigadistas Florestais Municipais / Geral (Total: 197 • Inclui 134 Prevfogo/IBAMA)"
-        >
-          <Users size={14} color="#f97316" />
-          <span className="kpi-label">Brig. Gerais:</span>
-          <span className="kpi-value">{stats.brigadistas}</span>
-        </div>
-
-        <div 
-          className="kpi-chip" 
-          onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer', borderColor: 'rgba(34, 197, 94, 0.6)', background: 'rgba(34, 197, 94, 0.15)' }} 
-          title="Prevfogo / IBAMA: 134 Brigadistas em 7 municípios (Autazes 38, Barreirinha 21, Borba 20, Careiro Várzea 18, Nova Olinda 15, Maués 14, Parintins 8)"
-        >
-          <Shield size={14} color="#4ade80" />
-          <span className="kpi-label" style={{ color: '#86efac' }}>Prevfogo:</span>
-          <span className="kpi-value" style={{ color: '#bbf7d0', fontWeight: 800 }}>{stats.prevfogo || 134}</span>
-        </div>
-
-        <div 
-          className="kpi-chip" 
-          onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer', borderColor: 'rgba(16, 185, 129, 0.5)', background: 'rgba(16, 185, 129, 0.12)' }} 
-          title="Brigadistas da Secretaria de Estado do Meio Ambiente (109 Municípios + 44 Bases = 153 Total)"
-        >
-          <Leaf size={14} color="#10b981" />
-          <span className="kpi-label" style={{ color: '#86efac' }}>Brig. SEMA:</span>
-          <span className="kpi-value" style={{ color: '#86efac' }}>{stats.brigadistasSema || 0}</span>
-        </div>
-
-        <div 
-          className="kpi-chip" 
-          onClick={onOpenEfetivo}
-          style={{ cursor: 'pointer', borderColor: 'rgba(56, 189, 248, 0.5)', background: 'rgba(56, 189, 248, 0.12)' }} 
-          title="Total de Brigadistas da Operação (197 Gerais + 153 SEMA = 350 Total)"
-        >
-          <Users size={14} color="#38bdf8" />
-          <span className="kpi-label" style={{ color: '#7dd3fc' }}>Total Brig.:</span>
-          <span className="kpi-value" style={{ color: '#e0f2fe', fontWeight: 800 }}>{stats.totalBrigadistas || 350}</span>
-        </div>
-
-        <div 
-          className="kpi-chip" 
+          className="exec-kpi-pod pod-blue"
           onClick={onOpenAeronaves}
-          style={{ cursor: 'pointer', borderColor: 'rgba(2, 132, 199, 0.6)', background: 'rgba(2, 132, 199, 0.15)' }}
-          title="Clique para ver a localização das 7 Aeronaves de Asa Fixa (4 Flores, 1 P. Fig, 1 Itacoatiara, 1 Parintins)"
+          title="Clique para ver onde estão as 10 Aeronaves, 4 Viaturas e 1 Fluvial"
         >
-          <Plane size={14} color="#38bdf8" />
-          <span className="kpi-label" style={{ color: '#7dd3fc' }}>Asa Fixa:</span>
-          <span className="kpi-value" style={{ color: '#ffffff' }}>{stats.asaFixa}</span>
-        </div>
-
-        <div 
-          className="kpi-chip" 
-          onClick={onOpenAeronaves}
-          style={{ cursor: 'pointer', borderColor: 'rgba(16, 185, 129, 0.6)', background: 'rgba(16, 185, 129, 0.15)' }}
-          title="Clique para ver a localização dos 3 Helicópteros Harpia (2 Manaus, 1 Novo Airão)"
-        >
-          <Shield size={14} color="#34d399" />
-          <span className="kpi-label" style={{ color: '#a7f3d0' }}>Rotativa:</span>
-          <span className="kpi-value" style={{ color: '#ffffff' }}>{stats.rotativa}</span>
-        </div>
-
-        <div className="kpi-chip" title="Viaturas Terrestres Operacionais (ABT + 4x4 + UR)">
-          <Truck size={14} color="#f87171" />
-          <span className="kpi-label">Viaturas:</span>
-          <span className="kpi-value">{stats.viaturas}</span>
-        </div>
-
-        <div className="kpi-chip" title="Embarcações Rápidas Fluviais">
-          <Anchor size={14} color="#38bdf8" />
-          <span className="kpi-label">Fluvial:</span>
-          <span className="kpi-value">{stats.fluvial}</span>
-        </div>
-
-        <div className="kpi-chip highlight-amber" title="Força-tarefa total mobilizada na região do Arco do Fogo">
-          <Flame size={14} color="#ea580c" />
-          <span className="kpi-label">Arco Fogo:</span>
-          <span className="kpi-value">{stats.arcoFogo}</span>
+          <div className="pod-icon-wrap">
+            <Plane size={16} color="#38bdf8" />
+          </div>
+          <div className="pod-body">
+            <div className="pod-top-row">
+              <span className="pod-label">MEIOS OPERACIONAIS</span>
+              <span className="pod-badge blue">10 AÉREOS</span>
+            </div>
+            <div className="pod-value-row">
+              <span className="pod-hero-number">{totalMeios}</span>
+              <span className="pod-subdetail">
+                <b>{totalAeronaves}</b> Aeronaves (7 Fixa | 3 Harpia) • <b>{stats.viaturas || 4}</b> VTRs • <b>{stats.fluvial || 1}</b> Fluvial
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Lado Direito: Ações de Comando e Gestão */}
+      {/* 3. LADO DIREITO: BARRA DE COMANDO ORGANIZADA & MENU DROPDOWN */}
       <div className="header-actions">
-        {/* BOTÃO SOMA TOTAL DE TUDO (EFETIVO 623) */}
+        {/* BOTÃO PRINCIPAL 1: PAINEL DE EFETIVO */}
         <button
-          className="btn-tactical"
+          className="btn-command btn-command-gold"
           onClick={onOpenEfetivo}
-          title="Clique para ver a soma total de tudo e as informações referentes ao efetivo (623 operacionais)"
-          style={{ background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)', borderColor: '#ef4444', color: '#ffffff', fontWeight: 800 }}
+          title="Abrir Painel Completo de Efetivo (623) e Recursos da Operação"
         >
-          <Users size={14} color="#ffffff" />
-          Soma Total (623)
+          <Users size={14} />
+          <span>Painel Efetivo</span>
         </button>
 
-        {/* BOTÃO ONDE ESTÃO AS AERONAVES (10 AERONAVES) */}
+        {/* BOTÃO PRINCIPAL 2: AERONAVES */}
         <button
-          className="btn-tactical"
+          className="btn-command btn-command-blue"
           onClick={onOpenAeronaves}
-          title="Clique para ver onde estão as 10 aeronaves empregadas (7 Asa Fixa e 3 Helicópteros)"
-          style={{ background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)', borderColor: '#38bdf8', color: '#ffffff', fontWeight: 800 }}
+          title="Ver localização das 10 Aeronaves no mapa"
         >
-          <Plane size={14} color="#facc15" />
-          Aeronaves (10)
+          <Plane size={14} />
+          <span>Aeronaves (10)</span>
         </button>
 
-        {/* RECOLHER / EXPANDIR BARRA LATERAL (MAPA NA TOTALIDADE) */}
+        {/* BOTÃO PRINCIPAL 3: RELATÓRIO OFICIAL */}
         <button
-          className={`btn-tactical ${!isSidebarOpen ? 'btn-accent' : ''}`}
-          onClick={onToggleSidebar}
-          title={isSidebarOpen ? "Recolher barra lateral para visualizar o mapa na totalidade" : "Abrir barra lateral com hangar de viaturas e contingente"}
-          style={!isSidebarOpen ? { background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', borderColor: '#38bdf8' } : {}}
-        >
-          {isSidebarOpen ? (
-            <>
-              <ChevronLeft size={14} color="#38bdf8" />
-              Recolher Lateral
-            </>
-          ) : (
-            <>
-              <ChevronRight size={14} color="#38bdf8" />
-              Ver Lateral
-            </>
-          )}
-        </button>
-
-        {/* BOTÃO PARA ABRIR O RELATÓRIO OFICIAL DE EFETIVO */}
-        <button
-          className="btn-tactical btn-accent"
+          className="btn-command btn-command-navy"
           onClick={onOpenRelatorio}
-          title="Abrir o Relatório Oficial de Efetivo e Combates Ativos (Tabela Completa da Operação)"
-          style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', borderColor: '#3b82f6', color: '#ffffff' }}
+          title="Visualizar Tabela Oficial CBMAM e Relatório Operacional"
         >
           <FileText size={14} />
-          Relatório Oficial
+          <span>Relatório</span>
         </button>
 
-        {/* BOTÃO PARA OCULTAR OU EXIBIR TODOS OS ÍCONES */}
-        <button
-          className={`btn-tactical ${!showAllTokens ? 'btn-primary' : ''}`}
-          onClick={onToggleShowAllTokens}
-          title={showAllTokens ? "Ocultar todos os ícones do mapa (Clique no município para ver viaturas e efetivo)" : "Exibir todos os ícones espalhados no mapa"}
-        >
-          {showAllTokens ? (
-            <>
-              <EyeOff size={14} />
-              Ocultar Ícones
-            </>
-          ) : (
-            <>
-              <Eye size={14} />
-              Exibir Ícones
-            </>
+        {/* DIVISOR VERTICAL */}
+        <div className="header-divider" />
+
+        {/* CONTROLES DE VISUALIZAÇÃO: ÍCONES E PAINEL LATERAL */}
+        <div className="btn-group-toggle">
+          <button
+            className={`btn-toggle ${!showAllTokens ? 'active' : ''}`}
+            onClick={onToggleShowAllTokens}
+            title={showAllTokens ? "Ocultar todos os ícones do mapa para foco visual" : "Exibir todos os ícones espalhados no mapa"}
+          >
+            {showAllTokens ? <EyeOff size={13} /> : <Eye size={13} />}
+            <span>{showAllTokens ? 'Ocultar Ícones' : 'Exibir Ícones'}</span>
+          </button>
+
+          <button
+            className={`btn-toggle ${!isSidebarOpen ? 'active' : ''}`}
+            onClick={onToggleSidebar}
+            title={isSidebarOpen ? "Recolher barra lateral para visualizar o mapa na totalidade" : "Abrir barra lateral com hangar"}
+          >
+            {isSidebarOpen ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+            <span>{isSidebarOpen ? 'Recolher Lateral' : 'Ver Lateral'}</span>
+          </button>
+        </div>
+
+        {/* DIVISOR VERTICAL */}
+        <div className="header-divider" />
+
+        {/* MENU DROPDOWN: MISSÃO & FERRAMENTAS */}
+        <div className="dropdown-container" ref={menuRef}>
+          <button
+            className={`btn-command btn-command-outline ${isMenuOpen ? 'open' : ''}`}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            title="Menu de Ferramentas, Compartilhamento e Ações da Missão"
+          >
+            <Settings size={14} />
+            <span>Missão & Ações</span>
+            <ChevronDown size={12} style={{ transform: isMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </button>
+
+          {isMenuOpen && (
+            <div className="mission-dropdown-menu">
+              <div className="dropdown-header">GESTÃO OPERACIONAL</div>
+              
+              <button 
+                className="dropdown-item"
+                onClick={() => {
+                  handleShareClick();
+                  setIsMenuOpen(false);
+                }}
+              >
+                {copiedLink ? <Check size={14} color="#4ade80" /> : <Share2 size={14} color="#38bdf8" />}
+                <div>
+                  <div className="item-title">{copiedLink ? 'Link Copiado!' : 'Copiar Link da Missão'}</div>
+                  <div className="item-desc">Compartilhar cenário e recursos via URL</div>
+                </div>
+              </button>
+
+              <button 
+                className="dropdown-item"
+                onClick={() => {
+                  onExportImage();
+                  setIsMenuOpen(false);
+                }}
+              >
+                <Camera size={14} color="#facc15" />
+                <div>
+                  <div className="item-title">Exportar Mapa em HD</div>
+                  <div className="item-desc">Salvar imagem PNG para briefing ou impressão</div>
+                </div>
+              </button>
+
+              <button 
+                className="dropdown-item"
+                onClick={() => {
+                  onLoadRealScenario();
+                  setIsMenuOpen(false);
+                }}
+              >
+                <Sparkles size={14} color="#f59e0b" />
+                <div>
+                  <div className="item-title">Restaurar Cenário Oficial</div>
+                  <div className="item-desc">Recarregar os 623 operacionais e 10 aeronaves</div>
+                </div>
+              </button>
+
+              <div className="dropdown-divider" />
+
+              <button 
+                className="dropdown-item"
+                onClick={() => {
+                  onSaveMission();
+                  setIsMenuOpen(false);
+                }}
+              >
+                <Download size={14} color="#38bdf8" />
+                <div>
+                  <div className="item-title">Salvar Arquivo JSON</div>
+                  <div className="item-desc">Baixar backup de dados para o computador</div>
+                </div>
+              </button>
+
+              <label 
+                className="dropdown-item"
+                style={{ cursor: 'pointer', margin: 0 }}
+              >
+                <Upload size={14} color="#818cf8" />
+                <div>
+                  <div className="item-title">Carregar Arquivo JSON</div>
+                  <div className="item-desc">Restaurar missão salva anteriormente</div>
+                </div>
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  style={{ display: 'none' }} 
+                  onChange={(e) => {
+                    onLoadMission(e);
+                    setIsMenuOpen(false);
+                  }}
+                />
+              </label>
+
+              <div className="dropdown-divider" />
+
+              <button 
+                className="dropdown-item danger"
+                onClick={() => {
+                  onClearMap();
+                  setIsMenuOpen(false);
+                }}
+              >
+                <Trash2 size={14} color="#ef4444" />
+                <div>
+                  <div className="item-title" style={{ color: '#ef4444' }}>Limpar Recursos do Mapa</div>
+                  <div className="item-desc">Remover todos os marcadores operacionais</div>
+                </div>
+              </button>
+            </div>
           )}
-        </button>
+        </div>
 
-        {/* COMPARTILHAR MISSÃO DIRETO PELO LINK */}
-        <button
-          className="btn-tactical btn-accent"
-          onClick={handleShareClick}
-          title="Copiar link com todas as viaturas e tropas atuais para abrir em outro PC"
-        >
-          {copiedLink ? (
-            <>
-              <Check size={14} color="#86efac" />
-              Link Copiado!
-            </>
-          ) : (
-            <>
-              <Share2 size={14} />
-              Copiar Link
-            </>
-          )}
-        </button>
-
+        {/* BOTÃO TELA CHEIA */}
         <button 
-          className="btn-tactical"
-          onClick={onLoadRealScenario}
-          title="Carregar exatamente o cenário das fotos do quadro operacional"
-        >
-          <Sparkles size={14} color="#facc15" />
-          Cenário Real
-        </button>
-
-        <button 
-          className="btn-tactical btn-accent"
-          onClick={onExportImage}
-          title="Exportar imagem do mapa em alta definição (PNG) para impressão ou briefing"
-        >
-          <Camera size={14} />
-          Exportar HD
-        </button>
-
-        <button 
-          className="btn-tactical"
-          onClick={onSaveMission}
-          title="Baixar arquivo JSON com os recursos do mapa para backup ou envio"
-        >
-          <Download size={14} />
-          Salvar
-        </button>
-
-        <label 
-          className="btn-tactical"
-          style={{ margin: 0, cursor: 'pointer' }}
-          title="Carregar arquivo JSON com cenário de missão previamente salvo"
-        >
-          <Upload size={14} />
-          Carregar
-          <input 
-            type="file" 
-            accept=".json" 
-            style={{ display: 'none' }} 
-            onChange={onLoadMission}
-          />
-        </label>
-
-        <button 
-          className="btn-tactical btn-icon-only"
-          onClick={onClearMap}
-          title="Limpar todos os recursos do mapa"
-        >
-          <Trash2 size={15} color="#ef4444" />
-        </button>
-
-        <button 
-          className="btn-tactical btn-icon-only"
+          className="btn-icon-minimal"
           onClick={onToggleFullscreen}
-          title="Modo Tela Cheia (Apresentação / Sala de Situação)"
+          title="Alternar Tela Cheia (F11)"
         >
           <Maximize size={15} />
-        </button>
-
-        {/* BOTÃO PARA SUBIR A BARRA SUPERIOR (VER O MAPA NA TOTALIDADE) */}
-        <button
-          className="btn-tactical"
-          onClick={onToggleHeader}
-          title="Subir barra superior para ver o mapa na totalidade"
-          style={{ background: '#090d16', borderColor: '#334155', color: '#94a3b8' }}
-        >
-          <ChevronUp size={14} color="#38bdf8" />
-          <span>Subir Barra</span>
         </button>
       </div>
     </header>
