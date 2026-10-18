@@ -42,7 +42,7 @@ export function EfetivoModal({ onClose, onSelectMuni, onSyncOfficialTokens }) {
         style={{ maxWidth: 1020, width: '95vw', maxHeight: '92vh' }}
       >
         {/* Topo do Modal */}
-        <div className="modal-header" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderBottom: '1.5px solid #ef4444' }}>
+        <div className="modal-header" style={{ background: 'linear-gradient(135deg, #182e4c 0%, #122237 100%)', borderBottom: '1.5px solid #ef4444' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)',
@@ -326,7 +326,7 @@ export function EfetivoModal({ onClose, onSelectMuni, onSyncOfficialTokens }) {
         </div>
 
         {/* Conteúdo das Tabelas Oficiais */}
-        <div className="modal-body" style={{ padding: '16px 20px', background: '#090d16', maxHeight: '55vh' }}>
+        <div className="modal-body" style={{ padding: '16px 20px', background: '#101c2e', maxHeight: '55vh' }}>
           
           {/* TABELA 1 & 2: MUNICÍPIOS */}
           {(activeTab === 'todos' || activeTab === 'municipios') && (
@@ -789,7 +789,7 @@ export function EfetivoModal({ onClose, onSelectMuni, onSyncOfficialTokens }) {
         </div>
 
         {/* Rodapé com Ação de Sincronizar Fichas no Mapa */}
-        <div className="modal-footer" style={{ background: '#0f172a', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-footer" style={{ background: '#15243b', borderTop: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {onSyncOfficialTokens && (
             <button
               onClick={() => {

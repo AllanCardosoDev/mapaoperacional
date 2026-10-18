@@ -92,6 +92,7 @@ export default function App() {
 
   // Controle de expansão/recolhimento da barra lateral para ver o mapa na totalidade
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [sidebarActiveTab, setSidebarActiveTab] = useState('gestao'); // Inicia por padrão na nova aba de Gestão/Planilha/CRUD
 
   // Controle de expansão/subida da barra superior para ver o mapa na totalidade
   const [isHeaderOpen, setIsHeaderOpen] = useState(true);
@@ -100,6 +101,12 @@ export default function App() {
   const [showRelatorioModal, setShowRelatorioModal] = useState(false);
   const [showEfetivoModal, setShowEfetivoModal] = useState(false);
   const [showAeronavesModal, setShowAeronavesModal] = useState(false);
+
+  // Abertura direta da aba lateral de Planilha / CRUD
+  const handleOpenPlanilha = () => {
+    setIsSidebarOpen(true);
+    setSidebarActiveTab('gestao');
+  };
 
   // Persistência automática no localStorage
   useEffect(() => {
@@ -401,6 +408,7 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenEfetivo={() => setShowEfetivoModal(true)}
         onOpenAeronaves={() => setShowAeronavesModal(true)}
+        onOpenPlanilha={handleOpenPlanilha}
         isHeaderOpen={isHeaderOpen}
         onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
       />
@@ -411,6 +419,8 @@ export default function App() {
         <TacticalSidebar 
           isOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          activeTab={sidebarActiveTab}
+          onTabChange={setSidebarActiveTab}
           onDragStartToken={handleDragStartToken}
           selectedMuni={selectedMuni}
           onAddTokenToMuni={handleAddTokenToMuni}

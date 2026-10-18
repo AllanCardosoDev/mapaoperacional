@@ -140,7 +140,7 @@ export function MunicipalityDrawer({
 
       <div className="drawer-body">
         {/* RESUMO GERAL DAS FORÇAS ALOCADAS NO MUNICÍPIO */}
-        <div className="info-card-block" style={{ background: 'rgba(15, 23, 42, 0.85)', border: '1px solid #0284c7' }}>
+        <div className="info-card-block" style={{ background: '#162842', border: '1px solid rgba(56, 189, 248, 0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span className="block-title" style={{ color: '#38bdf8' }}>Quadro Resumo Municipal</span>
             <span style={{ fontSize: 10, color: '#94a3b8' }}>
@@ -149,7 +149,7 @@ export function MunicipalityDrawer({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            <div style={{ background: '#101726', padding: '6px 8px', borderRadius: 4, border: '1px solid #1e293b' }}>
+            <div style={{ background: '#101c2e', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
               <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase' }}>Efetivo Total</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: '#ffffff' }}>{breakdown.totalEfetivo} <span style={{ fontSize: 11, fontWeight: 'normal' }}>Op.</span></div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>
@@ -157,19 +157,19 @@ export function MunicipalityDrawer({
               </div>
             </div>
 
-            <div style={{ background: '#101726', padding: '6px 8px', borderRadius: 4, border: '1px solid #1e293b' }}>
+            <div style={{ background: '#101c2e', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
               <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase' }}>Viaturas (VTRs)</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: '#f87171' }}>{breakdown.viaturas} <span style={{ fontSize: 11, fontWeight: 'normal' }}>VTR</span></div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>Caminhões e Pick-ups</div>
             </div>
 
-            <div style={{ background: '#101726', padding: '6px 8px', borderRadius: 4, border: '1px solid #1e293b' }}>
+            <div style={{ background: '#101c2e', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
               <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase' }}>Aeronaves</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: '#facc15' }}>{breakdown.aeronaves} <span style={{ fontSize: 11, fontWeight: 'normal' }}>Aero</span></div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>Air Tractor e Harpias</div>
             </div>
 
-            <div style={{ background: '#101726', padding: '6px 8px', borderRadius: 4, border: '1px solid #1e293b' }}>
+            <div style={{ background: '#101c2e', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(56, 189, 248, 0.2)' }}>
               <div style={{ fontSize: 9.5, color: '#94a3b8', textTransform: 'uppercase' }}>Fluvial</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>{breakdown.fluvial} <span style={{ fontSize: 11, fontWeight: 'normal' }}>Barco</span></div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>Lanchas Rápidas</div>

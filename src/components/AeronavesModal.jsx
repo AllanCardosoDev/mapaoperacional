@@ -28,7 +28,7 @@ export function AeronavesModal({ onClose, onSelectMuni }) {
         style={{ maxWidth: 860, width: '92vw', maxHeight: '90vh' }}
       >
         {/* Topo do Modal */}
-        <div className="modal-header" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderBottom: '1.5px solid #0284c7' }}>
+        <div className="modal-header" style={{ background: 'linear-gradient(135deg, #182e4c 0%, #122237 100%)', borderBottom: '1.5px solid #0284c7' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
@@ -134,14 +134,14 @@ export function AeronavesModal({ onClose, onSelectMuni }) {
         </div>
 
         {/* Lista de Aeronaves em Cartões Táticos */}
-        <div className="modal-body" style={{ padding: '16px 20px', background: '#090d16' }}>
+        <div className="modal-body" style={{ padding: '16px 20px', background: '#101c2e' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 14 }}>
             {filteredAeronaves.map(aero => (
               <div 
                 key={aero.id}
                 style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: aero.category === 'asa_rotativa' ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid rgba(2, 132, 199, 0.4)',
+                  background: '#15243b',
+                  border: aero.category === 'asa_rotativa' ? '1.5px solid rgba(16, 185, 129, 0.45)' : '1.5px solid rgba(56, 189, 248, 0.35)',
                   borderRadius: 10,
                   padding: 14,
                   display: 'flex',
@@ -154,8 +154,8 @@ export function AeronavesModal({ onClose, onSelectMuni }) {
                 {/* Cabeçalho do Card */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#090d16', borderRadius: 8, border: '1px solid #334155' }}>
-                      <TokenSvg type={aero.type} size={36} />
+                    <div style={{ width: 52, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.7) 100%)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.25)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+                      <TokenSvg type={aero.type} width={46} height={28} />
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 900, color: '#ffffff' }}>
@@ -237,7 +237,7 @@ export function AeronavesModal({ onClose, onSelectMuni }) {
         </div>
 
         {/* Rodapé */}
-        <div className="modal-footer" style={{ background: '#0f172a', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-footer" style={{ background: '#15243b', borderTop: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>
             Total Operacional: <strong style={{ color: '#38bdf8' }}>10 Aeronaves</strong> (7 Asa Fixa + 3 Helicópteros)
           </div>

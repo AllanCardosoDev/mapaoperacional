@@ -21,7 +21,8 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
-  Settings
+  Settings,
+  Database
 } from 'lucide-react';
 
 export function Header({
@@ -40,6 +41,7 @@ export function Header({
   onToggleSidebar,
   onOpenEfetivo,
   onOpenAeronaves,
+  onOpenPlanilha,
   isHeaderOpen = true,
   onToggleHeader
 }) {
@@ -221,6 +223,24 @@ export function Header({
 
       {/* 3. LADO DIREITO: BARRA DE COMANDO ORGANIZADA & MENU DROPDOWN */}
       <div className="header-actions">
+        {/* BOTÃO PRINCIPAL 0: PLANILHA / CRUD (TABELA OFICIAL 1.302) */}
+        {onOpenPlanilha && (
+          <button
+            className="btn-command"
+            onClick={onOpenPlanilha}
+            style={{
+              background: 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
+              border: '1px solid #10b981',
+              color: '#ffffff',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
+            }}
+            title="Abrir Aba Lateral da Planilha Oficial CBMAM e CRUD de Efetivo (1.302 Operacionais)"
+          >
+            <Database size={14} color="#6ee7b7" />
+            <span>Planilha / CRUD</span>
+          </button>
+        )}
+
         {/* BOTÃO PRINCIPAL 1: PAINEL DE EFETIVO */}
         <button
           className="btn-command btn-command-gold"

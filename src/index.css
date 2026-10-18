@@ -4,12 +4,13 @@
    ========================================================================== */
 
 :root {
-  --bg-main: #090d16;
-  --bg-surface: #101726;
-  --bg-surface-elevated: #162032;
-  --bg-panel: rgba(16, 23, 38, 0.92);
-  --border-subtle: #1e293b;
-  --border-accent: #334155;
+  --bg-main: #0c1626;
+  --bg-surface: #132238;
+  --bg-surface-elevated: #1a2d49;
+  --bg-surface-hover: #223c62;
+  --bg-panel: rgba(19, 34, 56, 0.95);
+  --border-subtle: #243956;
+  --border-accent: #37537b;
   --border-glow: #0284c7;
   
   --primary-red: #dc2626;
@@ -22,14 +23,14 @@
   
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  --text-dim: #7388a5;
   
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-condensed: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   
-  --shadow-tactical: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 15px rgba(2, 132, 199, 0.4);
+  --shadow-tactical: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 18px rgba(2, 132, 199, 0.5);
 }
 
 * {
@@ -39,13 +40,18 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-main);
   color: var(--text-main);
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   user-select: none;
@@ -56,13 +62,13 @@ body {
    -------------------------------------------------------------------------- */
 .app-header {
   position: relative;
-  background: linear-gradient(180deg, #131c2e 0%, #0c121e 100%);
-  border-bottom: 2px solid #1e293b;
+  background: linear-gradient(180deg, #172740 0%, #101c30 100%);
+  border-bottom: 2px solid #0284c7;
   padding: 8px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 20px rgba(5, 16, 32, 0.45);
   z-index: 50;
   flex-shrink: 0;
 }
@@ -238,27 +244,27 @@ body {
   gap: 10px;
   padding: 5px 12px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid #1e293b;
+  background: rgba(23, 38, 64, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(56, 189, 248, 0.28);
   cursor: pointer;
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 3px 12px rgba(5, 16, 32, 0.35);
 }
 
 .exec-kpi-pod:hover {
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.3);
 }
 
 /* Pod Dourado (Total Efetivo) */
 .exec-kpi-pod.pod-gold {
-  border-color: rgba(234, 179, 8, 0.45);
-  background: linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(234, 179, 8, 0.5);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(26, 44, 72, 0.9) 100%);
 }
 .exec-kpi-pod.pod-gold:hover {
   border-color: #facc15;
-  box-shadow: 0 6px 18px rgba(234, 179, 8, 0.25);
+  box-shadow: 0 6px 20px rgba(234, 179, 8, 0.3);
 }
 .exec-kpi-pod.pod-gold .pod-hero-number {
   color: #fef08a;
@@ -266,12 +272,12 @@ body {
 
 /* Pod Floresta (Brigadistas & Prevfogo) */
 .exec-kpi-pod.pod-forest {
-  border-color: rgba(34, 197, 94, 0.4);
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(34, 197, 94, 0.45);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.16) 0%, rgba(26, 44, 72, 0.9) 100%);
 }
 .exec-kpi-pod.pod-forest:hover {
   border-color: #4ade80;
-  box-shadow: 0 6px 18px rgba(34, 197, 94, 0.25);
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
 }
 .exec-kpi-pod.pod-forest .pod-hero-number {
   color: #86efac;
@@ -279,12 +285,12 @@ body {
 
 /* Pod Azul (Meios Operacionais & Aeronaves) */
 .exec-kpi-pod.pod-blue {
-  border-color: rgba(56, 189, 248, 0.4);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(26, 44, 72, 0.9) 100%);
 }
 .exec-kpi-pod.pod-blue:hover {
   border-color: #38bdf8;
-  box-shadow: 0 6px 18px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.3);
 }
 .exec-kpi-pod.pod-blue .pod-hero-number {
   color: #bae6fd;
@@ -297,8 +303,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(2, 6, 23, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 25, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   flex-shrink: 0;
 }
 
@@ -428,13 +434,13 @@ body {
 }
 
 .btn-command-outline {
-  background: #0f172a;
-  border-color: #334155;
+  background: #172a44;
+  border-color: #2e496e;
   color: #e2e8f0;
 }
 .btn-command-outline:hover,
 .btn-command-outline.open {
-  background: #1e293b;
+  background: #20395c;
   border-color: #38bdf8;
   color: #38bdf8;
 }
@@ -586,8 +592,17 @@ body {
 /* --------------------------------------------------------------------------
    LAYOUT PRINCIPAL
    -------------------------------------------------------------------------- */
+.app-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .app-workspace {
   flex: 1;
+  min-height: 0;
   display: flex;
   position: relative;
   overflow: hidden;
@@ -597,7 +612,9 @@ body {
    BARRA LATERAL ESQUERDA: HANGAR DE RECURSOS & CONTINGENTE
    -------------------------------------------------------------------------- */
 .tactical-sidebar {
-  width: 290px;
+  width: 330px;
+  height: 100%;
+  max-height: 100%;
   background: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
   display: flex;
@@ -607,6 +624,8 @@ body {
   flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Aba lateral de clique rápido para recolher na borda da barra */
@@ -704,43 +723,92 @@ body {
 .sidebar-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-subtle);
-  background: #0f172a;
+  background: #0f1c2e;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #1e3a5f transparent;
+}
+
+.sidebar-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+.sidebar-tabs::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 2px;
 }
 
 .sidebar-tab-btn {
-  flex: 1;
-  padding: 8px 10px;
+  flex-shrink: 0;
+  padding: 8px 11px;
   background: transparent;
   border: none;
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.sidebar-tab-btn:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .sidebar-tab-btn.active {
   color: #ffffff;
-  border-bottom-color: var(--primary-red);
-  background: rgba(220, 38, 38, 0.1);
+  border-bottom-color: #38bdf8;
+  background: linear-gradient(180deg, rgba(2, 132, 199, 0.25) 0%, rgba(2, 132, 199, 0.08) 100%);
 }
 
 .sidebar-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #0284c7 rgba(15, 23, 42, 0.7);
 }
 
-.sidebar-content::-webkit-scrollbar {
-  width: 5px;
+.sidebar-content.gestao-content {
+  padding: 10px 8px 10px 12px;
+  gap: 0;
+  overflow: hidden;
 }
-.sidebar-content::-webkit-scrollbar-thumb {
-  background: #334155;
+
+/* Barra de Rolagem Tática Altamente Visível */
+.tactical-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #38bdf8 rgba(15, 23, 42, 0.85);
+}
+
+.sidebar-content::-webkit-scrollbar,
+.tactical-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-content::-webkit-scrollbar-track,
+.tactical-scroll::-webkit-scrollbar-track {
+  background: rgba(11, 20, 34, 0.9);
   border-radius: 4px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb,
+.tactical-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover,
+.tactical-scroll::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
 }
 
 /* Seções de Recursos */
@@ -755,7 +823,7 @@ body {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--text-dim);
+  color: #94a3b8;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -774,67 +842,82 @@ body {
 }
 
 .token-item-card {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  background: linear-gradient(180deg, #1b2e48 0%, #142338 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
   padding: 8px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   text-align: center;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
 }
 
 .token-item-card:hover {
-  background: #1e293b;
-  border-color: #0284c7;
+  background: linear-gradient(180deg, #243d60 0%, #1a2d48 100%);
+  border-color: #38bdf8;
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.35);
 }
 
 .token-item-card:active {
   cursor: grabbing;
+  transform: translateY(0);
 }
 
 .token-item-card .token-preview {
-  height: 44px;
+  height: 48px;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  background: radial-gradient(circle at center, rgba(30, 48, 77, 0.7) 0%, rgba(18, 30, 48, 0.8) 100%);
+  border-radius: 6px;
+  padding: 3px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
 }
 
 .token-item-card .token-preview svg {
   max-width: 100%;
-  max-height: 42px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  max-height: 44px;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2));
+  transition: transform 0.2s ease;
+}
+
+.token-item-card:hover .token-preview svg {
+  transform: scale(1.05);
 }
 
 .token-item-card .token-title {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-main);
-  line-height: 1.1;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.15;
+  letter-spacing: 0.2px;
 }
 
 .token-item-card .token-desc {
   font-size: 8.5px;
-  color: var(--text-dim);
+  color: #94a3b8;
   margin-top: 2px;
+  line-height: 1.2;
 }
 
 /* Configurador Rápido de Efetivo */
 .personnel-config-box {
-  background: #0f172a;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  background: #15243b;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
 }
 
 .preset-buttons-row {
@@ -844,8 +927,8 @@ body {
 
 .preset-btn {
   flex: 1;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-accent);
+  background: #1c304d;
+  border: 1px solid rgba(56, 189, 248, 0.25);
   color: #ffffff;
   padding: 4px 0;
   border-radius: 4px;
@@ -858,6 +941,7 @@ body {
 .preset-btn:hover, .preset-btn.active {
   background: var(--primary-red);
   border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
 }
 
 .custom-number-input {
@@ -884,7 +968,7 @@ body {
 .map-viewport {
   flex: 1;
   position: relative;
-  background-color: #0b111e;
+  background: radial-gradient(circle at 55% 45%, #182e4a 0%, #102137 55%, #0a1626 100%);
   overflow: hidden;
   cursor: grab;
 }
@@ -898,12 +982,12 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.15;
+  opacity: 0.32;
   background-image: 
-    radial-gradient(#38bdf8 1px, transparent 1px),
-    linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px, 120px 120px, 120px 120px;
+    radial-gradient(rgba(56, 189, 248, 0.35) 1.2px, transparent 1.2px),
+    linear-gradient(to right, rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px, 108px 108px, 108px 108px;
   z-index: 1;
 }
 
@@ -918,7 +1002,7 @@ body {
 
 /* Estilos dos Polígonos de Municípios */
 .municipality-polygon {
-  stroke: #1e293b;
+  stroke: #253d5e;
   stroke-width: 1.2px;
   stroke-linejoin: round;
   cursor: pointer;
@@ -943,27 +1027,131 @@ body {
   filter: brightness(1.3) drop-shadow(0 0 15px rgba(56, 189, 248, 0.9));
 }
 
-/* Nomes dos Municípios no Mapa */
+/* Nomes dos Municípios no Mapa (Visibilidade Automática e Halo de Alto Contraste) */
 .muni-label {
   font-family: var(--font-sans);
-  font-size: 11.5px;
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 900;
   fill: #090d16;
   text-anchor: middle;
   cursor: pointer;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.35px;
   paint-order: stroke fill;
   stroke: #ffffff;
-  stroke-width: 3px;
+  stroke-width: 4px;
   stroke-linejoin: round;
-  transition: fill 0.2s ease, stroke-width 0.2s ease;
+  stroke-linecap: round;
+  transition: all 0.15s ease;
   user-select: none;
+  filter: drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.4));
 }
 
 .muni-label:hover {
   fill: #dc2626;
   stroke: #ffffff;
-  stroke-width: 4px;
+  stroke-width: 5px;
+  font-size: 14.5px;
+}
+
+.muni-label.selected {
+  fill: #ef4444;
+  stroke: #ffffff;
+  stroke-width: 5px;
+}
+
+.muni-label.has-deployed {
+  font-weight: 900;
+  fill: #0f172a;
+}
+
+/* Chips Táticos Compactos em Visão Geral (Overview) */
+.tactical-overview-chip {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
+}
+
+.tactical-overview-chip:hover {
+  transform: scale(1.18);
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.9));
+}
+
+.tactical-overview-chip:active {
+  transform: scale(1.05);
+}
+
+/* HUD Indicador de Nível Tático / Zoom Automático */
+.map-zoom-hud {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  border-radius: 20px;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.map-zoom-hud:hover {
+  background: rgba(22, 32, 50, 0.98);
+  border-color: #38bdf8;
+  box-shadow: 0 4px 22px rgba(56, 189, 248, 0.45);
+  transform: translateX(-50%) translateY(-1px);
+}
+
+.hud-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hud-pulse-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: hudPulse 2s infinite;
+}
+
+.hud-pulse-dot.overview {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
+@keyframes hudPulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.hud-title {
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.4px;
+}
+
+.hud-detail {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.hud-action {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #38bdf8;
+  background: rgba(2, 132, 199, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin-left: 4px;
 }
 
 @keyframes focoPulse {
@@ -1070,7 +1258,7 @@ body {
 .map-floating-controls {
   position: absolute;
   top: 14px;
-  right: 14px;
+  right: 28px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1178,14 +1366,14 @@ body {
 /* Legenda Tática Inferior */
 .map-bottom-legend {
   position: absolute;
-  bottom: 14px;
+  bottom: 28px;
   left: 14px;
   z-index: 40;
   background: var(--bg-panel);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1205,6 +1393,130 @@ body {
   height: 14px;
   border-radius: 3px;
   border: 1px solid #1e293b;
+}
+
+/* --------------------------------------------------------------------------
+   BARRAS DE ROLAGEM TÁTICAS DO MAPA (HORIZONTAL E VERTICAL)
+   -------------------------------------------------------------------------- */
+.map-scrollbar-horizontal {
+  position: absolute;
+  bottom: 5px;
+  left: 14px;
+  right: 28px;
+  height: 18px;
+  background: rgba(10, 18, 30, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  z-index: 45;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  padding: 0 2px;
+  user-select: none;
+}
+
+.map-scrollbar-vertical {
+  position: absolute;
+  top: 14px;
+  right: 5px;
+  bottom: 28px;
+  width: 18px;
+  background: rgba(10, 18, 30, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 45;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  padding: 2px 0;
+  user-select: none;
+}
+
+.map-scroll-nudge-btn {
+  background: #132238;
+  border: none;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.map-scrollbar-horizontal .map-scroll-nudge-btn {
+  width: 16px;
+  height: 14px;
+}
+
+.map-scrollbar-vertical .map-scroll-nudge-btn {
+  width: 14px;
+  height: 16px;
+}
+
+.map-scroll-nudge-btn:hover {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
+.map-scroll-track-h {
+  flex: 1;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 4px;
+  margin: 0 4px;
+  position: relative;
+  cursor: pointer;
+}
+
+.map-scroll-track-v {
+  flex: 1;
+  width: 8px;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 4px;
+  margin: 4px 0;
+  position: relative;
+  cursor: pointer;
+}
+
+.map-scroll-thumb-h {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  border-radius: 4px;
+  cursor: grab;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  transition: background 0.15s ease;
+}
+
+.map-scroll-thumb-h:hover, .map-scroll-thumb-h:active {
+  background: linear-gradient(90deg, #38bdf8 0%, #7dd3fc 100%);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+  cursor: grabbing;
+}
+
+.map-scroll-thumb-v {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, #0284c7 0%, #38bdf8 100%);
+  border-radius: 4px;
+  cursor: grab;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  transition: background 0.15s ease;
+}
+
+.map-scroll-thumb-v:hover, .map-scroll-thumb-v:active {
+  background: linear-gradient(180deg, #38bdf8 0%, #7dd3fc 100%);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+  cursor: grabbing;
 }
 
 /* --------------------------------------------------------------------------
@@ -1399,8 +1711,8 @@ body {
 .tactical-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(3, 7, 18, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(8, 16, 28, 0.82);
+  backdrop-filter: blur(10px);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -1416,11 +1728,11 @@ body {
 
 .modal-container,
 .tactical-modal-box {
-  background: #090d16;
-  border: 1.5px solid #0284c7;
+  background: #101c2e;
+  border: 1.5px solid rgba(56, 189, 248, 0.45);
   border-radius: 12px;
   max-width: 95vw;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1434,8 +1746,8 @@ body {
 
 .modal-header {
   padding: 14px 18px;
-  background: rgba(15, 23, 42, 0.9);
-  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, #182d4a 0%, #122237 100%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
   display: flex;
   align-items: center;
   justify-content: space-between;
