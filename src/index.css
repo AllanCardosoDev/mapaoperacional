@@ -2108,3 +2108,83 @@ body {
     transform: scale(1);
   }
 }
+
+/* ==========================================================================
+   ESTILOS DEDICADOS PARA IMPRESSÃO E GERAÇÃO DE RELATÓRIO PDF (@media print)
+   ========================================================================== */
+@media print {
+  /* Oculta interface do sistema para imprimir exclusivamente a folha timbrada */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .header-container,
+  .tactical-sidebar,
+  .map-viewport,
+  .details-drawer,
+  .sidebar-edge-tab,
+  .floating-sidebar-toggle,
+  .map-floating-controls,
+  .map-bottom-legend,
+  .map-search-bar,
+  button {
+    display: none !important;
+  }
+
+  /* O modal se desdobra em folha plana completa sem moldura escura nem scroll */
+  .modal-backdrop {
+    position: static !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    display: block !important;
+    inset: auto !important;
+  }
+
+  .relatorio-modal-container {
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Esconde o cabeçalho dark do modal e a barra de abas na impressão */
+  .relatorio-modal-container > div:first-child,
+  .relatorio-modal-container > div:nth-child(2) {
+    display: none !important;
+  }
+
+  .relatorio-modal-container > div:last-child {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  #printable-official-report {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  #printable-official-report table {
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+}

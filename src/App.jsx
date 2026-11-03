@@ -537,6 +537,9 @@ export default function App() {
       {/* Modal do Relatório Oficial de Efetivo e Combates Ativos */}
       {showRelatorioModal && (
         <RelatorioOficialModal
+          tokens={tokens}
+          muniStatuses={muniStatuses}
+          muniNotes={muniNotes}
           onClose={() => setShowRelatorioModal(false)}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
