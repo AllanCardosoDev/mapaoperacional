@@ -520,8 +520,8 @@ export function OperationalMap({
               <text
                 key={`label-${m.id}`}
                 x={m.cx}
-                y={m.cy + 30}
-                className="muni-label cursor-pointer"
+                y={m.cy + 38}
+                className="muni-label"
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectMuni(m.name);
@@ -555,7 +555,7 @@ export function OperationalMap({
 
         {/* ------------------------------------------------------------------
             ÍCONES OFICIAIS CBMAM E QUANTIDADE DO EFETIVO DIÁRIO
-            (Estilo Visual Limpo, Executivo e Fiel ao SIGDP)
+            (Estilo Militar Profissional, Ultra-Visível, 100% Estável)
             ------------------------------------------------------------------ */}
         <g id="cbmam-muni-pins">
           {AMAZONAS_DATA.municipalities.map((muni) => {
@@ -573,16 +573,16 @@ export function OperationalMap({
             const isSelected = selectedMuniName === muni.name;
             const badgeWidth =
               totalEfetivoDiario >= 100
-                ? 52
+                ? 56
                 : totalEfetivoDiario >= 10
-                  ? 40
-                  : 32;
+                  ? 44
+                  : 36;
 
             return (
               <g
                 key={`cbmam-pin-${muni.id}`}
                 className={`cbmam-pin-marker ${isSelected ? 'selected' : ''}`}
-                transform={`translate(${muni.cx}, ${muni.cy})`}
+                transform={`translate(${muni.cx}, ${muni.cy - 6})`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectMuni(muni.name);
@@ -590,28 +590,29 @@ export function OperationalMap({
               >
                 <title>{`${muni.name}\nEfetivo Diário: ${totalEfetivoDiario} operacionais\n• Militares CBMAM: ${(summary.militares || 0) + (summary.seg || 0)}\n• Brigadistas: ${(summary.brigadistas || 0) + (summary.brigadistasSema || 0)}\n${summary.viaturas > 0 ? `• Viaturas: ${summary.viaturas}\n` : ''}${summary.aeronaves > 0 ? `• Aeronaves: ${summary.aeronaves}\n` : ''}Clique para abrir a ficha completa do município`}</title>
 
-                {/* Efeito Glow / Pulso no município selecionado */}
+                {/* Halo Dourado Estático no município selecionado (SEM animação que cause dança/vibração) */}
                 {isSelected && (
                   <circle
                     cx="0"
                     cy="-14"
-                    r="26"
+                    r="32"
                     fill="none"
                     stroke="#facc15"
-                    strokeWidth="2.5"
-                    strokeDasharray="4 3"
-                    className="pin-pulse-ring"
+                    strokeWidth="3"
+                    strokeDasharray="6 3"
+                    opacity="0.95"
                   />
                 )}
 
-                {/* 1. Base Circular Branca com Borda Vermelha (Estilo SIGDP) */}
+                {/* 1. Base Circular Branca com Borda Vermelha Oficial (Estilo CBMAM) */}
                 <circle
                   cx="0"
                   cy="-14"
-                  r="19"
+                  r="24"
                   fill="#ffffff"
                   stroke={isSelected ? '#facc15' : '#dc2626'}
-                  strokeWidth={isSelected ? '3.5' : '2.4'}
+                  strokeWidth={isSelected ? '3.5' : '2.8'}
+                  className="cbmam-pin-disc"
                   filter={
                     isSelected
                       ? 'url(#cbmam-pin-glow-gold)'
@@ -622,36 +623,39 @@ export function OperationalMap({
                 {/* 2. Brasão Oficial do CBMAM perfeitamente nítido e destacado */}
                 <image
                   href="/brasao-cbmam.png"
-                  x="-15"
-                  y="-29"
-                  width="30"
-                  height="30"
+                  x="-19"
+                  y="-33"
+                  width="38"
+                  height="38"
                   preserveAspectRatio="xMidYMid meet"
+                  style={{ pointerEvents: 'none' }}
                 />
 
-                {/* 3. Pílula com o Efetivo Diário (Estilo SIGDP) */}
+                {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca - NUNCA PRETO) */}
                 <rect
                   x={-badgeWidth / 2}
-                  y="7"
+                  y="10"
                   width={badgeWidth}
-                  height="19"
-                  rx="9.5"
-                  fill={isSelected ? '#dc2626' : 'rgba(15, 23, 42, 0.95)'}
-                  stroke={isSelected ? '#facc15' : '#dc2626'}
-                  strokeWidth="1.8"
+                  height="22"
+                  rx="11"
+                  fill="#dc2626"
+                  stroke={isSelected ? '#facc15' : '#ffffff'}
+                  strokeWidth="2.2"
+                  className="cbmam-pin-pill"
                   filter="url(#cbmam-pin-shadow)"
                 />
 
-                {/* 4. Número do Efetivo Diário */}
+                {/* 4. Número do Efetivo Diário (Branco Brilhante em Negrito de Alto Impacto) */}
                 <text
                   x="0"
-                  y="21"
-                  fontSize="11.5"
+                  y="25.5"
+                  fontSize="12.5"
                   fontWeight="900"
-                  fontFamily="system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif"
+                  fontFamily="'Inter', system-ui, -apple-system, sans-serif"
                   fill="#ffffff"
                   textAnchor="middle"
-                  letterSpacing="0.2"
+                  letterSpacing="0.3"
+                  style={{ pointerEvents: 'none' }}
                 >
                   {totalEfetivoDiario}
                 </text>
