@@ -1,0 +1,63 @@
+name: Validation Pipeline
+
+on:
+ pull_request:
+ branches: [main]
+
+jobs:
+ validate:
+ name: Validate Configuration
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/checkout@v4
+
+ - name: Setup Node.js
+ uses: actions/setup-node@v4
+ with:
+ node-version: '20'
+ cache: 'npm'
+
+ - name: Install dependencies
+ run: npm ci
+
+ - name: Validate package.json
+ run: |
+   node -e "const pkg = require('./package.json'); console.log('Name:', pkg.name); console.log('Version:', pkg.version);"
+
+ - name: Check documentation files
+ run: |
+   for file in README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md API.md ARCHITECTURE.md DEPLOY.md MONITORING.md ONBOARDING.md ROADMAP.md RELEASE.md; do
+     if [ ! -f "$file" ]; then
+       echo "::error::Missing documentation file: $file"
+       exit 1
+     fi
+   done
+   echo "✅ All documentation files present"
+
+ - name: Verify workflow files
+ run: |
+   workflows=("ci.yml" "codeql.yml" "stale.yml" "performance.yml" "release.yml" "labels.yml")
+   for wf in "${workflows[@]}"; do
+     if [ ! -f ".github/workflows/$wf" ]; then
+       echo "::error::Missing workflow file: $wf"
+       exit 1
+     fi
+   done
+   echo "✅ All workflow files present"
+
+ - name: Run lint check
+ run: npm run lint
+
+ - name: Run tests
+ run: npm run test:run
+
+ - name: Build project
+ run: npm run build
+
+ - name: Verify build artifacts
+ run: |
+   if [ ! -d "dist" ]; then
+     echo "::error::Build directory not found"
+     exit 1
+   fi
+   echo "✅ Build artifacts generated successfully"

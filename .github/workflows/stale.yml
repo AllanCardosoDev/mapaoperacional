@@ -1,0 +1,26 @@
+name: 'Close Stale Issues'
+
+on:
+ schedule:
+ - cron: '0 0 * * *'
+
+permissions:
+ issues: write
+ pull-requests: write
+
+jobs:
+ stale:
+ runs-on: ubuntu-latest
+ steps:
+ - uses: actions/stale@v9
+ with:
+ repo-token: ${{ secrets.GITHUB_TOKEN }}
+ stale-issue-message: 'Esta issue está marcada como obsoleta por falta de atividade. Será fechada em 7 dias se não houver atualizações.'
+ stale-pr-message: 'Este PR está marcado como obsoleto por falta de atividade. Será fechado em 7 dias se não houver atualizações.'
+ close-issue-message: 'Issue fechada por inatividade.'
+ close-pr-message: 'PR fechado por inatividade.'
+ days-before-stale: 30
+ days-before-close: 7
+ stale-issue-label: 'stale'
+ exempt-issue-labels: 'pinned,security,good first issue'
+ exempt-pr-labels: 'pinned,security'

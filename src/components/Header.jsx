@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Plane, 
-  Shield, 
-  Truck, 
-  Anchor, 
-  Users, 
-  Camera, 
-  Download, 
-  Upload, 
-  Trash2, 
-  Maximize, 
-  Sparkles, 
-  Leaf, 
-  Eye, 
+import {
+  Plane,
+  Truck,
+  Users,
+  Camera,
+  Download,
+  Upload,
+  Trash2,
+  Maximize,
+  Sparkles,
+  Leaf,
+  Eye,
   EyeOff,
   Share2,
   Check,
@@ -22,13 +20,14 @@ import {
   ChevronUp,
   ChevronDown,
   Settings,
-  Database
 } from 'lucide-react';
 
 export function Header({
   stats,
   showAllTokens,
   onToggleShowAllTokens,
+  showViaturas = false,
+  onToggleShowViaturas,
   onOpenRelatorio,
   onShareLink,
   onLoadRealScenario,
@@ -41,9 +40,8 @@ export function Header({
   onToggleSidebar,
   onOpenEfetivo,
   onOpenAeronaves,
-  onOpenPlanilha,
   isHeaderOpen = true,
-  onToggleHeader
+  onToggleHeader,
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -73,7 +71,7 @@ export function Header({
   // Se a barra de cima estiver recolhida para o mapa ser visto na totalidade
   if (!isHeaderOpen) {
     return (
-      <button 
+      <button
         className="floating-header-toggle"
         onClick={onToggleHeader}
         title="Descer Barra Superior (Painel de Comando e Indicadores)"
@@ -93,12 +91,13 @@ export function Header({
   const totalBrig = stats.totalBrigadistas || 350;
   const prevfogo = stats.prevfogo || 134;
   const totalAeronaves = (stats.asaFixa || 7) + (stats.rotativa || 3);
-  const totalMeios = totalAeronaves + (stats.viaturas || 4) + (stats.fluvial || 1);
+  const totalMeios =
+    totalAeronaves + (stats.viaturas || 4) + (stats.fluvial || 1);
 
   return (
     <header className="app-header">
       {/* Aba na borda inferior da barra de cima para subir/recolher com 1 clique */}
-      <button 
+      <button
         className="header-edge-tab"
         onClick={onToggleHeader}
         title="Clique para subir a barra superior e ver o mapa na totalidade"
@@ -110,25 +109,78 @@ export function Header({
       <div className="header-left">
         <div className="brand-emblems">
           {/* Brasão Oficial CBMAM */}
-          <div className="emblem-badge" title="Corpo de Bombeiros Militar do Amazonas - Desde 1876">
+          <div
+            className="emblem-badge"
+            title="Corpo de Bombeiros Militar do Amazonas - Desde 1876"
+          >
             <svg viewBox="0 0 100 100" width="36" height="36">
-              <circle cx="50" cy="50" r="46" fill="#1e3a8a" stroke="#eab308" strokeWidth="3"/>
-              <circle cx="50" cy="50" r="38" fill="#b91c1c"/>
-              <polygon points="50,22 55,38 72,38 58,48 64,64 50,54 36,64 42,48 28,38 45,38" fill="#facc15"/>
-              <line x1="30" y1="30" x2="70" y2="70" stroke="#ffffff" strokeWidth="4"/>
-              <line x1="70" y1="30" x2="30" y2="70" stroke="#ffffff" strokeWidth="4"/>
-              <circle cx="50" cy="50" r="8" fill="#ef4444" stroke="#ffffff" strokeWidth="2"/>
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                fill="#1e3a8a"
+                stroke="#eab308"
+                strokeWidth="3"
+              />
+              <circle cx="50" cy="50" r="38" fill="#b91c1c" />
+              <polygon
+                points="50,22 55,38 72,38 58,48 64,64 50,54 36,64 42,48 28,38 45,38"
+                fill="#facc15"
+              />
+              <line
+                x1="30"
+                y1="30"
+                x2="70"
+                y2="70"
+                stroke="#ffffff"
+                strokeWidth="4"
+              />
+              <line
+                x1="70"
+                y1="30"
+                x2="30"
+                y2="70"
+                stroke="#ffffff"
+                strokeWidth="4"
+              />
+              <circle
+                cx="50"
+                cy="50"
+                r="8"
+                fill="#ef4444"
+                stroke="#ffffff"
+                strokeWidth="2"
+              />
             </svg>
           </div>
 
           {/* Brasão CBI */}
-          <div className="emblem-badge" title="Comando de Bombeiros do Interior (CBI)">
+          <div
+            className="emblem-badge"
+            title="Comando de Bombeiros do Interior (CBI)"
+          >
             <svg viewBox="0 0 100 100" width="36" height="36">
-              <circle cx="50" cy="50" r="46" fill="#047857" stroke="#38bdf8" strokeWidth="2.5"/>
-              <circle cx="50" cy="36" r="36" fill="#f8fafc"/>
-              <path d="M 35 48 L 46 34 L 66 34 L 55 48 Z" fill="#facc15"/>
-              <circle cx="50" cy="46" r="10" fill="#dc2626"/>
-              <text x="50" y="74" fontSize="12" fontWeight="900" fill="#0f172a" textAnchor="middle">CBI</text>
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                fill="#047857"
+                stroke="#38bdf8"
+                strokeWidth="2.5"
+              />
+              <circle cx="50" cy="36" r="36" fill="#f8fafc" />
+              <path d="M 35 48 L 46 34 L 66 34 L 55 48 Z" fill="#facc15" />
+              <circle cx="50" cy="46" r="10" fill="#dc2626" />
+              <text
+                x="50"
+                y="74"
+                fontSize="12"
+                fontWeight="900"
+                fill="#0f172a"
+                textAnchor="middle"
+              >
+                CBI
+              </text>
             </svg>
           </div>
         </div>
@@ -136,7 +188,8 @@ export function Header({
         <div className="header-title-box">
           <div className="header-title-row">
             <h1 className="header-main-title">
-              MAPA OPERACIONAL <span style={{ color: '#ef4444' }}>•</span> INTERIOR
+              MAPA OPERACIONAL <span className="status-separator">•</span>{' '}
+              INTERIOR
             </h1>
             <span className="op-status-badge">
               <span className="op-status-dot"></span>
@@ -152,7 +205,7 @@ export function Header({
       {/* 2. CENTRO: PODS EXECUTIVOS CONSOLIDADOS (LIMPOS, ELEGANTES E PROFISSIONAIS) */}
       <div className="header-stats-hub">
         {/* POD 1: TOTAL GERAL EMPREGADO (DESTAQUE OURO / RUBRO) */}
-        <div 
+        <div
           className="exec-kpi-pod pod-gold"
           onClick={onOpenEfetivo}
           title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (623 Operacionais)"
@@ -168,14 +221,15 @@ export function Header({
             <div className="pod-value-row">
               <span className="pod-hero-number">{totalEfetivo}</span>
               <span className="pod-subdetail">
-                <b>{svOrd}</b> SV ORD • <b>{seg}</b> SEG • <b>{totalBrig}</b> BRIG
+                <b>{svOrd}</b> SV ORD • <b>{seg}</b> SEG • <b>{totalBrig}</b>{' '}
+                BRIG
               </span>
             </div>
           </div>
         </div>
 
         {/* POD 2: BRIGADAS FLORESTAIS (VERDE FLORESTA / PREVFOGO & SEMA) */}
-        <div 
+        <div
           className="exec-kpi-pod pod-forest"
           onClick={onOpenEfetivo}
           title="Clique para ver detalhes dos Brigadistas Gerais, Prevfogo IBAMA (134) e SEMA (153)"
@@ -191,14 +245,15 @@ export function Header({
             <div className="pod-value-row">
               <span className="pod-hero-number">{totalBrig}</span>
               <span className="pod-subdetail">
-                <b>{brigGerais}</b> Gerais (<b>{prevfogo}</b> Prevfogo) • <b>{brigSema}</b> SEMA
+                <b>{brigGerais}</b> Gerais (<b>{prevfogo}</b> Prevfogo) •{' '}
+                <b>{brigSema}</b> SEMA
               </span>
             </div>
           </div>
         </div>
 
         {/* POD 3: MEIOS OPERACIONAIS (AZUL TÁTICO / AERONAVES & VTRS) */}
-        <div 
+        <div
           className="exec-kpi-pod pod-blue"
           onClick={onOpenAeronaves}
           title="Clique para ver onde estão as 10 Aeronaves, 4 Viaturas e 1 Fluvial"
@@ -214,7 +269,9 @@ export function Header({
             <div className="pod-value-row">
               <span className="pod-hero-number">{totalMeios}</span>
               <span className="pod-subdetail">
-                <b>{totalAeronaves}</b> Aeronaves (7 Fixa | 3 Harpia) • <b>{stats.viaturas || 4}</b> VTRs • <b>{stats.fluvial || 1}</b> Fluvial
+                <b>{totalAeronaves}</b> Aeronaves (7 Fixa | 3 Harpia) •{' '}
+                <b>{stats.viaturas || 4}</b> VTRs • <b>{stats.fluvial || 1}</b>{' '}
+                Fluvial
               </span>
             </div>
           </div>
@@ -223,24 +280,6 @@ export function Header({
 
       {/* 3. LADO DIREITO: BARRA DE COMANDO ORGANIZADA & MENU DROPDOWN */}
       <div className="header-actions">
-        {/* BOTÃO PRINCIPAL 0: PLANILHA / CRUD (TABELA OFICIAL 1.302) */}
-        {onOpenPlanilha && (
-          <button
-            className="btn-command"
-            onClick={onOpenPlanilha}
-            style={{
-              background: 'linear-gradient(135deg, #065f46 0%, #059669 100%)',
-              border: '1px solid #10b981',
-              color: '#ffffff',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
-            }}
-            title="Abrir Aba Lateral da Planilha Oficial CBMAM e CRUD de Efetivo (1.302 Operacionais)"
-          >
-            <Database size={14} color="#6ee7b7" />
-            <span>Planilha / CRUD</span>
-          </button>
-        )}
-
         {/* BOTÃO PRINCIPAL 1: PAINEL DE EFETIVO */}
         <button
           className="btn-command btn-command-gold"
@@ -261,6 +300,25 @@ export function Header({
           <span>Aeronaves (10)</span>
         </button>
 
+        {/* BOTÃO PRINCIPAL: VIATURAS (NOVO ÍCONE DE VIATURAS) */}
+        <button
+          className={`btn-command ${showViaturas ? 'btn-command-viatura-on' : 'btn-command-viatura-off'}`}
+          onClick={onToggleShowViaturas}
+          title={
+            showViaturas
+              ? 'Viaturas visíveis no mapa. Clique para sumir somente elas.'
+              : 'Viaturas ocultas no mapa. Clique para mostrar as viaturas.'
+          }
+        >
+          <Truck size={14} />
+          <span>Viaturas ({stats.viaturas || 4})</span>
+          <span
+            className={`viatura-status-tag ${showViaturas ? 'tag-on' : 'tag-off'}`}
+          >
+            {showViaturas ? 'Visíveis' : 'Ocultas'}
+          </span>
+        </button>
+
         {/* BOTÃO PRINCIPAL 3: RELATÓRIO OFICIAL */}
         <button
           className="btn-command btn-command-navy"
@@ -279,7 +337,11 @@ export function Header({
           <button
             className={`btn-toggle ${!showAllTokens ? 'active' : ''}`}
             onClick={onToggleShowAllTokens}
-            title={showAllTokens ? "Ocultar todos os ícones do mapa para foco visual" : "Exibir todos os ícones espalhados no mapa"}
+            title={
+              showAllTokens
+                ? 'Ocultar todos os ícones do mapa para foco visual'
+                : 'Exibir todos os ícones espalhados no mapa'
+            }
           >
             {showAllTokens ? <EyeOff size={13} /> : <Eye size={13} />}
             <span>{showAllTokens ? 'Ocultar Ícones' : 'Exibir Ícones'}</span>
@@ -288,9 +350,17 @@ export function Header({
           <button
             className={`btn-toggle ${!isSidebarOpen ? 'active' : ''}`}
             onClick={onToggleSidebar}
-            title={isSidebarOpen ? "Recolher barra lateral para visualizar o mapa na totalidade" : "Abrir barra lateral com hangar"}
+            title={
+              isSidebarOpen
+                ? 'Recolher barra lateral para visualizar o mapa na totalidade'
+                : 'Abrir barra lateral com hangar'
+            }
           >
-            {isSidebarOpen ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+            {isSidebarOpen ? (
+              <ChevronLeft size={13} />
+            ) : (
+              <ChevronRight size={13} />
+            )}
             <span>{isSidebarOpen ? 'Recolher Lateral' : 'Ver Lateral'}</span>
           </button>
         </div>
@@ -307,28 +377,39 @@ export function Header({
           >
             <Settings size={14} />
             <span>Missão & Ações</span>
-            <ChevronDown size={12} style={{ transform: isMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            <ChevronDown
+              size={12}
+              className={`dropdown-chevron ${isMenuOpen ? 'open' : ''}`}
+            />
           </button>
 
           {isMenuOpen && (
             <div className="mission-dropdown-menu">
               <div className="dropdown-header">GESTÃO OPERACIONAL</div>
-              
-              <button 
+
+              <button
                 className="dropdown-item"
                 onClick={() => {
                   handleShareClick();
                   setIsMenuOpen(false);
                 }}
               >
-                {copiedLink ? <Check size={14} color="#4ade80" /> : <Share2 size={14} color="#38bdf8" />}
+                {copiedLink ? (
+                  <Check size={14} color="#4ade80" />
+                ) : (
+                  <Share2 size={14} color="#38bdf8" />
+                )}
                 <div>
-                  <div className="item-title">{copiedLink ? 'Link Copiado!' : 'Copiar Link da Missão'}</div>
-                  <div className="item-desc">Compartilhar cenário e recursos via URL</div>
+                  <div className="item-title">
+                    {copiedLink ? 'Link Copiado!' : 'Copiar Link da Missão'}
+                  </div>
+                  <div className="item-desc">
+                    Compartilhar cenário e recursos via URL
+                  </div>
                 </div>
               </button>
 
-              <button 
+              <button
                 className="dropdown-item"
                 onClick={() => {
                   onExportImage();
@@ -338,11 +419,13 @@ export function Header({
                 <Camera size={14} color="#facc15" />
                 <div>
                   <div className="item-title">Exportar Mapa em HD</div>
-                  <div className="item-desc">Salvar imagem PNG para briefing ou impressão</div>
+                  <div className="item-desc">
+                    Salvar imagem PNG para briefing ou impressão
+                  </div>
                 </div>
               </button>
 
-              <button 
+              <button
                 className="dropdown-item"
                 onClick={() => {
                   onLoadRealScenario();
@@ -352,13 +435,15 @@ export function Header({
                 <Sparkles size={14} color="#f59e0b" />
                 <div>
                   <div className="item-title">Restaurar Cenário Oficial</div>
-                  <div className="item-desc">Recarregar os 623 operacionais e 10 aeronaves</div>
+                  <div className="item-desc">
+                    Recarregar os 623 operacionais e 10 aeronaves
+                  </div>
                 </div>
               </button>
 
               <div className="dropdown-divider" />
 
-              <button 
+              <button
                 className="dropdown-item"
                 onClick={() => {
                   onSaveMission();
@@ -368,23 +453,24 @@ export function Header({
                 <Download size={14} color="#38bdf8" />
                 <div>
                   <div className="item-title">Salvar Arquivo JSON</div>
-                  <div className="item-desc">Baixar backup de dados para o computador</div>
+                  <div className="item-desc">
+                    Baixar backup de dados para o computador
+                  </div>
                 </div>
               </button>
 
-              <label 
-                className="dropdown-item"
-                style={{ cursor: 'pointer', margin: 0 }}
-              >
+              <label className="dropdown-item dropdown-file-label">
                 <Upload size={14} color="#818cf8" />
                 <div>
                   <div className="item-title">Carregar Arquivo JSON</div>
-                  <div className="item-desc">Restaurar missão salva anteriormente</div>
+                  <div className="item-desc">
+                    Restaurar missão salva anteriormente
+                  </div>
                 </div>
-                <input 
-                  type="file" 
-                  accept=".json" 
-                  style={{ display: 'none' }} 
+                <input
+                  type="file"
+                  accept=".json"
+                  className="dropdown-file-input"
                   onChange={(e) => {
                     onLoadMission(e);
                     setIsMenuOpen(false);
@@ -394,7 +480,7 @@ export function Header({
 
               <div className="dropdown-divider" />
 
-              <button 
+              <button
                 className="dropdown-item danger"
                 onClick={() => {
                   onClearMap();
@@ -403,8 +489,12 @@ export function Header({
               >
                 <Trash2 size={14} color="#ef4444" />
                 <div>
-                  <div className="item-title" style={{ color: '#ef4444' }}>Limpar Recursos do Mapa</div>
-                  <div className="item-desc">Remover todos os marcadores operacionais</div>
+                  <div className="item-title" style={{ color: '#ef4444' }}>
+                    Limpar Recursos do Mapa
+                  </div>
+                  <div className="item-desc">
+                    Remover todos os marcadores operacionais
+                  </div>
                 </div>
               </button>
             </div>
@@ -412,7 +502,7 @@ export function Header({
         </div>
 
         {/* BOTÃO TELA CHEIA */}
-        <button 
+        <button
           className="btn-icon-minimal"
           onClick={onToggleFullscreen}
           title="Alternar Tela Cheia (F11)"

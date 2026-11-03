@@ -7,29 +7,34 @@ export function TokenEditModal({
   onSave,
   onDelete,
   onDuplicate,
-  onClose
+  onClose,
 }) {
+  // Hooks devem ser chamados incondicionalmente no topo do componente
+  const [label, setLabel] = useState(token?.label || '');
+  const [count, setCount] = useState(token?.count || 10);
+  const [type, setType] = useState(token?.type || '');
+
   if (!token) return null;
 
-  const isPersonnel = token.type.startsWith('efetivo');
-
-  const [label, setLabel] = useState(token.label || '');
-  const [count, setCount] = useState(token.count || 10);
-  const [type, setType] = useState(token.type);
+  const isPersonnel = type.startsWith('efetivo');
 
   const handleSave = () => {
     onSave({
       ...token,
       type,
       label,
-      count: isPersonnel ? count : undefined
+      count: isPersonnel ? count : undefined,
     });
     onClose();
   };
 
   return (
     <div className="tactical-modal-overlay open" onClick={onClose}>
-      <div className="tactical-modal-box" onClick={(e) => e.stopPropagation()} style={{ width: 400 }}>
+      <div
+        className="tactical-modal-box"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 400 }}
+      >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <TokenSvg type={type} count={count} width={36} height={26} />
@@ -37,15 +42,34 @@ export function TokenEditModal({
               Gerenciar Recurso
             </h3>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+            }}
+          >
             <X size={18} />
           </button>
         </div>
 
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div
+          className="modal-body"
+          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+        >
           {isPersonnel && (
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              <label
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: '#94a3b8',
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
                 Corporação / Categoria do Efetivo
               </label>
               <div style={{ display: 'flex', gap: 4 }}>
@@ -78,10 +102,18 @@ export function TokenEditModal({
           )}
 
           <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+            <label
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#94a3b8',
+                display: 'block',
+                marginBottom: 4,
+              }}
+            >
               Identificador / Prefixo Tático
             </label>
-            <input 
+            <input
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -93,22 +125,32 @@ export function TokenEditModal({
                 borderRadius: 4,
                 color: '#fff',
                 padding: '6px 10px',
-                fontSize: 12
+                fontSize: 12,
               }}
             />
           </div>
 
           {isPersonnel && (
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+              <label
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: '#94a3b8',
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
                 Quantidade de Militares / Operacionais
               </label>
-              <input 
+              <input
                 type="number"
                 min="1"
                 max="99"
                 value={count}
-                onChange={(e) => setCount(Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={(e) =>
+                  setCount(Math.max(1, parseInt(e.target.value) || 1))
+                }
                 style={{
                   width: '100%',
                   background: '#0f172a',
@@ -117,31 +159,46 @@ export function TokenEditModal({
                   color: '#fff',
                   padding: '6px 10px',
                   fontSize: 12,
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
                 }}
               />
             </div>
           )}
 
           <div style={{ fontSize: 11, color: '#64748b' }}>
-            Posicionado em: <strong style={{ color: '#38bdf8' }}>{token.muni || 'Amazonas'}</strong>
+            Posicionado em:{' '}
+            <strong style={{ color: '#38bdf8' }}>
+              {token.muni || 'Amazonas'}
+            </strong>
           </div>
         </div>
 
-        <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+        <div
+          className="modal-footer"
+          style={{ justifyContent: 'space-between' }}
+        >
           <div style={{ display: 'flex', gap: 6 }}>
-            <button 
-              className="btn-tactical" 
-              onClick={() => { onDelete(token.id); onClose(); }}
-              style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+            <button
+              className="btn-tactical"
+              onClick={() => {
+                onDelete(token.id);
+                onClose();
+              }}
+              style={{
+                color: '#ef4444',
+                borderColor: 'rgba(239, 68, 68, 0.4)',
+              }}
               title="Excluir este recurso"
             >
               <Trash2 size={13} />
               Excluir
             </button>
-            <button 
-              className="btn-tactical" 
-              onClick={() => { onDuplicate(token); onClose(); }}
+            <button
+              className="btn-tactical"
+              onClick={() => {
+                onDuplicate(token);
+                onClose();
+              }}
               title="Duplicar recurso"
             >
               <Copy size={13} />

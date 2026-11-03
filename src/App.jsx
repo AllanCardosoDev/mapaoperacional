@@ -23,15 +23,27 @@ export default function App() {
   // Estado dos recursos posicionados no mapa
   const [tokens, setTokens] = useState(() => {
     // Se o hash compartilhado tiver exatamente 623 efetivos, podemos usá-lo; senão fallback para cenário oficial 623
-    if (sharedMission && Array.isArray(sharedMission.tokens) && sharedMission.tokens.length > 0) {
+    if (
+      sharedMission &&
+      Array.isArray(sharedMission.tokens) &&
+      sharedMission.tokens.length > 0
+    ) {
       let total = 0;
-      sharedMission.tokens.forEach(t => {
-        if (t.type === 'serv_ord' || t.type === 'efetivo_militar' || t.type === 'efetivo' || 
-            t.type === 'efetivo_seg' || t.type === 'seg' || 
-            t.type === 'efetivo_brigadista' || t.type === 'brigadista' || 
-            t.type === 'efetivo_prevfogo' || t.type === 'prevfogo' || 
-            t.type === 'efetivo_brigadista_sema' || t.type === 'brigadista_sema') {
-          total += (t.count || 0);
+      sharedMission.tokens.forEach((t) => {
+        if (
+          t.type === 'serv_ord' ||
+          t.type === 'efetivo_militar' ||
+          t.type === 'efetivo' ||
+          t.type === 'efetivo_seg' ||
+          t.type === 'seg' ||
+          t.type === 'efetivo_brigadista' ||
+          t.type === 'brigadista' ||
+          t.type === 'efetivo_prevfogo' ||
+          t.type === 'prevfogo' ||
+          t.type === 'efetivo_brigadista_sema' ||
+          t.type === 'brigadista_sema'
+        ) {
+          total += t.count || 0;
         }
       });
       if (total === 623) return sharedMission.tokens;
@@ -50,30 +62,36 @@ export default function App() {
 
   // Status de cada município
   const [muniStatuses, setMuniStatuses] = useState(() => {
-    if (sharedMission && sharedMission.muniStatuses) return sharedMission.muniStatuses;
+    if (sharedMission && sharedMission.muniStatuses)
+      return sharedMission.muniStatuses;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STATUSES);
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) {
+      // Ignore parse errors
+    }
     return {
-      'Manaus': 'normal',
+      Manaus: 'normal',
       'Presidente Figueiredo': 'normal',
-      'Itacoatiara': 'normal',
-      'Parintins': 'normal',
-      'Humaitá': 'arco_fogo',
-      'Lábrea': 'arco_fogo',
+      Itacoatiara: 'normal',
+      Parintins: 'normal',
+      Humaitá: 'arco_fogo',
+      Lábrea: 'arco_fogo',
       'Boca do Acre': 'arco_fogo',
-      'Apuí': 'arco_fogo'
+      Apuí: 'arco_fogo',
     };
   });
 
   // Notas operacionais de cada município
   const [muniNotes, setMuniNotes] = useState(() => {
-    if (sharedMission && sharedMission.muniNotes) return sharedMission.muniNotes;
+    if (sharedMission && sharedMission.muniNotes)
+      return sharedMission.muniNotes;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_NOTES);
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) {
+      // Ignore parse errors
+    }
     return {};
   });
 
@@ -90,9 +108,11 @@ export default function App() {
   // Controle de visibilidade de todos os ícones no mapa
   const [showAllTokens, setShowAllTokens] = useState(true);
 
+  // Controle de visibilidade das viaturas (toggle dedicado)
+  const [showViaturas, setShowViaturas] = useState(false);
+
   // Controle de expansão/recolhimento da barra lateral para ver o mapa na totalidade
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [sidebarActiveTab, setSidebarActiveTab] = useState('gestao'); // Inicia por padrão na nova aba de Gestão/Planilha/CRUD
 
   // Controle de expansão/subida da barra superior para ver o mapa na totalidade
   const [isHeaderOpen, setIsHeaderOpen] = useState(true);
@@ -102,54 +122,59 @@ export default function App() {
   const [showEfetivoModal, setShowEfetivoModal] = useState(false);
   const [showAeronavesModal, setShowAeronavesModal] = useState(false);
 
-  // Abertura direta da aba lateral de Planilha / CRUD
-  const handleOpenPlanilha = () => {
-    setIsSidebarOpen(true);
-    setSidebarActiveTab('gestao');
-  };
-
   // Persistência automática no localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TOKENS, JSON.stringify(tokens));
-    } catch (e) {}
+    } catch (e) {
+      // Ignore parse errors
+    }
   }, [tokens]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_STATUSES, JSON.stringify(muniStatuses));
-    } catch (e) {}
+    } catch (e) {
+      // Ignore parse errors
+    }
   }, [muniStatuses]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_NOTES, JSON.stringify(muniNotes));
-    } catch (e) {}
+    } catch (e) {
+      // Ignore parse errors
+    }
   }, [muniNotes]);
 
   // Município selecionado objeto
   const selectedMuni = useMemo(() => {
     if (!selectedMuniName) return null;
-    return AMAZONAS_DATA.municipalities.find(m => m.name === selectedMuniName) || null;
+    return (
+      AMAZONAS_DATA.municipalities.find((m) => m.name === selectedMuniName) ||
+      null
+    );
   }, [selectedMuniName]);
 
   // Tokens do município selecionado
   const selectedMuniTokens = useMemo(() => {
     if (!selectedMuniName) return [];
-    return tokens.filter(t => t.muni === selectedMuniName);
+    return tokens.filter((t) => t.muni === selectedMuniName);
   }, [tokens, selectedMuniName]);
 
   // Lista de municípios com recursos para a barra lateral
   const deployedMunis = useMemo(() => {
     const map = new Map();
-    tokens.forEach(tk => {
+    tokens.forEach((tk) => {
       const mName = tk.muni || 'Outros';
       if (!map.has(mName)) {
-        const muniObj = AMAZONAS_DATA.municipalities.find(m => m.name === mName);
+        const muniObj = AMAZONAS_DATA.municipalities.find(
+          (m) => m.name === mName
+        );
         map.set(mName, {
           name: mName,
           count: 0,
-          inArco: muniObj ? muniObj.in_arco_fogo : false
+          inArco: muniObj ? muniObj.in_arco_fogo : false,
         });
       }
       map.get(mName).count += 1;
@@ -170,11 +195,17 @@ export default function App() {
     let fluvial = 0;
     let arcoFogo = 0;
 
-    tokens.forEach(t => {
-      const muniObj = AMAZONAS_DATA.municipalities.find(m => m.name === t.muni);
+    tokens.forEach((t) => {
+      const muniObj = AMAZONAS_DATA.municipalities.find(
+        (m) => m.name === t.muni
+      );
       const isArco = muniObj?.in_arco_fogo;
 
-      if (t.type === 'serv_ord' || t.type === 'efetivo_militar' || t.type === 'efetivo') {
+      if (
+        t.type === 'serv_ord' ||
+        t.type === 'efetivo_militar' ||
+        t.type === 'efetivo'
+      ) {
         const c = t.count || 10;
         militares += c;
         if (isArco) arcoFogo += c;
@@ -191,7 +222,11 @@ export default function App() {
         prevfogo += c;
         brigadistas += c; // Os 134 brigadistas do Prevfogo/IBAMA integram os 197 Brigadistas Gerais da Operação
         if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_brigadista_sema' || t.type === 'brigadista_sema' || t.type === 'brigadista_semais') {
+      } else if (
+        t.type === 'efetivo_brigadista_sema' ||
+        t.type === 'brigadista_sema' ||
+        t.type === 'brigadista_semais'
+      ) {
         const c = t.count || 10;
         brigadistasSema += c;
         if (isArco) arcoFogo += c;
@@ -201,7 +236,11 @@ export default function App() {
       } else if (t.type === 'helicoptero') {
         rotativa += 1;
         if (isArco) arcoFogo += 1;
-      } else if (t.type === 'vtr_abt' || t.type === 'vtr_florestal' || t.type === 'vtr_ur') {
+      } else if (
+        t.type === 'vtr_abt' ||
+        t.type === 'vtr_florestal' ||
+        t.type === 'vtr_ur'
+      ) {
         viaturas += 1;
         if (isArco) arcoFogo += 1;
       } else if (t.type === 'embarcacao') {
@@ -213,7 +252,7 @@ export default function App() {
     const totalBrigadistas = brigadistas + brigadistasSema; // 197 + 153 = 350
     const totalEfetivo = militares + seg + totalBrigadistas; // 267 + 6 + 350 = 623
 
-    return { 
+    return {
       militares, // 267 SV ORD
       seg, // 6 SEG
       brigadistas, // 197 BRIGADISTAS GERAIS
@@ -223,11 +262,11 @@ export default function App() {
       totalBrigadistas, // 350 TOTAL BRIGADISTAS
       totalEfetivo, // 623 TOTAL GERAL EMPREGADO
       focosCombate: 14,
-      asaFixa, 
-      rotativa, 
-      viaturas, 
-      fluvial, 
-      arcoFogo 
+      asaFixa,
+      rotativa,
+      viaturas,
+      fluvial,
+      arcoFogo,
     };
   }, [tokens]);
 
@@ -245,19 +284,21 @@ export default function App() {
       x: dropData.x,
       y: dropData.y,
       count: dropData.count,
-      label: dropData.label || dropData.type
+      label: dropData.label || dropData.type,
     };
-    setTokens(prev => [...prev, newToken]);
+    setTokens((prev) => [...prev, newToken]);
   };
 
   // Mover Token já posicionado
   const handleMoveToken = (id, newX, newY) => {
-    setTokens(prev => prev.map(t => t.id === id ? { ...t, x: newX, y: newY } : t));
+    setTokens((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, x: newX, y: newY } : t))
+    );
   };
 
   // Excluir Token
   const handleDeleteToken = (id) => {
-    setTokens(prev => prev.filter(t => t.id !== id));
+    setTokens((prev) => prev.filter((t) => t.id !== id));
   };
 
   // Duplicar Token
@@ -266,19 +307,19 @@ export default function App() {
       ...token,
       id: `tk-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       x: token.x + 25,
-      y: token.y + 25
+      y: token.y + 25,
     };
-    setTokens(prev => [...prev, duplicated]);
+    setTokens((prev) => [...prev, duplicated]);
   };
 
   // Salvar alterações de Token (via modal)
   const handleSaveTokenChanges = (updated) => {
-    setTokens(prev => prev.map(t => t.id === updated.id ? updated : t));
+    setTokens((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   };
 
   // Adicionar Token via Drawer do Município
   const handleAddTokenToMuni = (muni, tokenInfo) => {
-    const countInMuni = tokens.filter(t => t.muni === muni.name).length;
+    const countInMuni = tokens.filter((t) => t.muni === muni.name).length;
     const offsetX = (countInMuni % 4) * 35 - 35;
     const offsetY = Math.floor(countInMuni / 4) * 35;
 
@@ -289,30 +330,33 @@ export default function App() {
       x: Math.round(muni.cx + offsetX),
       y: Math.round(muni.cy + offsetY),
       count: tokenInfo.count,
-      label: tokenInfo.label || tokenInfo.type
+      label: tokenInfo.label || tokenInfo.type,
     };
-    setTokens(prev => [...prev, newToken]);
+    setTokens((prev) => [...prev, newToken]);
   };
 
   // Atualizar Status do Município
   const handleUpdateMuniStatus = (muniName, status) => {
-    setMuniStatuses(prev => ({ ...prev, [muniName]: status }));
+    setMuniStatuses((prev) => ({ ...prev, [muniName]: status }));
   };
 
   // Atualizar Notas do Município
   const handleUpdateMuniNotes = (muniName, notes) => {
-    setMuniNotes(prev => ({ ...prev, [muniName]: notes }));
+    setMuniNotes((prev) => ({ ...prev, [muniName]: notes }));
   };
 
   // NOVO: Gerar e Copiar Link com todo o Cenário Atual
   const handleShareLink = () => {
     const url = generateShareableUrl(tokens, muniStatuses, muniNotes);
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(() => {
-        window.history.replaceState(null, '', url);
-      }).catch(() => {
-        prompt('Copie o link abaixo para enviar para outro PC:', url);
-      });
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          window.history.replaceState(null, '', url);
+        })
+        .catch(() => {
+          prompt('Copie o link abaixo para enviar para outro PC:', url);
+        });
     } else {
       prompt('Copie o link abaixo para enviar para outro PC:', url);
     }
@@ -320,7 +364,11 @@ export default function App() {
 
   // Ação: Carregar Cenário Real (Foto)
   const handleLoadRealScenario = () => {
-    if (window.confirm('Deseja carregar a disposição oficial com Militares, Brigadistas e Prevfogo?')) {
+    if (
+      window.confirm(
+        'Deseja carregar a disposição oficial com Militares, Brigadistas e Prevfogo?'
+      )
+    ) {
       setTokens(INITIAL_REAL_SCENARIO);
     }
   };
@@ -337,9 +385,11 @@ export default function App() {
       date: new Date().toISOString(),
       tokens,
       muniStatuses,
-      muniNotes
+      muniNotes,
     };
-    const blob = new Blob([JSON.stringify(missionData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(missionData, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -375,7 +425,11 @@ export default function App() {
 
   // Ação: Limpar Mapa
   const handleClearMap = () => {
-    if (window.confirm('Tem certeza de que deseja remover todas as viaturas e efetivo do mapa?')) {
+    if (
+      window.confirm(
+        'Tem certeza de que deseja remover todas as viaturas e efetivo do mapa?'
+      )
+    ) {
       setTokens([]);
     }
   };
@@ -392,10 +446,12 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Cabeçalho Oficial com KPIs e Compartilhamento de Link */}
-      <Header 
+      <Header
         stats={stats}
         showAllTokens={showAllTokens}
         onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
+        showViaturas={showViaturas}
+        onToggleShowViaturas={() => setShowViaturas(!showViaturas)}
         onOpenRelatorio={() => setShowRelatorioModal(true)}
         onShareLink={handleShareLink}
         onLoadRealScenario={handleLoadRealScenario}
@@ -408,7 +464,6 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onOpenEfetivo={() => setShowEfetivoModal(true)}
         onOpenAeronaves={() => setShowAeronavesModal(true)}
-        onOpenPlanilha={handleOpenPlanilha}
         isHeaderOpen={isHeaderOpen}
         onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
       />
@@ -416,11 +471,9 @@ export default function App() {
       {/* Espaço de Trabalho Tático */}
       <div className="app-workspace">
         {/* Barra Lateral: Hangar e Seletor de Efetivo */}
-        <TacticalSidebar 
+        <TacticalSidebar
           isOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          activeTab={sidebarActiveTab}
-          onTabChange={setSidebarActiveTab}
           onDragStartToken={handleDragStartToken}
           selectedMuni={selectedMuni}
           onAddTokenToMuni={handleAddTokenToMuni}
@@ -431,7 +484,7 @@ export default function App() {
         />
 
         {/* Mapa Operacional Central */}
-        <OperationalMap 
+        <OperationalMap
           placedTokens={tokens}
           selectedMuniName={selectedMuniName}
           onSelectMuni={setSelectedMuniName}
@@ -445,11 +498,13 @@ export default function App() {
           setShowLabels={setShowLabels}
           showAllTokens={showAllTokens}
           setShowAllTokens={setShowAllTokens}
+          showViaturas={showViaturas}
+          setShowViaturas={setShowViaturas}
         />
 
         {/* Gaveta Lateral de Detalhes do Município Selecionado */}
         {selectedMuni && (
-          <MunicipalityDrawer 
+          <MunicipalityDrawer
             muni={selectedMuni}
             muniTokens={selectedMuniTokens}
             muniStatus={muniStatuses[selectedMuni.name] || 'normal'}
@@ -465,7 +520,7 @@ export default function App() {
 
       {/* Modal de Edição de Token */}
       {editingToken && (
-        <TokenEditModal 
+        <TokenEditModal
           token={editingToken}
           onSave={handleSaveTokenChanges}
           onDelete={handleDeleteToken}
@@ -476,7 +531,7 @@ export default function App() {
 
       {/* Modal do Relatório Oficial de Efetivo e Combates Ativos */}
       {showRelatorioModal && (
-        <RelatorioOficialModal 
+        <RelatorioOficialModal
           onClose={() => setShowRelatorioModal(false)}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
@@ -487,7 +542,7 @@ export default function App() {
 
       {/* Modal da Soma Total de Tudo & Detalhamento do Efetivo (623 Operacionais) */}
       {showEfetivoModal && (
-        <EfetivoModal 
+        <EfetivoModal
           onClose={() => setShowEfetivoModal(false)}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
@@ -495,14 +550,17 @@ export default function App() {
           }}
           onSyncOfficialTokens={() => {
             setTokens(INITIAL_REAL_SCENARIO);
-            localStorage.setItem(STORAGE_KEY_TOKENS, JSON.stringify(INITIAL_REAL_SCENARIO));
+            localStorage.setItem(
+              STORAGE_KEY_TOKENS,
+              JSON.stringify(INITIAL_REAL_SCENARIO)
+            );
           }}
         />
       )}
 
       {/* Modal de Localização das Aeronaves (Onde estão as Aeronaves) */}
       {showAeronavesModal && (
-        <AeronavesModal 
+        <AeronavesModal
           onClose={() => setShowAeronavesModal(false)}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);

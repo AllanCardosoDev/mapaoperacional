@@ -1,0 +1,64 @@
+[
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Algo não está funcionando"
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Melhorias na documentação"
+  },
+  {
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "description": "Este issue ou pull request já existe"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "Nova funcionalidade ou solicitação de recurso"
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Bom para iniciantes"
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Precisa de ajuda extra"
+  },
+  { "name": "invalid", "color": "e4e669", "description": "Não parece correto" },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "Mais informações necessárias"
+  },
+  {
+    "name": "wontfix",
+    "color": "ffffff",
+    "description": "Não será corrigido/implementado"
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "Atualizações de dependências"
+  },
+  {
+    "name": "security",
+    "color": "d93f0b",
+    "description": "Problemas de segurança"
+  },
+  {
+    "name": "performance",
+    "color": "fbca04",
+    "description": "Melhorias de performance"
+  },
+  {
+    "name": "testing",
+    "color": "0e8a16",
+    "description": "Melhorias nos testes"
+  },
+  { "name": "ci/cd", "color": "1d76db", "description": "Melhorias no pipeline" }
+]

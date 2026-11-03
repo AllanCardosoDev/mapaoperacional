@@ -1,0 +1,18 @@
+# Code Owners - Define responsáveis por áreas do código
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Padrão: equipe principal
+* @Allan2fish
+
+# Componentes principais
+src/components/ @Allan2fish
+src/services/ @Allan2fish
+src/data/ @Allan2fish
+
+# Testes
+src/test/ @Allan2fish
+
+# Configuração
+.github/workflows/ @Allan2fish
+package.json @Allan2fish
+vite.config.js @Allan2fish
