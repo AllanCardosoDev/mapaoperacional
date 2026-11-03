@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -8,9 +8,19 @@ import {
   Search,
   X,
   Truck,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { AMAZONAS_DATA } from '../data/amazonasData';
 import { TokenSvg } from './TokenSvg';
+
+// Delimitação para que o mapa NUNCA fique muito pequeno nem se perca no escuro
+const MIN_ZOOM = 0.72;
+const MAX_ZOOM = 3.5;
+const DEFAULT_ZOOM = 0.85;
+const DEFAULT_PAN = { x: -100, y: -80 };
 
 // Micro-afastamento para evitar sobreposição total na região metropolitana densa (Manaus e vizinhos)
 // quando o mapa está em visão estadual afastada (zoom < 1.15).
@@ -50,10 +60,15 @@ export function OperationalMap({
 }) {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
+  const hTrackRef = useRef(null);
+  const vTrackRef = useRef(null);
+  const isDraggingHScroll = useRef(false);
+  const isDraggingVScroll = useRef(false);
+  const dragScrollStart = useRef({ mouse: 0, initialPan: 0 });
 
   // Estados de Zoom e Pan
-  const [zoom, setZoom] = useState(0.85);
-  const [pan, setPan] = useState({ x: -100, y: -80 });
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [pan, setPan] = useState(DEFAULT_PAN);
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
 
@@ -144,6 +159,151 @@ export function OperationalMap({
     setShowSearchDropdown(filtered.length > 0);
   }, [searchQuery]);
 
+  // Função para limitar o pan garantindo que o mapa nunca se perca nem fique fora de visão
+  const clampPan = useCallback((p, currentZoom = zoom) => {
+    const W = containerRef.current?.clientWidth || 1200;
+    const H = containerRef.current?.clientHeight || 800;
+    const mapW = 1400 * currentZoom;
+    const mapH = 950 * currentZoom;
+
+    // Delimitações para que pelo menos uma boa parte do mapa continue sempre visível
+    const minX = Math.min(0, W - mapW - 60);
+    const maxX = Math.max(0, 60);
+    const minY = Math.min(0, H - mapH - 60);
+    const maxY = Math.max(0, 60);
+
+    return {
+      x: Math.min(Math.max(p.x, minX), maxX),
+      y: Math.min(Math.max(p.y, minY), maxY),
+    };
+  }, [zoom]);
+
+  const getBounds = useCallback((currentZoom = zoom) => {
+    const W = containerRef.current?.clientWidth || 1200;
+    const H = containerRef.current?.clientHeight || 800;
+    const mapW = 1400 * currentZoom;
+    const mapH = 950 * currentZoom;
+
+    const minX = Math.min(0, W - mapW - 60);
+    const maxX = Math.max(0, 60);
+    const minY = Math.min(0, H - mapH - 60);
+    const maxY = Math.max(0, 60);
+
+    return { minX, maxX, minY, maxY, W, H, mapW, mapH };
+  }, [zoom]);
+
+  // Cálculos das dimensões e posições das barras de rolagem
+  const bounds = getBounds(zoom);
+  const totalRangeX = bounds.maxX - bounds.minX;
+  const totalRangeY = bounds.maxY - bounds.minY;
+
+  // Tamanho proporcional da thumb (quanto maior o mapa em relação à tela, menor a thumb, com limites confortáveis)
+  const thumbWidthPercent = totalRangeX > 0 
+    ? Math.max(14, Math.min(80, (bounds.W / (bounds.mapW + 120)) * 100))
+    : 100;
+
+  const thumbHeightPercent = totalRangeY > 0 
+    ? Math.max(14, Math.min(80, (bounds.H / (bounds.mapH + 120)) * 100))
+    : 100;
+
+  // Progresso do scroll (0 = extremo esquerdo/topo, 1 = extremo direito/fundo)
+  const progressX = totalRangeX > 0 
+    ? Math.min(1, Math.max(0, (bounds.maxX - pan.x) / totalRangeX))
+    : 0;
+
+  const progressY = totalRangeY > 0 
+    ? Math.min(1, Math.max(0, (bounds.maxY - pan.y) / totalRangeY))
+    : 0;
+
+  const thumbLeftPercent = progressX * (100 - thumbWidthPercent);
+  const thumbTopPercent = progressY * (100 - thumbHeightPercent);
+
+  // Nudge em X ou Y através dos botões de seta da barra
+  const handleNudgeX = (direction) => {
+    const step = 90;
+    setPan(prev => clampPan({ ...prev, x: prev.x + (direction === 'left' ? step : -step) }));
+  };
+
+  const handleNudgeY = (direction) => {
+    const step = 90;
+    setPan(prev => clampPan({ ...prev, y: prev.y + (direction === 'up' ? step : -step) }));
+  };
+
+  // Clique no track horizontal
+  const handleHTrackClick = (e) => {
+    if (e.target.closest('.map-scroll-thumb-h') || !hTrackRef.current) return;
+    const rect = hTrackRef.current.getBoundingClientRect();
+    const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const newX = bounds.maxX - clickRatio * totalRangeX;
+    setPan(prev => clampPan({ ...prev, x: newX }));
+  };
+
+  // Clique no track vertical
+  const handleVTrackClick = (e) => {
+    if (e.target.closest('.map-scroll-thumb-v') || !vTrackRef.current) return;
+    const rect = vTrackRef.current.getBoundingClientRect();
+    const clickRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const newY = bounds.maxY - clickRatio * totalRangeY;
+    setPan(prev => clampPan({ ...prev, y: newY }));
+  };
+
+  // Início do arrasto da thumb horizontal
+  const handleHThumbMouseDown = (e) => {
+    e.stopPropagation();
+    isDraggingHScroll.current = true;
+    dragScrollStart.current = {
+      mouse: e.clientX,
+      initialPan: pan.x
+    };
+  };
+
+  // Início do arrasto da thumb vertical
+  const handleVThumbMouseDown = (e) => {
+    e.stopPropagation();
+    isDraggingVScroll.current = true;
+    dragScrollStart.current = {
+      mouse: e.clientY,
+      initialPan: pan.y
+    };
+  };
+
+  // Listener global para arrastar os botões das barras de rolagem fluidamente
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (isDraggingHScroll.current && hTrackRef.current) {
+        const deltaMouse = e.clientX - dragScrollStart.current.mouse;
+        const trackW = hTrackRef.current.clientWidth;
+        const availablePx = trackW * (1 - thumbWidthPercent / 100);
+        if (availablePx > 0 && totalRangeX > 0) {
+          const deltaPan = (deltaMouse / availablePx) * totalRangeX;
+          const targetPanX = dragScrollStart.current.initialPan - deltaPan;
+          setPan(prev => clampPan({ ...prev, x: targetPanX }));
+        }
+      } else if (isDraggingVScroll.current && vTrackRef.current) {
+        const deltaMouse = e.clientY - dragScrollStart.current.mouse;
+        const trackH = vTrackRef.current.clientHeight;
+        const availablePx = trackH * (1 - thumbHeightPercent / 100);
+        if (availablePx > 0 && totalRangeY > 0) {
+          const deltaPan = (deltaMouse / availablePx) * totalRangeY;
+          const targetPanY = dragScrollStart.current.initialPan - deltaPan;
+          setPan(prev => clampPan({ ...prev, y: targetPanY }));
+        }
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      isDraggingHScroll.current = false;
+      isDraggingVScroll.current = false;
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [thumbWidthPercent, thumbHeightPercent, totalRangeX, totalRangeY, clampPan]);
+
   // Função para centralizar no município selecionado
   const focusOnMuni = (muni) => {
     if (!muni) return;
@@ -155,25 +315,43 @@ export function OperationalMap({
     const newY = viewportHeight / 2 - muni.cy * targetZoom;
 
     setZoom(targetZoom);
-    setPan({ x: newX, y: newY });
+    setPan(clampPan({ x: newX, y: newY }, targetZoom));
     onSelectMuni(muni.name);
     setShowSearchDropdown(false);
     setSearchQuery('');
   };
 
-  // Zoom controls
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev * 1.25, 3.5));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev * 0.8, 0.4));
-  const handleResetZoom = () => {
-    setZoom(0.85);
-    setPan({ x: -100, y: -80 });
+  // Zoom controls delimitados para que NUNCA fique muito pequeno nem se perca
+  const handleZoomIn = () => {
+    setZoom((prev) => {
+      const nextZoom = Math.min(prev * 1.25, MAX_ZOOM);
+      setPan((p) => clampPan(p, nextZoom));
+      return nextZoom;
+    });
   };
 
-  // Wheel Zoom
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const nextZoom = Math.max(prev * 0.8, MIN_ZOOM);
+      setPan((p) => clampPan(p, nextZoom));
+      return nextZoom;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setZoom(DEFAULT_ZOOM);
+    setPan(clampPan(DEFAULT_PAN, DEFAULT_ZOOM));
+  };
+
+  // Wheel Zoom delimitado
   const handleWheel = (e) => {
     e.preventDefault();
+    if (e.shiftKey) {
+      setPan((prev) => clampPan({ ...prev, x: prev.x - e.deltaY * 0.8 }));
+      return;
+    }
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.4), 3.5);
+    const newZoom = Math.min(Math.max(zoom * zoomFactor, MIN_ZOOM), MAX_ZOOM);
 
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -183,7 +361,7 @@ export function OperationalMap({
     const newY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
 
     setZoom(newZoom);
-    setPan({ x: newX, y: newY });
+    setPan(clampPan({ x: newX, y: newY }, newZoom));
   };
 
   // Pan do mapa com o mouse
@@ -191,7 +369,11 @@ export function OperationalMap({
     if (
       e.target.closest('.placed-token-group') ||
       e.target.closest('.map-floating-controls') ||
-      e.target.closest('.map-search-bar')
+      e.target.closest('.map-search-bar') ||
+      e.target.closest('.map-scrollbar-horizontal') ||
+      e.target.closest('.map-scrollbar-vertical') ||
+      e.target.closest('.map-bottom-legend') ||
+      e.target.closest('.tactical-hud-pill')
     ) {
       return;
     }
@@ -201,10 +383,12 @@ export function OperationalMap({
 
   const handleMouseMove = (e) => {
     if (isPanning) {
-      setPan({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
-      });
+      setPan(
+        clampPan({
+          x: e.clientX - startPan.x,
+          y: e.clientY - startPan.y,
+        })
+      );
     }
 
     if (draggingPlacedTokenId && svgRef.current) {
@@ -500,6 +684,81 @@ export function OperationalMap({
         </defs>
 
         {/* ------------------------------------------------------------------
+            GRID GEODÉSICO TÁTICO & COORDENADAS CARTOGRÁFICAS (SALA DE SITUAÇÃO)
+            ------------------------------------------------------------------ */}
+        <g id="geodetic-grid" opacity="0.38" pointerEvents="none">
+          {/* Paralelos (Latitude) */}
+          <line x1="60" y1="160" x2="2140" y2="160" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="80" y="152" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">02° 00' N</text>
+
+          <line x1="60" y1="385" x2="2140" y2="385" stroke="#38bdf8" strokeWidth="1.6" strokeDasharray="8 4" />
+          <text x="80" y="377" fill="#38bdf8" fontSize="12" fontFamily="monospace" fontWeight="900">00° 00' EQUADOR</text>
+
+          <line x1="60" y1="610" x2="2140" y2="610" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="80" y="602" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">02° 00' S</text>
+
+          <line x1="60" y1="835" x2="2140" y2="835" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="80" y="827" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">04° 00' S</text>
+
+          <line x1="60" y1="1060" x2="2140" y2="1060" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="80" y="1052" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">06° 00' S</text>
+
+          <line x1="60" y1="1285" x2="2140" y2="1285" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="80" y="1277" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">08° 00' S</text>
+
+          {/* Meridianos (Longitude) */}
+          <line x1="210" y1="80" x2="210" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="215" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">72° 00' W</text>
+
+          <line x1="705" y1="80" x2="705" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="710" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">68° 00' W</text>
+
+          <line x1="1200" y1="80" x2="1200" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="1205" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">64° 00' W</text>
+
+          <line x1="1695" y1="80" x2="1695" y2="1340" stroke="#38bdf8" strokeWidth="1.6" strokeDasharray="8 4" />
+          <text x="1700" y="1335" fill="#38bdf8" fontSize="12" fontFamily="monospace" fontWeight="900">60° 00' W (MANAUS)</text>
+
+          <line x1="2140" y1="80" x2="2140" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
+          <text x="2070" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">56° 00' W</text>
+        </g>
+
+        {/* Rosa dos Ventos Tática */}
+        <g id="tactical-compass" transform="translate(140, 200)" pointerEvents="none" opacity="0.8">
+          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(56, 189, 248, 0.45)" strokeWidth="1.5" strokeDasharray="3 3"/>
+          <circle cx="0" cy="0" r="32" fill="none" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1"/>
+          {/* Pontas da Estrela */}
+          <polygon points="0,-46 7,-12 0,-8" fill="#ef4444"/>
+          <polygon points="0,-46 -7,-12 0,-8" fill="#b91c1c"/>
+          <polygon points="0,46 7,12 0,8" fill="#38bdf8"/>
+          <polygon points="0,46 -7,12 0,8" fill="#0284c7"/>
+          <polygon points="46,0 12,7 8,0" fill="#38bdf8"/>
+          <polygon points="46,0 12,-7 8,0" fill="#0284c7"/>
+          <polygon points="-46,0 -12,7 -8,0" fill="#38bdf8"/>
+          <polygon points="-46,0 -12,-7 -8,0" fill="#0284c7"/>
+          {/* Rótulos de Orientação */}
+          <text x="0" y="-52" textAnchor="middle" fill="#ef4444" fontSize="13" fontWeight="900" fontFamily="sans-serif">N</text>
+          <text x="56" y="4" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">L</text>
+          <text x="0" y="60" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">S</text>
+          <text x="-56" y="4" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">O</text>
+          <circle cx="0" cy="0" r="3" fill="#ffffff"/>
+        </g>
+
+        {/* Régua de Escala Cartográfica */}
+        <g id="cartographic-scale" transform="translate(80, 1345)" pointerEvents="none" opacity="0.85">
+          <rect x="0" y="0" width="180" height="6" fill="#1b2e48" stroke="rgba(56, 189, 248, 0.6)" strokeWidth="1"/>
+          <rect x="0" y="0" width="45" height="6" fill="#38bdf8"/>
+          <rect x="90" y="0" width="45" height="6" fill="#38bdf8"/>
+          <line x1="0" y1="-3" x2="0" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
+          <line x1="90" y1="-3" x2="90" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
+          <line x1="180" y1="-3" x2="180" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
+          <text x="0" y="-6" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">0</text>
+          <text x="90" y="-6" textAnchor="middle" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">100 km</text>
+          <text x="180" y="-6" textAnchor="middle" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">200 km</text>
+          <text x="90" y="20" textAnchor="middle" fill="#7dd3fc" fontSize="9" fontFamily="monospace" fontWeight="bold" letterSpacing="1">ESCALA CARTOGRÁFICA</text>
+        </g>
+
+        {/* ------------------------------------------------------------------
             EFEITO 3D ISOMÉTRICO INFERIOR (BORDA DE RELEVO DA PLACA FÍSICA)
             ------------------------------------------------------------------ */}
         <g id="isometric-relief-block" opacity="0.85">
@@ -753,6 +1012,78 @@ export function OperationalMap({
           </g>
         )}
       </svg>
+
+      {/* BARRA DE ROLAGEM HORIZONTAL DO MAPA */}
+      <div className="map-scrollbar-horizontal" title="Barra de rolagem horizontal do mapa">
+        <button 
+          type="button"
+          className="map-scroll-nudge-btn" 
+          onClick={() => handleNudgeX('left')} 
+          title="Mover mapa para a direita"
+        >
+          <ChevronLeft size={13} />
+        </button>
+        <div 
+          className="map-scroll-track-h" 
+          ref={hTrackRef} 
+          onClick={handleHTrackClick}
+          title="Clique na barra para navegar horizontalmente"
+        >
+          <div 
+            className="map-scroll-thumb-h" 
+            style={{ 
+              width: `${thumbWidthPercent}%`, 
+              left: `${thumbLeftPercent}%` 
+            }}
+            onMouseDown={handleHThumbMouseDown}
+            title="Arraste para rolar o mapa horizontalmente"
+          />
+        </div>
+        <button 
+          type="button"
+          className="map-scroll-nudge-btn" 
+          onClick={() => handleNudgeX('right')} 
+          title="Mover mapa para a esquerda"
+        >
+          <ChevronRight size={13} />
+        </button>
+      </div>
+
+      {/* BARRA DE ROLAGEM VERTICAL DO MAPA */}
+      <div className="map-scrollbar-vertical" title="Barra de rolagem vertical do mapa">
+        <button 
+          type="button"
+          className="map-scroll-nudge-btn" 
+          onClick={() => handleNudgeY('up')} 
+          title="Mover mapa para baixo"
+        >
+          <ChevronUp size={13} />
+        </button>
+        <div 
+          className="map-scroll-track-v" 
+          ref={vTrackRef} 
+          onClick={handleVTrackClick}
+          title="Clique na barra para navegar verticalmente"
+        >
+          <div 
+            className="map-scroll-thumb-v" 
+            style={{ 
+              height: `${thumbHeightPercent}%`, 
+              top: `${thumbTopPercent}%` 
+            }}
+            onMouseDown={handleVThumbMouseDown}
+            title="Arraste para rolar o mapa verticalmente"
+          />
+        </div>
+        <button 
+          type="button"
+          className="map-scroll-nudge-btn" 
+          onClick={() => handleNudgeY('down')} 
+          title="Mover mapa para cima"
+        >
+          <ChevronDown size={13} />
+        </button>
+      </div>
     </div>
   );
 }
