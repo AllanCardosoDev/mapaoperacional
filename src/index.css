@@ -461,6 +461,50 @@ body {
   color: #38bdf8;
 }
 
+/* Botões Táticos Operacionais Modernos (Rounded & Glassmorphism) */
+.btn-tactical {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.btn-tactical:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-tactical:active {
+  transform: translateY(0);
+}
+
+.btn-tactical.btn-primary {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border-color: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+
+.btn-tactical.btn-primary:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-color: #f87171;
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5);
+}
+
 /* Legenda do Mapa - Cores das Regiões */
 .legend-capital {
   background: #fef08a;
@@ -799,10 +843,29 @@ body {
   box-shadow: 0 6px 22px rgba(2, 132, 199, 0.5);
 }
 
+.sidebar-close-btn {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #cbd5e1;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
 .sidebar-close-btn:hover {
   background: #1e293b !important;
   border-color: #38bdf8 !important;
-  color: #ffffff !important;
+  color: #38bdf8 !important;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35) !important;
+  transform: translateY(-1px);
 }
 
 .sidebar-header {
@@ -898,25 +961,26 @@ body {
 }
 
 .token-item-card {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   padding: 8px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   text-align: center;
+  backdrop-filter: blur(6px);
 }
 
 .token-item-card:hover {
-  background: #1e293b;
-  border-color: #0284c7;
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #38bdf8;
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .token-item-card:active {
@@ -952,13 +1016,15 @@ body {
 
 /* Configurador Rápido de Efetivo */
 .personnel-config-box {
-  background: #0f172a;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .preset-buttons-row {
@@ -968,21 +1034,29 @@ body {
 
 .preset-btn {
   flex: 1;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-accent);
-  color: #ffffff;
-  padding: 4px 0;
-  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 5px 8px;
+  border-radius: 8px;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.preset-btn:hover,
+.preset-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  transform: translateY(-1px);
+}
+
 .preset-btn.active {
-  background: var(--primary-red);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   border-color: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
 }
 
 .custom-number-input {
@@ -993,14 +1067,21 @@ body {
 
 .custom-number-input input {
   flex: 1;
-  background: #1e293b;
-  border: 1px solid var(--border-accent);
-  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
   color: #ffffff;
-  padding: 4px 8px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: bold;
   text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.custom-number-input input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 /* --------------------------------------------------------------------------
@@ -1047,6 +1128,12 @@ body {
   display: block;
   transform-origin: 0 0;
   touch-action: none;
+  transition: transform 0.08s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+#tactical-svg.is-dragging {
+  transition: none !important;
 }
 
 /* Estilos dos Polígonos de Municípios */
@@ -1082,18 +1169,32 @@ body {
 /* Nomes dos Municípios no Mapa */
 .muni-label {
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
   fill: #090d16;
   text-anchor: middle;
   letter-spacing: 0.2px;
   paint-order: stroke fill;
   stroke: #ffffff;
-  stroke-width: 4px;
+  stroke-width: 3.5px;
   stroke-linejoin: round;
   stroke-linecap: round;
   user-select: none;
   pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.muni-label.with-pin {
+  font-size: 10.5px;
+  font-weight: 900;
+  fill: #0f172a;
+  stroke: #ffffff;
+  stroke-width: 3px;
+}
+
+.cbmam-pin-marker {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
 @keyframes focoPulse {
@@ -1341,13 +1442,14 @@ body {
    PAINEL LATERAL DIREITO: DETALHES DO MUNICÍPIO SELECIONADO
    -------------------------------------------------------------------------- */
 .details-drawer {
-  width: 340px;
-  background: var(--bg-surface);
-  border-left: 1px solid var(--border-subtle);
+  width: 350px;
+  background: rgba(11, 17, 32, 0.95);
+  backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(56, 189, 248, 0.15);
   display: flex;
   flex-direction: column;
   z-index: 35;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1360,12 +1462,13 @@ body {
 }
 
 .drawer-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
 }
 
 .drawer-title-box h3 {
@@ -1387,17 +1490,19 @@ body {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .info-card-block {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .block-title {
@@ -1415,59 +1520,79 @@ body {
 }
 
 .status-opt-btn {
-  padding: 6px;
-  border-radius: 4px;
-  border: 1px solid var(--border-accent);
-  background: #0f172a;
+  padding: 7px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.8);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(6px);
+}
+
+.status-opt-btn:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #f8fafc;
+  transform: translateY(-1px);
 }
 
 .status-opt-btn.opt-green.active {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.25);
   border-color: #10b981;
-  color: #10b981;
+  color: #34d399;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 .status-opt-btn.opt-amber.active {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.25);
   border-color: #f59e0b;
-  color: #f59e0b;
+  color: #fbbf24;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
 .status-opt-btn.opt-orange.active {
-  background: rgba(249, 115, 22, 0.2);
+  background: rgba(249, 115, 22, 0.25);
   border-color: #f97316;
-  color: #f97316;
+  color: #fb923c;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
 }
 
 .status-opt-btn.opt-red.active {
-  background: rgba(220, 38, 38, 0.2);
+  background: rgba(220, 38, 38, 0.25);
   border-color: #ef4444;
-  color: #ef4444;
+  color: #f87171;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
 }
 
 /* Lista de Recursos Alocados no Município */
 .allocated-resources-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   max-height: 240px;
   overflow-y: auto;
 }
 
 .allocated-item-row {
-  background: #0f172a;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(6px);
+}
+
+.allocated-item-row:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(56, 189, 248, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .alloc-item-info {

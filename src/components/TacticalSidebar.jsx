@@ -200,15 +200,16 @@ export function TacticalSidebar({
                 className={`btn-tactical ${personnelCategory === 'efetivo_militar' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '6px 10px',
+                  padding: '7px 12px',
+                  borderRadius: 10,
                   border:
                     personnelCategory === 'efetivo_militar'
                       ? '1.5px solid #ef4444'
-                      : '1px solid #334155',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                   background:
                     personnelCategory === 'efetivo_militar'
                       ? 'rgba(220, 38, 38, 0.25)'
-                      : '#0f172a',
+                      : 'rgba(15, 23, 42, 0.75)',
                 }}
                 onClick={() => setPersonnelCategory('efetivo_militar')}
               >
@@ -230,15 +231,16 @@ export function TacticalSidebar({
                 className={`btn-tactical ${personnelCategory === 'efetivo_seg' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '6px 10px',
+                  padding: '7px 12px',
+                  borderRadius: 10,
                   border:
                     personnelCategory === 'efetivo_seg'
                       ? '1.5px solid #eab308'
-                      : '1px solid #334155',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                   background:
                     personnelCategory === 'efetivo_seg'
                       ? 'rgba(234, 179, 8, 0.25)'
-                      : '#0f172a',
+                      : 'rgba(15, 23, 42, 0.75)',
                   color:
                     personnelCategory === 'efetivo_seg' ? '#fde047' : 'inherit',
                 }}
@@ -262,15 +264,16 @@ export function TacticalSidebar({
                 className={`btn-tactical ${personnelCategory === 'efetivo_brigadista' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '6px 10px',
+                  padding: '7px 12px',
+                  borderRadius: 10,
                   border:
                     personnelCategory === 'efetivo_brigadista'
                       ? '1.5px solid #f97316'
-                      : '1px solid #334155',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                   background:
                     personnelCategory === 'efetivo_brigadista'
                       ? 'rgba(234, 88, 12, 0.25)'
-                      : '#0f172a',
+                      : 'rgba(15, 23, 42, 0.75)',
                   color:
                     personnelCategory === 'efetivo_brigadista'
                       ? '#fdba74'
@@ -296,15 +299,16 @@ export function TacticalSidebar({
                 className={`btn-tactical ${personnelCategory === 'efetivo_brigadista_sema' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '6px 10px',
+                  padding: '7px 12px',
+                  borderRadius: 10,
                   border:
                     personnelCategory === 'efetivo_brigadista_sema'
                       ? '1.5px solid #10b981'
-                      : '1px solid #334155',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                   background:
                     personnelCategory === 'efetivo_brigadista_sema'
                       ? 'rgba(16, 185, 129, 0.25)'
-                      : '#0f172a',
+                      : 'rgba(15, 23, 42, 0.75)',
                   color:
                     personnelCategory === 'efetivo_brigadista_sema'
                       ? '#86efac'
@@ -330,15 +334,16 @@ export function TacticalSidebar({
                 className={`btn-tactical ${personnelCategory === 'efetivo_prevfogo' ? 'btn-primary' : ''}`}
                 style={{
                   justifyContent: 'flex-start',
-                  padding: '6px 10px',
+                  padding: '7px 12px',
+                  borderRadius: 10,
                   border:
                     personnelCategory === 'efetivo_prevfogo'
                       ? '1.5px solid #22c55e'
-                      : '1px solid #334155',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                   background:
                     personnelCategory === 'efetivo_prevfogo'
                       ? 'rgba(21, 128, 61, 0.25)'
-                      : '#0f172a',
+                      : 'rgba(15, 23, 42, 0.75)',
                   color:
                     personnelCategory === 'efetivo_prevfogo'
                       ? '#86efac'
@@ -514,8 +519,8 @@ export function TacticalSidebar({
             style={{
               background: 'rgba(2, 132, 199, 0.15)',
               border: '1px solid #0284c7',
-              borderRadius: 6,
-              padding: '8px 10px',
+              borderRadius: 10,
+              padding: '8px 12px',
               fontSize: 11,
             }}
           >
@@ -575,17 +580,18 @@ export function TacticalSidebar({
                   style={{
                     background: inArco
                       ? 'rgba(234, 88, 12, 0.15)'
-                      : 'var(--bg-surface-elevated)',
+                      : 'rgba(15, 23, 42, 0.75)',
                     border: inArco
                       ? '1px solid rgba(234, 88, 12, 0.5)'
-                      : '1px solid var(--border-subtle)',
-                    borderRadius: 4,
-                    padding: '5px 8px',
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 8,
+                    padding: '6px 10px',
                     fontSize: 11,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   <div
@@ -600,9 +606,9 @@ export function TacticalSidebar({
                     style={{
                       fontSize: 10,
                       fontWeight: 800,
-                      background: '#1e293b',
-                      padding: '2px 6px',
-                      borderRadius: 4,
+                      background: 'rgba(30, 41, 59, 0.9)',
+                      padding: '2px 8px',
+                      borderRadius: 10,
                       color: '#38bdf8',
                     }}
                   >

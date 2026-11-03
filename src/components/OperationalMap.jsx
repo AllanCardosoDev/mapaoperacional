@@ -12,6 +12,27 @@ import {
 import { AMAZONAS_DATA } from '../data/amazonasData';
 import { TokenSvg } from './TokenSvg';
 
+// Micro-afastamento para evitar sobreposição total na região metropolitana densa (Manaus e vizinhos)
+// quando o mapa está em visão estadual afastada (zoom < 1.15).
+// Conforme o operador aproxima o zoom, este offset decresce suavemente até 0.
+const METRO_CLUSTER_OFFSETS = {
+  Manaus: { x: 0, y: -20 },
+  Iranduba: { x: -24, y: 2 },
+  'Careiro da Várzea': { x: 26, y: -6 },
+  'Careiro Castanho': { x: 6, y: 26 },
+  Careiro: { x: 6, y: 26 },
+  Manaquiri: { x: -26, y: 24 },
+  Autazes: { x: 30, y: 24 },
+  Manacapuru: { x: -24, y: -16 },
+  'Rio Preto da Eva': { x: 18, y: -18 },
+  'Presidente Figueiredo': { x: 0, y: -20 },
+  Itacoatiara: { x: 18, y: 12 },
+  Caapiranga: { x: -16, y: 8 },
+  Anamã: { x: -14, y: 20 },
+  Anori: { x: -8, y: 22 },
+  Beruri: { x: 8, y: 24 },
+};
+
 export function OperationalMap({
   placedTokens = [],
   selectedMuniName,
@@ -53,8 +74,9 @@ export function OperationalMap({
   const muniResourcesSummary = useMemo(() => {
     const map = new Map();
     placedTokens.forEach((tk) => {
-      const mName = tk.muni;
+      let mName = tk.muni;
       if (!mName) return;
+      if (mName === 'Careiro') mName = 'Careiro Castanho';
       if (!map.has(mName)) {
         map.set(mName, {
           muni: mName,
@@ -262,6 +284,16 @@ export function OperationalMap({
     }
   };
 
+  // Escala adaptativa dinâmica: mantém os pins visíveis com tamanho agradável na tela (~32px a 40px).
+  // Conforme o operador aproxima o zoom, o mapa expande por baixo enquanto os pins diminuem proporcionalmente no SVG,
+  // permitindo que os municípios se separem fluidamente na tela (estilo SIGDP / Google Maps).
+  const pinScale = Math.min(1.0, Math.max(0.36, 0.76 / Math.pow(zoom, 0.78)));
+
+  // Fator de dispersão para o aglomerado metropolitano de Manaus:
+  // Em visão estadual distante (zoom < 1.15), aplica suave micro-afastamento para evitar sobreposição total.
+  // Conforme o zoom aproxima (zoom >= 1.2), os pins convergem com precisão aos centróides geográficos.
+  const clusterSpread = Math.max(0, Math.min(1, (1.2 - zoom) / 0.35));
+
   return (
     <div
       className={`map-viewport ${isPanning ? 'panning' : ''}`}
@@ -400,7 +432,7 @@ export function OperationalMap({
         id="tactical-svg"
         ref={svgRef}
         viewBox="0 0 2200 1400"
-        className="tactical-map-svg"
+        className={`tactical-map-svg ${isPanning ? 'is-dragging' : ''}`}
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
@@ -516,20 +548,43 @@ export function OperationalMap({
             ------------------------------------------------------------------ */}
         {showLabels && (
           <g id="labels-layer">
-            {AMAZONAS_DATA.municipalities.map((m) => (
-              <text
-                key={`label-${m.id}`}
-                x={m.cx}
-                y={m.cy + 38}
-                className="muni-label"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectMuni(m.name);
-                }}
-              >
-                {m.name}
-              </text>
-            ))}
+            {AMAZONAS_DATA.municipalities.map((m) => {
+              const summary = muniResourcesSummary.get(m.name);
+              const totalEfetivoDiario = summary
+                ? (summary.militares || 0) +
+                  (summary.seg || 0) +
+                  (summary.brigadistas || 0) +
+                  (summary.brigadistasSema || 0)
+                : 0;
+              const hasPin = totalEfetivoDiario > 0;
+
+              const offset = METRO_CLUSTER_OFFSETS[m.name] || { x: 0, y: 0 };
+              const labelX = m.cx + (hasPin ? offset.x * clusterSpread : 0);
+              const labelY = hasPin
+                ? m.cy - 6 + offset.y * clusterSpread + (22 * pinScale + 12)
+                : m.cy + 4;
+
+              const labelFontSize = Math.max(
+                8.5,
+                Math.min(12, 10.5 / Math.pow(zoom, 0.35))
+              );
+
+              return (
+                <text
+                  key={`label-${m.id}`}
+                  x={labelX}
+                  y={labelY}
+                  style={{ fontSize: `${labelFontSize}px` }}
+                  className={`muni-label ${hasPin ? 'with-pin' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectMuni(m.name);
+                  }}
+                >
+                  {m.name}
+                </text>
+              );
+            })}
           </g>
         )}
 
@@ -573,16 +628,20 @@ export function OperationalMap({
             const isSelected = selectedMuniName === muni.name;
             const badgeWidth =
               totalEfetivoDiario >= 100
-                ? 56
+                ? 54
                 : totalEfetivoDiario >= 10
-                  ? 44
-                  : 36;
+                  ? 42
+                  : 34;
+
+            const offset = METRO_CLUSTER_OFFSETS[muni.name] || { x: 0, y: 0 };
+            const pinX = muni.cx + offset.x * clusterSpread;
+            const pinY = muni.cy - 6 + offset.y * clusterSpread;
 
             return (
               <g
                 key={`cbmam-pin-${muni.id}`}
                 className={`cbmam-pin-marker ${isSelected ? 'selected' : ''}`}
-                transform={`translate(${muni.cx}, ${muni.cy - 6})`}
+                transform={`translate(${pinX}, ${pinY}) scale(${pinScale})`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectMuni(muni.name);
@@ -590,12 +649,12 @@ export function OperationalMap({
               >
                 <title>{`${muni.name}\nEfetivo Diário: ${totalEfetivoDiario} operacionais\n• Militares CBMAM: ${(summary.militares || 0) + (summary.seg || 0)}\n• Brigadistas: ${(summary.brigadistas || 0) + (summary.brigadistasSema || 0)}\n${summary.viaturas > 0 ? `• Viaturas: ${summary.viaturas}\n` : ''}${summary.aeronaves > 0 ? `• Aeronaves: ${summary.aeronaves}\n` : ''}Clique para abrir a ficha completa do município`}</title>
 
-                {/* Halo Dourado Estático no município selecionado (SEM animação que cause dança/vibração) */}
+                {/* Halo Dourado Estático no município selecionado */}
                 {isSelected && (
                   <circle
                     cx="0"
                     cy="-14"
-                    r="32"
+                    r="30"
                     fill="none"
                     stroke="#facc15"
                     strokeWidth="3"
@@ -608,10 +667,10 @@ export function OperationalMap({
                 <circle
                   cx="0"
                   cy="-14"
-                  r="24"
+                  r="22"
                   fill="#ffffff"
                   stroke={isSelected ? '#facc15' : '#dc2626'}
-                  strokeWidth={isSelected ? '3.5' : '2.8'}
+                  strokeWidth={isSelected ? '3.5' : '2.5'}
                   className="cbmam-pin-disc"
                   filter={
                     isSelected
@@ -623,24 +682,24 @@ export function OperationalMap({
                 {/* 2. Brasão Oficial do CBMAM perfeitamente nítido e destacado */}
                 <image
                   href="/brasao-cbmam.png"
-                  x="-19"
-                  y="-33"
-                  width="38"
-                  height="38"
+                  x="-17"
+                  y="-31"
+                  width="34"
+                  height="34"
                   preserveAspectRatio="xMidYMid meet"
                   style={{ pointerEvents: 'none' }}
                 />
 
-                {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca - NUNCA PRETO) */}
+                {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca) */}
                 <rect
                   x={-badgeWidth / 2}
-                  y="10"
+                  y="7"
                   width={badgeWidth}
-                  height="22"
-                  rx="11"
+                  height="20"
+                  rx="10"
                   fill="#dc2626"
                   stroke={isSelected ? '#facc15' : '#ffffff'}
-                  strokeWidth="2.2"
+                  strokeWidth="2"
                   className="cbmam-pin-pill"
                   filter="url(#cbmam-pin-shadow)"
                 />
@@ -648,8 +707,8 @@ export function OperationalMap({
                 {/* 4. Número do Efetivo Diário (Branco Brilhante em Negrito de Alto Impacto) */}
                 <text
                   x="0"
-                  y="25.5"
-                  fontSize="12.5"
+                  y="21"
+                  fontSize="12"
                   fontWeight="900"
                   fontFamily="'Inter', system-ui, -apple-system, sans-serif"
                   fill="#ffffff"

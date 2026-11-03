@@ -200,14 +200,16 @@ export function MunicipalityDrawer({
           </div>
 
           <div
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
           >
             <div
               style={{
-                background: '#101726',
-                padding: '6px 8px',
-                borderRadius: 4,
-                border: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
               }}
             >
               <div
@@ -215,13 +217,23 @@ export function MunicipalityDrawer({
                   fontSize: 9.5,
                   color: '#94a3b8',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
                 }}
               >
                 Efetivo Total
               </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#ffffff' }}>
+              <div style={{ fontSize: 19, fontWeight: 900, color: '#ffffff' }}>
                 {breakdown.totalEfetivo}{' '}
-                <span style={{ fontSize: 11, fontWeight: 'normal' }}>Op.</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 'normal',
+                    color: '#38bdf8',
+                  }}
+                >
+                  Op.
+                </span>
               </div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>
                 {breakdown.militares} Mil • {breakdown.brigadistas} Brig •{' '}
@@ -231,10 +243,12 @@ export function MunicipalityDrawer({
 
             <div
               style={{
-                background: '#101726',
-                padding: '6px 8px',
-                borderRadius: 4,
-                border: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
               }}
             >
               <div
@@ -242,13 +256,23 @@ export function MunicipalityDrawer({
                   fontSize: 9.5,
                   color: '#94a3b8',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
                 }}
               >
                 Viaturas (VTRs)
               </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#f87171' }}>
+              <div style={{ fontSize: 19, fontWeight: 900, color: '#f87171' }}>
                 {breakdown.viaturas}{' '}
-                <span style={{ fontSize: 11, fontWeight: 'normal' }}>VTR</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 'normal',
+                    color: '#fca5a5',
+                  }}
+                >
+                  VTR
+                </span>
               </div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>
                 Caminhões e Pick-ups
@@ -257,10 +281,12 @@ export function MunicipalityDrawer({
 
             <div
               style={{
-                background: '#101726',
-                padding: '6px 8px',
-                borderRadius: 4,
-                border: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
               }}
             >
               <div
@@ -268,13 +294,23 @@ export function MunicipalityDrawer({
                   fontSize: 9.5,
                   color: '#94a3b8',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
                 }}
               >
                 Aeronaves
               </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#facc15' }}>
+              <div style={{ fontSize: 19, fontWeight: 900, color: '#facc15' }}>
                 {breakdown.aeronaves}{' '}
-                <span style={{ fontSize: 11, fontWeight: 'normal' }}>Aero</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 'normal',
+                    color: '#fde047',
+                  }}
+                >
+                  Aero
+                </span>
               </div>
               <div style={{ fontSize: 8.5, color: '#64748b' }}>
                 Air Tractor e Harpias
@@ -283,10 +319,12 @@ export function MunicipalityDrawer({
 
             <div
               style={{
-                background: '#101726',
-                padding: '6px 8px',
-                borderRadius: 4,
-                border: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.75)',
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
               }}
             >
               <div
@@ -294,13 +332,21 @@ export function MunicipalityDrawer({
                   fontSize: 9.5,
                   color: '#94a3b8',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
                 }}
               >
                 Fluvial
               </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>
+              <div style={{ fontSize: 19, fontWeight: 900, color: '#38bdf8' }}>
                 {breakdown.fluvial}{' '}
-                <span style={{ fontSize: 11, fontWeight: 'normal' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 'normal',
+                    color: '#7dd3fc',
+                  }}
+                >
                   Barco
                 </span>
               </div>
@@ -692,7 +738,7 @@ export function MunicipalityDrawer({
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               type="number"
               min="1"
@@ -702,32 +748,34 @@ export function MunicipalityDrawer({
                 setPersonnelToAdd(Math.max(1, parseInt(e.target.value) || 1))
               }
               style={{
-                width: 60,
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: 4,
+                width: 64,
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: 8,
                 color: '#fff',
-                padding: '5px',
+                padding: '7px',
                 textAlign: 'center',
                 fontWeight: 'bold',
+                outline: 'none',
               }}
             />
             <button
               className="btn-tactical btn-primary"
               style={{
                 flex: 1,
-                padding: '6px 10px',
-                fontSize: 11,
+                padding: '8px 12px',
+                fontSize: 11.5,
+                borderRadius: 8,
                 background:
                   personnelType === 'efetivo_prevfogo'
-                    ? '#15803d'
+                    ? 'linear-gradient(135deg, #15803d 0%, #166534 100%)'
                     : personnelType === 'efetivo_brigadista'
-                      ? '#c2410c'
+                      ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
                       : undefined,
               }}
               onClick={handleAddPersonnel}
             >
-              <Users size={13} />+ Inserir ({personnelToAdd} Op.)
+              <Users size={14} />+ Inserir ({personnelToAdd} Op.)
             </button>
           </div>
         </div>
@@ -843,14 +891,15 @@ export function MunicipalityDrawer({
             onChange={(e) => onUpdateMuniNotes(muni.name, e.target.value)}
             style={{
               width: '100%',
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: 4,
+              background: 'rgba(15, 23, 42, 0.85)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: 8,
               color: '#ffffff',
-              padding: '6px 8px',
+              padding: '8px 10px',
               fontSize: 11,
               fontFamily: 'inherit',
               resize: 'none',
+              outline: 'none',
             }}
           />
         </div>

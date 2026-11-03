@@ -159,14 +159,18 @@ export default function App() {
   // Tokens do município selecionado
   const selectedMuniTokens = useMemo(() => {
     if (!selectedMuniName) return [];
-    return tokens.filter((t) => t.muni === selectedMuniName);
+    return tokens.filter((t) => {
+      const m = t.muni === 'Careiro' ? 'Careiro Castanho' : t.muni;
+      return m === selectedMuniName || t.muni === selectedMuniName;
+    });
   }, [tokens, selectedMuniName]);
 
   // Lista de municípios com recursos para a barra lateral
   const deployedMunis = useMemo(() => {
     const map = new Map();
     tokens.forEach((tk) => {
-      const mName = tk.muni || 'Outros';
+      let mName = tk.muni || 'Outros';
+      if (mName === 'Careiro') mName = 'Careiro Castanho';
       if (!map.has(mName)) {
         const muniObj = AMAZONAS_DATA.municipalities.find(
           (m) => m.name === mName
@@ -196,8 +200,9 @@ export default function App() {
     let arcoFogo = 0;
 
     tokens.forEach((t) => {
+      const targetMuni = t.muni === 'Careiro' ? 'Careiro Castanho' : t.muni;
       const muniObj = AMAZONAS_DATA.municipalities.find(
-        (m) => m.name === t.muni
+        (m) => m.name === targetMuni
       );
       const isArco = muniObj?.in_arco_fogo;
 
