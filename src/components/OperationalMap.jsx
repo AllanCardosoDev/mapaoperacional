@@ -72,6 +72,39 @@ export function OperationalMap({
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
 
+  // Dimensões dinâmicas do container do mapa (atualizado com ResizeObserver)
+  const [viewportDims, setViewportDims] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth - 290 : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight - 70 : 800,
+  });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        setViewportDims({
+          width: containerRef.current.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200),
+          height: containerRef.current.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 800),
+        });
+      }
+    };
+    updateSize();
+    let observer;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(updateSize);
+      observer.observe(containerRef.current);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateSize);
+    }
+    return () => {
+      if (observer) observer.disconnect();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', updateSize);
+      }
+    };
+  }, []);
+
   // Estados de Drag & Drop de Tokens já colocados no mapa
   const [draggingPlacedTokenId, setDraggingPlacedTokenId] = useState(null);
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
@@ -161,8 +194,8 @@ export function OperationalMap({
 
   // Função para limitar o pan garantindo que o mapa nunca se perca nem fique fora de visão
   const clampPan = useCallback((p, currentZoom = zoom) => {
-    const W = containerRef.current?.clientWidth || 1200;
-    const H = containerRef.current?.clientHeight || 800;
+    const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
+    const H = containerRef.current?.clientHeight || viewportDims.height || 800;
     const mapW = 1400 * currentZoom;
     const mapH = 950 * currentZoom;
 
@@ -176,11 +209,11 @@ export function OperationalMap({
       x: Math.min(Math.max(p.x, minX), maxX),
       y: Math.min(Math.max(p.y, minY), maxY),
     };
-  }, [zoom]);
+  }, [zoom, viewportDims]);
 
   const getBounds = useCallback((currentZoom = zoom) => {
-    const W = containerRef.current?.clientWidth || 1200;
-    const H = containerRef.current?.clientHeight || 800;
+    const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
+    const H = containerRef.current?.clientHeight || viewportDims.height || 800;
     const mapW = 1400 * currentZoom;
     const mapH = 950 * currentZoom;
 
@@ -190,7 +223,7 @@ export function OperationalMap({
     const maxY = Math.max(0, 60);
 
     return { minX, maxX, minY, maxY, W, H, mapW, mapH };
-  }, [zoom]);
+  }, [zoom, viewportDims]);
 
   // Cálculos das dimensões e posições das barras de rolagem
   const bounds = getBounds(zoom);

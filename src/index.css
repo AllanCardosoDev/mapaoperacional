@@ -42,16 +42,30 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html,
+body,
+#root,
+.app-container {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-main);
   color: var(--text-main);
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+  user-select: none;
+}
+
+#root,
+.app-container {
   display: flex;
   flex-direction: column;
-  user-select: none;
+  flex: 1;
+  min-height: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -1409,9 +1423,9 @@ body {
 /* Legenda Tática Inferior */
 .map-bottom-legend {
   position: absolute;
-  bottom: 28px;
+  bottom: 34px;
   left: 14px;
-  z-index: 40;
+  z-index: 50;
   background: var(--bg-panel);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
@@ -1443,18 +1457,18 @@ body {
    -------------------------------------------------------------------------- */
 .map-scrollbar-horizontal {
   position: absolute;
-  bottom: 5px;
+  bottom: 6px;
   left: 14px;
-  right: 28px;
-  height: 18px;
-  background: rgba(10, 18, 30, 0.94);
+  right: 32px;
+  height: 20px;
+  background: rgba(10, 18, 30, 0.96);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 9px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  z-index: 45;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  z-index: 55;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8), 0 0 10px rgba(56, 189, 248, 0.2);
   padding: 0 2px;
   user-select: none;
 }
@@ -1462,18 +1476,18 @@ body {
 .map-scrollbar-vertical {
   position: absolute;
   top: 14px;
-  right: 5px;
-  bottom: 28px;
-  width: 18px;
-  background: rgba(10, 18, 30, 0.94);
+  right: 6px;
+  bottom: 34px;
+  width: 20px;
+  background: rgba(10, 18, 30, 0.96);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 9px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 45;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+  z-index: 55;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8), 0 0 10px rgba(56, 189, 248, 0.2);
   padding: 2px 0;
   user-select: none;
 }
@@ -1493,13 +1507,13 @@ body {
 }
 
 .map-scrollbar-horizontal .map-scroll-nudge-btn {
-  width: 16px;
-  height: 14px;
+  width: 18px;
+  height: 16px;
 }
 
 .map-scrollbar-vertical .map-scroll-nudge-btn {
-  width: 14px;
-  height: 16px;
+  width: 16px;
+  height: 18px;
 }
 
 .map-scroll-nudge-btn:hover {
