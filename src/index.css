@@ -2149,6 +2149,58 @@ body {
 }
 
 /* ==========================================================================
+   BOTÃO DE CONTROLE DE PONTOS DE EFETIVO NO MAPA
+   ========================================================================== */
+
+.btn-command-efetivo-on {
+  background: linear-gradient(
+    135deg,
+    rgba(220, 38, 38, 0.35) 0%,
+    rgba(185, 28, 28, 0.5) 100%
+  ) !important;
+  border: 1.5px solid #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.45) !important;
+}
+
+.btn-command-efetivo-on:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.45) 0%,
+    rgba(220, 38, 38, 0.6) 100%
+  ) !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.65) !important;
+}
+
+.btn-command-efetivo-off {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1.5px solid #334155 !important;
+  color: #94a3b8 !important;
+}
+
+.btn-command-efetivo-off:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #64748b !important;
+  color: #f8fafc !important;
+}
+
+/* Botão flutuante de efetivo no mapa */
+.ctrl-btn.efetivo-ctrl-btn {
+  position: relative;
+  gap: 3px;
+  padding: 0 8px;
+  width: auto;
+  min-width: 36px;
+}
+
+.ctrl-btn.efetivo-active {
+  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
+  border-color: #facc15 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(220, 38, 38, 0.6) !important;
+}
+
+/* ==========================================================================
    BOTÃO DE CONTROLE DE VIATURAS (NOVO ÍCONE DE VIATURAS)
    ========================================================================== */
 

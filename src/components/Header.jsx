@@ -20,12 +20,15 @@ import {
   ChevronUp,
   ChevronDown,
   Settings,
+  Shield,
 } from 'lucide-react';
 
 export function Header({
   stats,
   showAllTokens,
   onToggleShowAllTokens,
+  showEfetivo = true,
+  onToggleShowEfetivo,
   showViaturas = false,
   onToggleShowViaturas,
   onOpenRelatorio,
@@ -298,6 +301,25 @@ export function Header({
         >
           <Plane size={14} />
           <span>Aeronaves (10)</span>
+        </button>
+
+        {/* BOTÃO PRINCIPAL: EFETIVO (DESATIVAR/ATIVAR PONTOS NO MAPA) */}
+        <button
+          className={`btn-command ${showEfetivo ? 'btn-command-efetivo-on' : 'btn-command-efetivo-off'}`}
+          onClick={onToggleShowEfetivo}
+          title={
+            showEfetivo
+              ? 'Pontos de efetivo CBMAM ativos no mapa. Clique para desativar/ocultar.'
+              : 'Pontos de efetivo CBMAM desativados. Clique para ativar e exibir no mapa.'
+          }
+        >
+          <Shield size={14} />
+          <span>Efetivo ({stats.totalOperacionais || 623})</span>
+          <span
+            className={`viatura-status-tag ${showEfetivo ? 'tag-on' : 'tag-off'}`}
+          >
+            {showEfetivo ? 'Ativo' : 'Oculto'}
+          </span>
         </button>
 
         {/* BOTÃO PRINCIPAL: VIATURAS (NOVO ÍCONE DE VIATURAS) */}

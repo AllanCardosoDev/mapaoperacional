@@ -108,6 +108,9 @@ export default function App() {
   // Controle de visibilidade de todos os ícones no mapa
   const [showAllTokens, setShowAllTokens] = useState(true);
 
+  // Controle de visibilidade dos pontos de efetivo CBMAM no mapa
+  const [showEfetivo, setShowEfetivo] = useState(true);
+
   // Controle de visibilidade das viaturas (toggle dedicado)
   const [showViaturas, setShowViaturas] = useState(false);
 
@@ -455,6 +458,8 @@ export default function App() {
         stats={stats}
         showAllTokens={showAllTokens}
         onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
+        showEfetivo={showEfetivo}
+        onToggleShowEfetivo={() => setShowEfetivo(!showEfetivo)}
         showViaturas={showViaturas}
         onToggleShowViaturas={() => setShowViaturas(!showViaturas)}
         onOpenRelatorio={() => setShowRelatorioModal(true)}
@@ -503,6 +508,8 @@ export default function App() {
           setShowLabels={setShowLabels}
           showAllTokens={showAllTokens}
           setShowAllTokens={setShowAllTokens}
+          showEfetivo={showEfetivo}
+          setShowEfetivo={setShowEfetivo}
           showViaturas={showViaturas}
           setShowViaturas={setShowViaturas}
         />

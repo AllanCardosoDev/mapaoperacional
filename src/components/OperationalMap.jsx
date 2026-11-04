@@ -8,6 +8,7 @@ import {
   Search,
   X,
   Truck,
+  Shield,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -57,6 +58,8 @@ export function OperationalMap({
   setShowLabels,
   showViaturas = false,
   setShowViaturas,
+  showEfetivo = true,
+  setShowEfetivo,
 }) {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -586,6 +589,20 @@ export function OperationalMap({
 
         {/* CONTROLE DE EXIBIÇÃO / OCULTAÇÃO DE VIATURAS E CAMADAS */}
         <div className="control-pill-group">
+          {/* BOTÃO PARA DESATIVAR / ATIVAR PONTOS DE EFETIVO NO MAPA */}
+          <button
+            className={`ctrl-btn efetivo-ctrl-btn ${showEfetivo ? 'active efetivo-active' : ''}`}
+            onClick={() => setShowEfetivo(!showEfetivo)}
+            title={
+              showEfetivo
+                ? 'Desativar Pontos de Efetivo CBMAM (Clique para ocultar os marcadores de efetivo)'
+                : 'Ativar Pontos de Efetivo CBMAM (Clique para exibir os marcadores de efetivo)'
+            }
+          >
+            <Shield size={17} />
+            <span className="ctrl-btn-tag">EFT</span>
+          </button>
+
           {/* NOVO ÍCONE DE VIATURA: CLICADO MOSTRA OU SOME SOMENTE ELAS */}
           <button
             className={`ctrl-btn viatura-ctrl-btn ${showViaturas ? 'active viaturas-active' : ''}`}
@@ -848,7 +865,7 @@ export function OperationalMap({
                   (summary.brigadistas || 0) +
                   (summary.brigadistasSema || 0)
                 : 0;
-              const hasPin = totalEfetivoDiario > 0;
+              const hasPin = showEfetivo && totalEfetivoDiario > 0;
 
               const offset = METRO_CLUSTER_OFFSETS[m.name] || { x: 0, y: 0 };
               const labelX = m.cx + (hasPin ? offset.x * clusterSpread : 0);
@@ -902,9 +919,10 @@ export function OperationalMap({
 
         {/* ------------------------------------------------------------------
             ÍCONES OFICIAIS CBMAM E QUANTIDADE DO EFETIVO DIÁRIO
-            (Estilo Militar Profissional, Ultra-Visível, 100% Estável)
+            (Ativado/Desativado pelo botão de Efetivo)
             ------------------------------------------------------------------ */}
-        <g id="cbmam-muni-pins">
+        {showEfetivo && (
+          <g id="cbmam-muni-pins">
           {AMAZONAS_DATA.municipalities.map((muni) => {
             const summary = muniResourcesSummary.get(muni.name);
             if (!summary) return null;
@@ -1014,8 +1032,9 @@ export function OperationalMap({
             );
           })}
         </g>
+      )}
 
-        {/* ------------------------------------------------------------------
+      {/* ------------------------------------------------------------------
             CAMADA DE VIATURAS: SOMENTE APARECEM QUANDO O BOTÃO É CLICADO
             (Ao desativar o botão, apenas as viaturas somem do mapa)
             ------------------------------------------------------------------ */}
