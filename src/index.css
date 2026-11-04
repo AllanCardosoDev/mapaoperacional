@@ -475,6 +475,106 @@ body {
   color: #38bdf8;
 }
 
+/* Seletor de Data Tático no Cabeçalho */
+.header-date-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1.5px solid #0284c7;
+  padding: 3px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.date-select-input {
+  background: transparent;
+  border: none;
+  color: #38bdf8;
+  font-family: var(--font-condensed), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  letter-spacing: 0.5px;
+}
+
+.date-select-input option {
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.btn-command-upload-xlsx {
+  background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+  cursor: pointer;
+}
+.btn-command-upload-xlsx:hover {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Badge de Sincronização em Tempo Real Supabase */
+.btn-cloud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.btn-cloud-badge.synced {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+.btn-cloud-badge.synced:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-cloud-badge.saving {
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+}
+
+.btn-cloud-badge.offline {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #f87171;
+}
+.btn-cloud-badge.offline:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+  transform: translateY(-1px);
+}
+
+.spin-slow {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Botões Táticos Operacionais Modernos (Rounded & Glassmorphism) */
 .btn-tactical {
   background: rgba(15, 23, 42, 0.85);

@@ -21,7 +21,20 @@ import {
   ChevronDown,
   Settings,
   Shield,
+  CloudOff,
+  Database,
+  RefreshCw,
+  Calendar,
 } from 'lucide-react';
+
+function formatDisplayDate(isoDate) {
+  if (!isoDate) return '';
+  const parts = isoDate.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return isoDate;
+}
 
 export function Header({
   stats,
@@ -45,6 +58,13 @@ export function Header({
   onOpenAeronaves,
   isHeaderOpen = true,
   onToggleHeader,
+  cloudStatus = 'synced',
+  lastSyncTime = null,
+  onForceSync = () => {},
+  selectedDate = '2026-11-03',
+  availableDates = [],
+  onSelectDate = () => {},
+  onUploadSpreadsheet = () => {},
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -356,6 +376,78 @@ export function Header({
           <span>Relatório</span>
         </button>
 
+        {/* SELETOR DE DATA DA OPERAÇÃO / BANCO SUPABASE */}
+        <div
+          className="header-date-selector"
+          title="Selecione o dia da operação para visualizar o mapa histórico correspondente"
+        >
+          <Calendar size={13} color="#38bdf8" />
+          <select
+            value={selectedDate || ''}
+            onChange={(e) => onSelectDate(e.target.value)}
+            className="date-select-input"
+          >
+            {availableDates && availableDates.length > 0 ? (
+              availableDates.map((item) => (
+                <option key={item.date} value={item.date}>
+                  {formatDisplayDate(item.date)}
+                </option>
+              ))
+            ) : (
+              <option value={selectedDate || '2026-11-03'}>
+                {formatDisplayDate(selectedDate || '2026-11-03')}
+              </option>
+            )}
+          </select>
+        </div>
+
+        {/* BOTÃO: SUBIR PLANILHA OFICIAL (.XLSX) */}
+        <label
+          className="btn-command btn-command-upload-xlsx"
+          title="Subir nova planilha oficial (.xlsx) para gravar e atualizar permanentemente no Supabase"
+        >
+          <Upload size={13} />
+          <span>Subir Planilha</span>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUploadSpreadsheet(file);
+              e.target.value = '';
+            }}
+          />
+        </label>
+
+        {/* STATUS DE PERSISTÊNCIA EM TEMPO REAL SUPABASE */}
+        <button
+          className={`btn-cloud-badge ${cloudStatus}`}
+          onClick={onForceSync}
+          title={
+            cloudStatus === 'synced'
+              ? `Banco de Dados Supabase Conectado. Salvo na Nuvem${lastSyncTime ? ` às ${lastSyncTime.toLocaleTimeString()}` : ''}. Clique para sincronizar agora.`
+              : cloudStatus === 'saving'
+                ? 'Gravando alterações em tempo real no Supabase...'
+                : 'Supabase offline no momento. Dados mantidos em segurança no cache local. Clique para tentar reconectar.'
+          }
+        >
+          {cloudStatus === 'saving' ? (
+            <RefreshCw size={13} className="spin-slow" />
+          ) : cloudStatus === 'offline' ? (
+            <CloudOff size={13} />
+          ) : (
+            <Database size={13} />
+          )}
+          <span>
+            {cloudStatus === 'saving'
+              ? 'Gravando...'
+              : cloudStatus === 'offline'
+                ? 'Cache Local'
+                : 'Supabase Nuvem'}
+          </span>
+        </button>
+
         {/* DIVISOR VERTICAL */}
         <div className="header-divider" />
 
@@ -413,6 +505,45 @@ export function Header({
           {isMenuOpen && (
             <div className="mission-dropdown-menu">
               <div className="dropdown-header">GESTÃO OPERACIONAL</div>
+
+              <label className="dropdown-item dropdown-file-label">
+                <Upload size={14} color="#10b981" />
+                <div>
+                  <div className="item-title">
+                    Subir Planilha Oficial (.xlsx)
+                  </div>
+                  <div className="item-desc">
+                    Importar e gravar dados do dia permanentemente no Supabase
+                  </div>
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.json"
+                  className="dropdown-file-input"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onUploadSpreadsheet(file);
+                    setIsMenuOpen(false);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+
+              <button
+                className="dropdown-item"
+                onClick={() => {
+                  onForceSync();
+                  setIsMenuOpen(false);
+                }}
+              >
+                <Database size={14} color="#34d399" />
+                <div>
+                  <div className="item-title">Sincronizar com Supabase</div>
+                  <div className="item-desc">
+                    Gravar e atualizar todo o mapa no banco de dados na nuvem
+                  </div>
+                </div>
+              </button>
 
               <button
                 className="dropdown-item"

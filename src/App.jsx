@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { TacticalSidebar } from './components/TacticalSidebar';
 import { OperationalMap } from './components/OperationalMap';
@@ -11,6 +11,12 @@ import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
 import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
+import {
+  fetchRemoteMapState,
+  saveRemoteMapState,
+  fetchAvailableDates,
+} from './services/mapSyncService';
+import { parseSpreadsheetBuffer } from './utils/spreadsheetParser';
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v7_oficial886';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v7';
@@ -126,7 +132,122 @@ export default function App() {
   const [showEfetivoModal, setShowEfetivoModal] = useState(false);
   const [showAeronavesModal, setShowAeronavesModal] = useState(false);
 
-  // Persistência automática no localStorage
+  // Status de sincronização com o banco de dados Supabase
+  const [cloudStatus, setCloudStatus] = useState('idle'); // 'synced' | 'saving' | 'offline' | 'idle'
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('2026-11-03');
+  const [availableDates, setAvailableDates] = useState([]);
+  const isInitialMount = useRef(true);
+
+  // 1. CARGA INICIAL DO SUPABASE: Garante persistência remota absoluta e lista de datas
+  useEffect(() => {
+    let active = true;
+    async function loadCloudState() {
+      try {
+        setCloudStatus('saving');
+
+        // Carrega datas disponíveis gravadas no Supabase
+        const dates = await fetchAvailableDates();
+        if (active && dates && dates.length > 0) {
+          setAvailableDates(dates);
+        }
+
+        const remote = await fetchRemoteMapState(selectedDate);
+        if (!active) return;
+
+        if (remote.ok) {
+          if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
+            setTokens(remote.tokens);
+            try {
+              localStorage.setItem(
+                STORAGE_KEY_TOKENS,
+                JSON.stringify(remote.tokens)
+              );
+            } catch {
+              // ignore
+            }
+          }
+          if (remote.muniStatuses && typeof remote.muniStatuses === 'object') {
+            setMuniStatuses(remote.muniStatuses);
+            try {
+              localStorage.setItem(
+                STORAGE_KEY_STATUSES,
+                JSON.stringify(remote.muniStatuses)
+              );
+            } catch {
+              // ignore
+            }
+          }
+          if (remote.muniNotes && typeof remote.muniNotes === 'object') {
+            setMuniNotes(remote.muniNotes);
+            try {
+              localStorage.setItem(
+                STORAGE_KEY_NOTES,
+                JSON.stringify(remote.muniNotes)
+              );
+            } catch {
+              // ignore
+            }
+          }
+          setCloudStatus('synced');
+          setLastSyncTime(new Date(remote.updatedAt || Date.now()));
+        } else {
+          // Se o relatório para esta data ainda não tinha map_state salvo, grava o cenário oficial
+          await saveRemoteMapState({
+            targetDate: selectedDate,
+            tokens,
+            muniStatuses,
+            muniNotes,
+          });
+          if (active) {
+            setCloudStatus('synced');
+            setLastSyncTime(new Date());
+          }
+        }
+      } catch (err) {
+        console.warn('[App] Erro na sincronização inicial com Supabase:', err);
+        if (active) setCloudStatus('offline');
+      }
+    }
+
+    loadCloudState();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2. SINCRONIZAÇÃO EM TEMPO REAL NO SUPABASE (Debounced 1.2s após modificações no mapa)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    setCloudStatus('saving');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await saveRemoteMapState({
+          targetDate: selectedDate,
+          tokens,
+          muniStatuses,
+          muniNotes,
+        });
+        if (res.ok) {
+          setCloudStatus('synced');
+          setLastSyncTime(new Date());
+        } else {
+          setCloudStatus('offline');
+        }
+      } catch {
+        setCloudStatus('offline');
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [tokens, muniStatuses, muniNotes, selectedDate]);
+
+  // Persistência local imediata no localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TOKENS, JSON.stringify(tokens));
@@ -402,6 +523,17 @@ export default function App() {
       )
     ) {
       setTokens(INITIAL_REAL_SCENARIO);
+      saveRemoteMapState({
+        targetDate: selectedDate,
+        tokens: INITIAL_REAL_SCENARIO,
+        muniStatuses,
+        muniNotes,
+      }).then((res) => {
+        if (res.ok) {
+          setCloudStatus('synced');
+          setLastSyncTime(new Date());
+        }
+      });
     }
   };
 
@@ -441,29 +573,48 @@ export default function App() {
         const parsed = JSON.parse(event.target.result);
         if (parsed.tokens && Array.isArray(parsed.tokens)) {
           setTokens(parsed.tokens);
+          const nextStatuses = parsed.muniStatuses || muniStatuses;
+          const nextNotes = parsed.muniNotes || muniNotes;
+
+          if (parsed.muniStatuses) {
+            setMuniStatuses(parsed.muniStatuses);
+          }
+          if (parsed.muniNotes) {
+            setMuniNotes(parsed.muniNotes);
+          }
+
           try {
             localStorage.setItem(
               STORAGE_KEY_TOKENS,
               JSON.stringify(parsed.tokens)
             );
-            if (parsed.muniStatuses) {
-              setMuniStatuses(parsed.muniStatuses);
-              localStorage.setItem(
-                STORAGE_KEY_STATUSES,
-                JSON.stringify(parsed.muniStatuses)
-              );
-            }
-            if (parsed.muniNotes) {
-              setMuniNotes(parsed.muniNotes);
-              localStorage.setItem(
-                STORAGE_KEY_NOTES,
-                JSON.stringify(parsed.muniNotes)
-              );
-            }
+            localStorage.setItem(
+              STORAGE_KEY_STATUSES,
+              JSON.stringify(nextStatuses)
+            );
+            localStorage.setItem(STORAGE_KEY_NOTES, JSON.stringify(nextNotes));
           } catch (storageErr) {
             console.warn('Erro ao salvar no localStorage:', storageErr);
           }
-          alert('Missão carregada e salva permanentemente com sucesso!');
+
+          // Grava imediatamente no Supabase
+          setCloudStatus('saving');
+          saveRemoteMapState({
+            tokens: parsed.tokens,
+            muniStatuses: nextStatuses,
+            muniNotes: nextNotes,
+          }).then((res) => {
+            if (res.ok) {
+              setCloudStatus('synced');
+              setLastSyncTime(new Date());
+            } else {
+              setCloudStatus('offline');
+            }
+          });
+
+          alert(
+            'Missão carregada e salva permanentemente no Supabase e no dispositivo!'
+          );
         } else {
           alert('Arquivo de missão inválido.');
         }
@@ -475,6 +626,149 @@ export default function App() {
     e.target.value = '';
   };
 
+  // Ação: Selecionar data da operação (histórico ou atual)
+  const handleSelectDate = async (newDate) => {
+    if (!newDate || newDate === selectedDate) return;
+    setSelectedDate(newDate);
+    setCloudStatus('saving');
+    try {
+      const remote = await fetchRemoteMapState(newDate);
+      if (remote.ok) {
+        if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
+          setTokens(remote.tokens);
+          try {
+            localStorage.setItem(
+              STORAGE_KEY_TOKENS,
+              JSON.stringify(remote.tokens)
+            );
+          } catch {
+            // ignore
+          }
+        }
+        if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
+        if (remote.muniNotes) setMuniNotes(remote.muniNotes);
+        setCloudStatus('synced');
+        setLastSyncTime(new Date(remote.updatedAt || Date.now()));
+      } else {
+        setCloudStatus('offline');
+      }
+    } catch (err) {
+      console.error('[App] Erro ao carregar data:', err);
+      setCloudStatus('offline');
+    }
+  };
+
+  // Ação: Subir e processar planilha oficial (.xlsx ou .json) e salvar permanentemente no Supabase
+  const handleUploadSpreadsheet = async (file) => {
+    if (!file) return;
+    setCloudStatus('saving');
+
+    try {
+      if (file.name.endsWith('.json')) {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (parsed.tokens && Array.isArray(parsed.tokens)) {
+          setTokens(parsed.tokens);
+          const nextStatuses = parsed.muniStatuses || muniStatuses;
+          const nextNotes = parsed.muniNotes || muniNotes;
+          const date = parsed.date ? parsed.date.slice(0, 10) : selectedDate;
+
+          setMuniStatuses(nextStatuses);
+          setMuniNotes(nextNotes);
+          setSelectedDate(date);
+
+          await saveRemoteMapState({
+            targetDate: date,
+            tokens: parsed.tokens,
+            muniStatuses: nextStatuses,
+            muniNotes: nextNotes,
+          });
+
+          setCloudStatus('synced');
+          setLastSyncTime(new Date());
+          alert(
+            `Missão JSON de ${date} importada e salva permanentemente no Supabase!`
+          );
+        }
+        return;
+      }
+
+      // Arquivo de planilha Excel (.xlsx / .xls)
+      const buffer = await file.arrayBuffer();
+      const parsed = parseSpreadsheetBuffer(buffer, file.name);
+
+      setTokens(parsed.tokens);
+      setMuniStatuses(parsed.muniStatuses);
+      setMuniNotes(parsed.muniNotes);
+      setSelectedDate(parsed.reportDate);
+
+      // Salva permanentemente no banco Supabase
+      const saveRes = await saveRemoteMapState({
+        targetDate: parsed.reportDate,
+        tokens: parsed.tokens,
+        muniStatuses: parsed.muniStatuses,
+        muniNotes: parsed.muniNotes,
+        supabaseEfetivo: parsed.supabaseEfetivo,
+        shift: parsed.shift,
+      });
+
+      if (saveRes.ok) {
+        setCloudStatus('synced');
+        setLastSyncTime(new Date());
+
+        // Atualiza lista de datas disponíveis no Supabase
+        const dates = await fetchAvailableDates();
+        if (dates && dates.length > 0) setAvailableDates(dates);
+
+        alert(
+          `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
+            `• Total Geral Empregado: ${parsed.totalEmpregado} operacionais\n` +
+            `• Municípios com efetivo: ${parsed.municipios.length}\n` +
+            `• Bases Temporárias: ${parsed.bases.length}\n` +
+            `• Recursos dispostos no mapa: ${parsed.tokens.length}\n\n` +
+            `Os dados foram salvos no Supabase e permanecerão gravados infinitamente!`
+        );
+      } else {
+        setCloudStatus('offline');
+        alert(
+          `Planilha carregada, porém houve falha ao salvar no Supabase: ${saveRes.error}`
+        );
+      }
+    } catch (err) {
+      console.error('[App] Erro ao processar planilha:', err);
+      setCloudStatus('offline');
+      alert(`Erro ao ler planilha: ${err.message}`);
+    }
+  };
+
+  // Ação: Sincronização Manual Forçada com Supabase
+  const handleForceSync = async () => {
+    setCloudStatus('saving');
+    try {
+      const res = await saveRemoteMapState({
+        targetDate: selectedDate,
+        tokens,
+        muniStatuses,
+        muniNotes,
+      });
+      if (res.ok) {
+        setCloudStatus('synced');
+        setLastSyncTime(new Date());
+        alert(
+          'Mapa operacional 100% sincronizado e gravado no Supabase com sucesso!'
+        );
+      } else {
+        setCloudStatus('offline');
+        alert(
+          `Aviso: Não foi possível sincronizar com o Supabase (${res.error || 'Erro de conexão'}). Os dados continuam salvos no navegador.`
+        );
+      }
+    } catch (err) {
+      setCloudStatus('offline');
+      alert('Erro ao conectar ao Supabase.');
+    }
+  };
+
   // Ação: Limpar Mapa
   const handleClearMap = () => {
     if (
@@ -483,6 +777,16 @@ export default function App() {
       )
     ) {
       setTokens([]);
+      saveRemoteMapState({
+        tokens: [],
+        muniStatuses,
+        muniNotes,
+      }).then((res) => {
+        if (res.ok) {
+          setCloudStatus('synced');
+          setLastSyncTime(new Date());
+        }
+      });
     }
   };
 
@@ -520,6 +824,13 @@ export default function App() {
         onOpenAeronaves={() => setShowAeronavesModal(true)}
         isHeaderOpen={isHeaderOpen}
         onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
+        cloudStatus={cloudStatus}
+        lastSyncTime={lastSyncTime}
+        onForceSync={handleForceSync}
+        selectedDate={selectedDate}
+        availableDates={availableDates}
+        onSelectDate={handleSelectDate}
+        onUploadSpreadsheet={handleUploadSpreadsheet}
       />
 
       {/* Espaço de Trabalho Tático */}
