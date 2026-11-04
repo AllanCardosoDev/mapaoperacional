@@ -20,37 +20,24 @@ export default function App() {
   // Inicializa a partir de link compartilhado (URL hash) se existir, ou do localStorage, ou do cenário padrão
   const sharedMission = useMemo(() => parseShareableUrl(), []);
 
-  // Estado dos recursos posicionados no mapa
-  const [tokens, setTokens] = useState(() => {
-    // Se o hash compartilhado tiver exatamente 886 efetivos, usamos ele; senão carregamos o cenário oficial
+  // Limpa hash de missão da URL após leitura inicial para não resetar nem sobrescrever dados ao dar F5
+  useEffect(() => {
     if (
-      sharedMission &&
-      Array.isArray(sharedMission.tokens) &&
-      sharedMission.tokens.length > 0
+      typeof window !== 'undefined' &&
+      window.location.hash &&
+      window.location.hash.startsWith('#missao=')
     ) {
-      let total = 0;
-      sharedMission.tokens.forEach((t) => {
-        if (
-          t.type === 'serv_ord' ||
-          t.type === 'efetivo_militar' ||
-          t.type === 'efetivo' ||
-          t.type === 'efetivo_opam' ||
-          t.type === 'efetivo_seg' ||
-          t.type === 'seg' ||
-          t.type === 'efetivo_brigadista' ||
-          t.type === 'brigadista' ||
-          t.type === 'efetivo_prevfogo' ||
-          t.type === 'prevfogo' ||
-          t.type === 'efetivo_fn' ||
-          t.type === 'fn' ||
-          t.type === 'efetivo_brigadista_sema' ||
-          t.type === 'brigadista_sema'
-        ) {
-          total += t.count || 0;
-        }
-      });
-      if (total === 886) return sharedMission.tokens;
+      window.history.replaceState(
+        null,
+        '',
+        window.location.pathname + window.location.search
+      );
     }
+  }, []);
+
+  // Estado dos recursos posicionados no mapa (Persistência Blindada)
+  const [tokens, setTokens] = useState(() => {
+    // 1. Prioridade: dados salvos no localStorage pelo usuário
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKENS);
       if (saved) {
@@ -60,6 +47,17 @@ export default function App() {
     } catch (e) {
       console.warn('Erro ao ler localStorage', e);
     }
+
+    // 2. Link compartilhado novo recebido na URL
+    if (
+      sharedMission &&
+      Array.isArray(sharedMission.tokens) &&
+      sharedMission.tokens.length > 0
+    ) {
+      return sharedMission.tokens;
+    }
+
+    // 3. Fallback Oficial Permanente (886 Operacionais do Briefing)
     return INITIAL_REAL_SCENARIO;
   });
 
@@ -443,9 +441,29 @@ export default function App() {
         const parsed = JSON.parse(event.target.result);
         if (parsed.tokens && Array.isArray(parsed.tokens)) {
           setTokens(parsed.tokens);
-          if (parsed.muniStatuses) setMuniStatuses(parsed.muniStatuses);
-          if (parsed.muniNotes) setMuniNotes(parsed.muniNotes);
-          alert('Missão carregada com sucesso!');
+          try {
+            localStorage.setItem(
+              STORAGE_KEY_TOKENS,
+              JSON.stringify(parsed.tokens)
+            );
+            if (parsed.muniStatuses) {
+              setMuniStatuses(parsed.muniStatuses);
+              localStorage.setItem(
+                STORAGE_KEY_STATUSES,
+                JSON.stringify(parsed.muniStatuses)
+              );
+            }
+            if (parsed.muniNotes) {
+              setMuniNotes(parsed.muniNotes);
+              localStorage.setItem(
+                STORAGE_KEY_NOTES,
+                JSON.stringify(parsed.muniNotes)
+              );
+            }
+          } catch (storageErr) {
+            console.warn('Erro ao salvar no localStorage:', storageErr);
+          }
+          alert('Missão carregada e salva permanentemente com sucesso!');
         } else {
           alert('Arquivo de missão inválido.');
         }
