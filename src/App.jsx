@@ -12,9 +12,9 @@ import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
 import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
 
-const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v5_oficial623';
-const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v5';
-const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v5';
+const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v7_oficial886';
+const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v7';
+const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v7';
 
 export default function App() {
   // Inicializa a partir de link compartilhado (URL hash) se existir, ou do localStorage, ou do cenário padrão
@@ -22,7 +22,7 @@ export default function App() {
 
   // Estado dos recursos posicionados no mapa
   const [tokens, setTokens] = useState(() => {
-    // Se o hash compartilhado tiver exatamente 623 efetivos, podemos usá-lo; senão fallback para cenário oficial 623
+    // Se o hash compartilhado tiver exatamente 886 efetivos, usamos ele; senão carregamos o cenário oficial
     if (
       sharedMission &&
       Array.isArray(sharedMission.tokens) &&
@@ -34,19 +34,22 @@ export default function App() {
           t.type === 'serv_ord' ||
           t.type === 'efetivo_militar' ||
           t.type === 'efetivo' ||
+          t.type === 'efetivo_opam' ||
           t.type === 'efetivo_seg' ||
           t.type === 'seg' ||
           t.type === 'efetivo_brigadista' ||
           t.type === 'brigadista' ||
           t.type === 'efetivo_prevfogo' ||
           t.type === 'prevfogo' ||
+          t.type === 'efetivo_fn' ||
+          t.type === 'fn' ||
           t.type === 'efetivo_brigadista_sema' ||
           t.type === 'brigadista_sema'
         ) {
           total += t.count || 0;
         }
       });
-      if (total === 623) return sharedMission.tokens;
+      if (total === 886) return sharedMission.tokens;
     }
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TOKENS);
@@ -189,13 +192,16 @@ export default function App() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [tokens]);
 
-  // Estatísticas e KPIs em tempo real por categoria (Militares Ord/SEG, Brigadistas Geral/SEMA, Prevfogo)
+  // Estatísticas e KPIs em tempo real por categoria (Militares CBMAM, Força Nacional, Prevfogo, Brigadistas)
   const stats = useMemo(() => {
     let militares = 0;
     let seg = 0;
     let brigadistas = 0;
     let brigadistasSema = 0;
     let prevfogo = 0;
+    let fn = 0;
+    let capital = 0;
+    let interior = 0;
     let asaFixa = 0;
     let rotativa = 0;
     let viaturas = 0;
@@ -212,23 +218,38 @@ export default function App() {
       if (
         t.type === 'serv_ord' ||
         t.type === 'efetivo_militar' ||
-        t.type === 'efetivo'
+        t.type === 'efetivo' ||
+        t.type === 'efetivo_opam'
       ) {
         const c = t.count || 10;
         militares += c;
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'efetivo_seg' || t.type === 'seg') {
         const c = t.count || 6;
         seg += c;
+        militares += c;
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'efetivo_brigadista' || t.type === 'brigadista') {
         const c = t.count || 10;
         brigadistas += c;
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'efetivo_prevfogo' || t.type === 'prevfogo') {
         const c = t.count || 10;
         prevfogo += c;
-        brigadistas += c; // Os 134 brigadistas do Prevfogo/IBAMA integram os 197 Brigadistas Gerais da Operação
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
+        if (isArco) arcoFogo += c;
+      } else if (t.type === 'efetivo_fn' || t.type === 'fn') {
+        const c = t.count || 6;
+        fn += c;
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
         if (isArco) arcoFogo += c;
       } else if (
         t.type === 'efetivo_brigadista_sema' ||
@@ -237,6 +258,8 @@ export default function App() {
       ) {
         const c = t.count || 10;
         brigadistasSema += c;
+        if (targetMuni === 'Manaus') capital += c;
+        else interior += c;
         if (isArco) arcoFogo += c;
       } else if (t.type === 'air_tractor' || t.type === 'kc390') {
         asaFixa += 1;
@@ -257,18 +280,21 @@ export default function App() {
       }
     });
 
-    const totalBrigadistas = brigadistas + brigadistasSema; // 197 + 153 = 350
-    const totalEfetivo = militares + seg + totalBrigadistas; // 267 + 6 + 350 = 623
+    const totalBrigadistas = brigadistas + brigadistasSema; // 78 + 83 = 161
+    const totalEfetivo = militares + prevfogo + fn + totalBrigadistas; // 443 + 247 + 35 + 161 = 886
 
     return {
-      militares, // 267 SV ORD
-      seg, // 6 SEG
-      brigadistas, // 197 BRIGADISTAS GERAIS
-      brigadistasGerais: brigadistas, // 197
-      prevfogo, // 134 PREVFOGO IBAMA
-      brigadistasSema, // 153 BRIGADISTAS SEMA
-      totalBrigadistas, // 350 TOTAL BRIGADISTAS
-      totalEfetivo, // 623 TOTAL GERAL EMPREGADO
+      militares, // 443 Militares CBMAM
+      seg,
+      brigadistas, // 78 Brigadistas Municipais
+      brigadistasGerais: brigadistas,
+      prevfogo, // 247 Prevfogo IBAMA
+      fn, // 35 Força Nacional
+      brigadistasSema, // 83 Brigadistas SEMA
+      totalBrigadistas, // 161 Total Brigadistas (Mun + SEMA)
+      totalEfetivo, // 886 Total Geral Empregado
+      capital, // 233
+      interior, // 653
       focosCombate: 14,
       asaFixa,
       rotativa,

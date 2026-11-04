@@ -178,10 +178,10 @@ export function TacticalSidebar({
                     alignItems: 'center',
                     gap: 4,
                   }}
-                  title="Ver Painel Completo de Efetivo (623 Operacionais)"
+                  title="Ver Painel Completo de Efetivo (886 Operacionais)"
                 >
                   <Users size={11} />
-                  <span>Total 623 ↗</span>
+                  <span>Total 886 ↗</span>
                 </button>
               )}
             </div>

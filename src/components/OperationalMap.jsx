@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -86,8 +92,12 @@ export function OperationalMap({
     const updateSize = () => {
       if (containerRef.current) {
         setViewportDims({
-          width: containerRef.current.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200),
-          height: containerRef.current.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 800),
+          width:
+            containerRef.current.clientWidth ||
+            (typeof window !== 'undefined' ? window.innerWidth : 1200),
+          height:
+            containerRef.current.clientHeight ||
+            (typeof window !== 'undefined' ? window.innerHeight : 800),
         });
       }
     };
@@ -113,7 +123,6 @@ export function OperationalMap({
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
 
   // Drag over de município
-  const [, setHoveredMuni] = useState(null);
   const [dragOverMuniName, setDragOverMuniName] = useState(null);
 
   // Busca de Município
@@ -137,6 +146,7 @@ export function OperationalMap({
           brigadistas: 0,
           brigadistasSema: 0,
           prevfogo: 0,
+          fn: 0,
           aeronaves: 0,
           viaturas: 0,
           fluvial: 0,
@@ -150,7 +160,8 @@ export function OperationalMap({
       if (
         tk.type === 'efetivo_militar' ||
         tk.type === 'efetivo' ||
-        tk.type === 'serv_ord'
+        tk.type === 'serv_ord' ||
+        tk.type === 'efetivo_opam'
       ) {
         entry.militares += tk.count || 10;
       } else if (tk.type === 'efetivo_seg' || tk.type === 'seg') {
@@ -159,7 +170,8 @@ export function OperationalMap({
         entry.brigadistas += tk.count || 10;
       } else if (tk.type === 'efetivo_prevfogo' || tk.type === 'prevfogo') {
         entry.prevfogo += tk.count || 10;
-        entry.brigadistas += tk.count || 10;
+      } else if (tk.type === 'efetivo_fn' || tk.type === 'fn') {
+        entry.fn += tk.count || 6;
       } else if (
         tk.type === 'efetivo_brigadista_sema' ||
         tk.type === 'brigadista_sema'
@@ -196,37 +208,45 @@ export function OperationalMap({
   }, [searchQuery]);
 
   // Função para limitar o pan garantindo que o mapa nunca se perca nem fique fora de visão
-  const clampPan = useCallback((p, currentZoom = zoom) => {
-    const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
-    const H = containerRef.current?.clientHeight || viewportDims.height || 800;
-    const mapW = 1400 * currentZoom;
-    const mapH = 950 * currentZoom;
+  const clampPan = useCallback(
+    (p, currentZoom = zoom) => {
+      const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
+      const H =
+        containerRef.current?.clientHeight || viewportDims.height || 800;
+      const mapW = 1400 * currentZoom;
+      const mapH = 950 * currentZoom;
 
-    // Delimitações para que pelo menos uma boa parte do mapa continue sempre visível
-    const minX = Math.min(0, W - mapW - 60);
-    const maxX = Math.max(0, 60);
-    const minY = Math.min(0, H - mapH - 60);
-    const maxY = Math.max(0, 60);
+      // Delimitações para que pelo menos uma boa parte do mapa continue sempre visível
+      const minX = Math.min(0, W - mapW - 60);
+      const maxX = Math.max(0, 60);
+      const minY = Math.min(0, H - mapH - 60);
+      const maxY = Math.max(0, 60);
 
-    return {
-      x: Math.min(Math.max(p.x, minX), maxX),
-      y: Math.min(Math.max(p.y, minY), maxY),
-    };
-  }, [zoom, viewportDims]);
+      return {
+        x: Math.min(Math.max(p.x, minX), maxX),
+        y: Math.min(Math.max(p.y, minY), maxY),
+      };
+    },
+    [zoom, viewportDims]
+  );
 
-  const getBounds = useCallback((currentZoom = zoom) => {
-    const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
-    const H = containerRef.current?.clientHeight || viewportDims.height || 800;
-    const mapW = 1400 * currentZoom;
-    const mapH = 950 * currentZoom;
+  const getBounds = useCallback(
+    (currentZoom = zoom) => {
+      const W = containerRef.current?.clientWidth || viewportDims.width || 1200;
+      const H =
+        containerRef.current?.clientHeight || viewportDims.height || 800;
+      const mapW = 1400 * currentZoom;
+      const mapH = 950 * currentZoom;
 
-    const minX = Math.min(0, W - mapW - 60);
-    const maxX = Math.max(0, 60);
-    const minY = Math.min(0, H - mapH - 60);
-    const maxY = Math.max(0, 60);
+      const minX = Math.min(0, W - mapW - 60);
+      const maxX = Math.max(0, 60);
+      const minY = Math.min(0, H - mapH - 60);
+      const maxY = Math.max(0, 60);
 
-    return { minX, maxX, minY, maxY, W, H, mapW, mapH };
-  }, [zoom, viewportDims]);
+      return { minX, maxX, minY, maxY, W, H, mapW, mapH };
+    },
+    [zoom, viewportDims]
+  );
 
   // Cálculos das dimensões e posições das barras de rolagem
   const bounds = getBounds(zoom);
@@ -234,22 +254,26 @@ export function OperationalMap({
   const totalRangeY = bounds.maxY - bounds.minY;
 
   // Tamanho proporcional da thumb (quanto maior o mapa em relação à tela, menor a thumb, com limites confortáveis)
-  const thumbWidthPercent = totalRangeX > 0 
-    ? Math.max(14, Math.min(80, (bounds.W / (bounds.mapW + 120)) * 100))
-    : 100;
+  const thumbWidthPercent =
+    totalRangeX > 0
+      ? Math.max(14, Math.min(80, (bounds.W / (bounds.mapW + 120)) * 100))
+      : 100;
 
-  const thumbHeightPercent = totalRangeY > 0 
-    ? Math.max(14, Math.min(80, (bounds.H / (bounds.mapH + 120)) * 100))
-    : 100;
+  const thumbHeightPercent =
+    totalRangeY > 0
+      ? Math.max(14, Math.min(80, (bounds.H / (bounds.mapH + 120)) * 100))
+      : 100;
 
   // Progresso do scroll (0 = extremo esquerdo/topo, 1 = extremo direito/fundo)
-  const progressX = totalRangeX > 0 
-    ? Math.min(1, Math.max(0, (bounds.maxX - pan.x) / totalRangeX))
-    : 0;
+  const progressX =
+    totalRangeX > 0
+      ? Math.min(1, Math.max(0, (bounds.maxX - pan.x) / totalRangeX))
+      : 0;
 
-  const progressY = totalRangeY > 0 
-    ? Math.min(1, Math.max(0, (bounds.maxY - pan.y) / totalRangeY))
-    : 0;
+  const progressY =
+    totalRangeY > 0
+      ? Math.min(1, Math.max(0, (bounds.maxY - pan.y) / totalRangeY))
+      : 0;
 
   const thumbLeftPercent = progressX * (100 - thumbWidthPercent);
   const thumbTopPercent = progressY * (100 - thumbHeightPercent);
@@ -257,30 +281,40 @@ export function OperationalMap({
   // Nudge em X ou Y através dos botões de seta da barra
   const handleNudgeX = (direction) => {
     const step = 90;
-    setPan(prev => clampPan({ ...prev, x: prev.x + (direction === 'left' ? step : -step) }));
+    setPan((prev) =>
+      clampPan({ ...prev, x: prev.x + (direction === 'left' ? step : -step) })
+    );
   };
 
   const handleNudgeY = (direction) => {
     const step = 90;
-    setPan(prev => clampPan({ ...prev, y: prev.y + (direction === 'up' ? step : -step) }));
+    setPan((prev) =>
+      clampPan({ ...prev, y: prev.y + (direction === 'up' ? step : -step) })
+    );
   };
 
   // Clique no track horizontal
   const handleHTrackClick = (e) => {
     if (e.target.closest('.map-scroll-thumb-h') || !hTrackRef.current) return;
     const rect = hTrackRef.current.getBoundingClientRect();
-    const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const clickRatio = Math.max(
+      0,
+      Math.min(1, (e.clientX - rect.left) / rect.width)
+    );
     const newX = bounds.maxX - clickRatio * totalRangeX;
-    setPan(prev => clampPan({ ...prev, x: newX }));
+    setPan((prev) => clampPan({ ...prev, x: newX }));
   };
 
   // Clique no track vertical
   const handleVTrackClick = (e) => {
     if (e.target.closest('.map-scroll-thumb-v') || !vTrackRef.current) return;
     const rect = vTrackRef.current.getBoundingClientRect();
-    const clickRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const clickRatio = Math.max(
+      0,
+      Math.min(1, (e.clientY - rect.top) / rect.height)
+    );
     const newY = bounds.maxY - clickRatio * totalRangeY;
-    setPan(prev => clampPan({ ...prev, y: newY }));
+    setPan((prev) => clampPan({ ...prev, y: newY }));
   };
 
   // Início do arrasto da thumb horizontal
@@ -289,7 +323,7 @@ export function OperationalMap({
     isDraggingHScroll.current = true;
     dragScrollStart.current = {
       mouse: e.clientX,
-      initialPan: pan.x
+      initialPan: pan.x,
     };
   };
 
@@ -299,7 +333,7 @@ export function OperationalMap({
     isDraggingVScroll.current = true;
     dragScrollStart.current = {
       mouse: e.clientY,
-      initialPan: pan.y
+      initialPan: pan.y,
     };
   };
 
@@ -313,7 +347,7 @@ export function OperationalMap({
         if (availablePx > 0 && totalRangeX > 0) {
           const deltaPan = (deltaMouse / availablePx) * totalRangeX;
           const targetPanX = dragScrollStart.current.initialPan - deltaPan;
-          setPan(prev => clampPan({ ...prev, x: targetPanX }));
+          setPan((prev) => clampPan({ ...prev, x: targetPanX }));
         }
       } else if (isDraggingVScroll.current && vTrackRef.current) {
         const deltaMouse = e.clientY - dragScrollStart.current.mouse;
@@ -322,7 +356,7 @@ export function OperationalMap({
         if (availablePx > 0 && totalRangeY > 0) {
           const deltaPan = (deltaMouse / availablePx) * totalRangeY;
           const targetPanY = dragScrollStart.current.initialPan - deltaPan;
-          setPan(prev => clampPan({ ...prev, y: targetPanY }));
+          setPan((prev) => clampPan({ ...prev, y: targetPanY }));
         }
       }
     };
@@ -338,7 +372,13 @@ export function OperationalMap({
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [thumbWidthPercent, thumbHeightPercent, totalRangeX, totalRangeY, clampPan]);
+  }, [
+    thumbWidthPercent,
+    thumbHeightPercent,
+    totalRangeX,
+    totalRangeY,
+    clampPan,
+  ]);
 
   // Função para centralizar no município selecionado
   const focusOnMuni = (muni) => {
@@ -738,74 +778,395 @@ export function OperationalMap({
             ------------------------------------------------------------------ */}
         <g id="geodetic-grid" opacity="0.38" pointerEvents="none">
           {/* Paralelos (Latitude) */}
-          <line x1="60" y1="160" x2="2140" y2="160" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="80" y="152" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">02° 00' N</text>
+          <line
+            x1="60"
+            y1="160"
+            x2="2140"
+            y2="160"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="80"
+            y="152"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"02° 00' N"}
+          </text>
 
-          <line x1="60" y1="385" x2="2140" y2="385" stroke="#38bdf8" strokeWidth="1.6" strokeDasharray="8 4" />
-          <text x="80" y="377" fill="#38bdf8" fontSize="12" fontFamily="monospace" fontWeight="900">00° 00' EQUADOR</text>
+          <line
+            x1="60"
+            y1="385"
+            x2="2140"
+            y2="385"
+            stroke="#38bdf8"
+            strokeWidth="1.6"
+            strokeDasharray="8 4"
+          />
+          <text
+            x="80"
+            y="377"
+            fill="#38bdf8"
+            fontSize="12"
+            fontFamily="monospace"
+            fontWeight="900"
+          >
+            {"00° 00' EQUADOR"}
+          </text>
 
-          <line x1="60" y1="610" x2="2140" y2="610" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="80" y="602" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">02° 00' S</text>
+          <line
+            x1="60"
+            y1="610"
+            x2="2140"
+            y2="610"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="80"
+            y="602"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"02° 00' S"}
+          </text>
 
-          <line x1="60" y1="835" x2="2140" y2="835" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="80" y="827" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">04° 00' S</text>
+          <line
+            x1="60"
+            y1="835"
+            x2="2140"
+            y2="835"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="80"
+            y="827"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"04° 00' S"}
+          </text>
 
-          <line x1="60" y1="1060" x2="2140" y2="1060" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="80" y="1052" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">06° 00' S</text>
+          <line
+            x1="60"
+            y1="1060"
+            x2="2140"
+            y2="1060"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="80"
+            y="1052"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"06° 00' S"}
+          </text>
 
-          <line x1="60" y1="1285" x2="2140" y2="1285" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="80" y="1277" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">08° 00' S</text>
+          <line
+            x1="60"
+            y1="1285"
+            x2="2140"
+            y2="1285"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="80"
+            y="1277"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"08° 00' S"}
+          </text>
 
           {/* Meridianos (Longitude) */}
-          <line x1="210" y1="80" x2="210" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="215" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">72° 00' W</text>
+          <line
+            x1="210"
+            y1="80"
+            x2="210"
+            y2="1340"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="215"
+            y="1335"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"72° 00' W"}
+          </text>
 
-          <line x1="705" y1="80" x2="705" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="710" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">68° 00' W</text>
+          <line
+            x1="705"
+            y1="80"
+            x2="705"
+            y2="1340"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="710"
+            y="1335"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"68° 00' W"}
+          </text>
 
-          <line x1="1200" y1="80" x2="1200" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="1205" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">64° 00' W</text>
+          <line
+            x1="1200"
+            y1="80"
+            x2="1200"
+            y2="1340"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="1205"
+            y="1335"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"64° 00' W"}
+          </text>
 
-          <line x1="1695" y1="80" x2="1695" y2="1340" stroke="#38bdf8" strokeWidth="1.6" strokeDasharray="8 4" />
-          <text x="1700" y="1335" fill="#38bdf8" fontSize="12" fontFamily="monospace" fontWeight="900">60° 00' W (MANAUS)</text>
+          <line
+            x1="1695"
+            y1="80"
+            x2="1695"
+            y2="1340"
+            stroke="#38bdf8"
+            strokeWidth="1.6"
+            strokeDasharray="8 4"
+          />
+          <text
+            x="1700"
+            y="1335"
+            fill="#38bdf8"
+            fontSize="12"
+            fontFamily="monospace"
+            fontWeight="900"
+          >
+            {"60° 00' W (MANAUS)"}
+          </text>
 
-          <line x1="2140" y1="80" x2="2140" y2="1340" stroke="#38bdf8" strokeWidth="1" strokeDasharray="5 5" />
-          <text x="2070" y="1335" fill="#7dd3fc" fontSize="11" fontFamily="monospace" fontWeight="bold">56° 00' W</text>
+          <line
+            x1="2140"
+            y1="80"
+            x2="2140"
+            y2="1340"
+            stroke="#38bdf8"
+            strokeWidth="1"
+            strokeDasharray="5 5"
+          />
+          <text
+            x="2070"
+            y="1335"
+            fill="#7dd3fc"
+            fontSize="11"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            {"56° 00' W"}
+          </text>
         </g>
 
         {/* Rosa dos Ventos Tática */}
-        <g id="tactical-compass" transform="translate(140, 200)" pointerEvents="none" opacity="0.8">
-          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(56, 189, 248, 0.45)" strokeWidth="1.5" strokeDasharray="3 3"/>
-          <circle cx="0" cy="0" r="32" fill="none" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1"/>
+        <g
+          id="tactical-compass"
+          transform="translate(140, 200)"
+          pointerEvents="none"
+          opacity="0.8"
+        >
+          <circle
+            cx="0"
+            cy="0"
+            r="42"
+            fill="none"
+            stroke="rgba(56, 189, 248, 0.45)"
+            strokeWidth="1.5"
+            strokeDasharray="3 3"
+          />
+          <circle
+            cx="0"
+            cy="0"
+            r="32"
+            fill="none"
+            stroke="rgba(56, 189, 248, 0.25)"
+            strokeWidth="1"
+          />
           {/* Pontas da Estrela */}
-          <polygon points="0,-46 7,-12 0,-8" fill="#ef4444"/>
-          <polygon points="0,-46 -7,-12 0,-8" fill="#b91c1c"/>
-          <polygon points="0,46 7,12 0,8" fill="#38bdf8"/>
-          <polygon points="0,46 -7,12 0,8" fill="#0284c7"/>
-          <polygon points="46,0 12,7 8,0" fill="#38bdf8"/>
-          <polygon points="46,0 12,-7 8,0" fill="#0284c7"/>
-          <polygon points="-46,0 -12,7 -8,0" fill="#38bdf8"/>
-          <polygon points="-46,0 -12,-7 -8,0" fill="#0284c7"/>
+          <polygon points="0,-46 7,-12 0,-8" fill="#ef4444" />
+          <polygon points="0,-46 -7,-12 0,-8" fill="#b91c1c" />
+          <polygon points="0,46 7,12 0,8" fill="#38bdf8" />
+          <polygon points="0,46 -7,12 0,8" fill="#0284c7" />
+          <polygon points="46,0 12,7 8,0" fill="#38bdf8" />
+          <polygon points="46,0 12,-7 8,0" fill="#0284c7" />
+          <polygon points="-46,0 -12,7 -8,0" fill="#38bdf8" />
+          <polygon points="-46,0 -12,-7 -8,0" fill="#0284c7" />
           {/* Rótulos de Orientação */}
-          <text x="0" y="-52" textAnchor="middle" fill="#ef4444" fontSize="13" fontWeight="900" fontFamily="sans-serif">N</text>
-          <text x="56" y="4" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">L</text>
-          <text x="0" y="60" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">S</text>
-          <text x="-56" y="4" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold" fontFamily="sans-serif">O</text>
-          <circle cx="0" cy="0" r="3" fill="#ffffff"/>
+          <text
+            x="0"
+            y="-52"
+            textAnchor="middle"
+            fill="#ef4444"
+            fontSize="13"
+            fontWeight="900"
+            fontFamily="sans-serif"
+          >
+            N
+          </text>
+          <text
+            x="56"
+            y="4"
+            textAnchor="middle"
+            fill="#94a3b8"
+            fontSize="10"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            L
+          </text>
+          <text
+            x="0"
+            y="60"
+            textAnchor="middle"
+            fill="#94a3b8"
+            fontSize="10"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            S
+          </text>
+          <text
+            x="-56"
+            y="4"
+            textAnchor="middle"
+            fill="#94a3b8"
+            fontSize="10"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            O
+          </text>
+          <circle cx="0" cy="0" r="3" fill="#ffffff" />
         </g>
 
         {/* Régua de Escala Cartográfica */}
-        <g id="cartographic-scale" transform="translate(80, 1345)" pointerEvents="none" opacity="0.85">
-          <rect x="0" y="0" width="180" height="6" fill="#1b2e48" stroke="rgba(56, 189, 248, 0.6)" strokeWidth="1"/>
-          <rect x="0" y="0" width="45" height="6" fill="#38bdf8"/>
-          <rect x="90" y="0" width="45" height="6" fill="#38bdf8"/>
-          <line x1="0" y1="-3" x2="0" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
-          <line x1="90" y1="-3" x2="90" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
-          <line x1="180" y1="-3" x2="180" y2="9" stroke="#38bdf8" strokeWidth="1.5"/>
-          <text x="0" y="-6" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">0</text>
-          <text x="90" y="-6" textAnchor="middle" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">100 km</text>
-          <text x="180" y="-6" textAnchor="middle" fill="#cbd5e1" fontSize="9" fontFamily="monospace" fontWeight="bold">200 km</text>
-          <text x="90" y="20" textAnchor="middle" fill="#7dd3fc" fontSize="9" fontFamily="monospace" fontWeight="bold" letterSpacing="1">ESCALA CARTOGRÁFICA</text>
+        <g
+          id="cartographic-scale"
+          transform="translate(80, 1345)"
+          pointerEvents="none"
+          opacity="0.85"
+        >
+          <rect
+            x="0"
+            y="0"
+            width="180"
+            height="6"
+            fill="#1b2e48"
+            stroke="rgba(56, 189, 248, 0.6)"
+            strokeWidth="1"
+          />
+          <rect x="0" y="0" width="45" height="6" fill="#38bdf8" />
+          <rect x="90" y="0" width="45" height="6" fill="#38bdf8" />
+          <line
+            x1="0"
+            y1="-3"
+            x2="0"
+            y2="9"
+            stroke="#38bdf8"
+            strokeWidth="1.5"
+          />
+          <line
+            x1="90"
+            y1="-3"
+            x2="90"
+            y2="9"
+            stroke="#38bdf8"
+            strokeWidth="1.5"
+          />
+          <line
+            x1="180"
+            y1="-3"
+            x2="180"
+            y2="9"
+            stroke="#38bdf8"
+            strokeWidth="1.5"
+          />
+          <text
+            x="0"
+            y="-6"
+            fill="#cbd5e1"
+            fontSize="9"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            0
+          </text>
+          <text
+            x="90"
+            y="-6"
+            textAnchor="middle"
+            fill="#cbd5e1"
+            fontSize="9"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            100 km
+          </text>
+          <text
+            x="180"
+            y="-6"
+            textAnchor="middle"
+            fill="#cbd5e1"
+            fontSize="9"
+            fontFamily="monospace"
+            fontWeight="bold"
+          >
+            200 km
+          </text>
+          <text
+            x="90"
+            y="20"
+            textAnchor="middle"
+            fill="#7dd3fc"
+            fontSize="9"
+            fontFamily="monospace"
+            fontWeight="bold"
+            letterSpacing="1"
+          >
+            ESCALA CARTOGRÁFICA
+          </text>
         </g>
 
         {/* ------------------------------------------------------------------
@@ -843,8 +1204,6 @@ export function OperationalMap({
                 onDragOver={(e) => handleDragOver(e, muni.name)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, muni)}
-                onMouseEnter={() => setHoveredMuni(muni)}
-                onMouseLeave={() => setHoveredMuni(null)}
               >
                 <title>{`${muni.name} - ${muni.region_info?.macro} ${hasResources ? `(${summary.totalItems} recursos alocados)` : ''}`}</title>
               </path>
@@ -863,7 +1222,9 @@ export function OperationalMap({
                 ? (summary.militares || 0) +
                   (summary.seg || 0) +
                   (summary.brigadistas || 0) +
-                  (summary.brigadistasSema || 0)
+                  (summary.brigadistasSema || 0) +
+                  (summary.prevfogo || 0) +
+                  (summary.fn || 0)
                 : 0;
               const hasPin = showEfetivo && totalEfetivoDiario > 0;
 
@@ -923,118 +1284,120 @@ export function OperationalMap({
             ------------------------------------------------------------------ */}
         {showEfetivo && (
           <g id="cbmam-muni-pins">
-          {AMAZONAS_DATA.municipalities.map((muni) => {
-            const summary = muniResourcesSummary.get(muni.name);
-            if (!summary) return null;
+            {AMAZONAS_DATA.municipalities.map((muni) => {
+              const summary = muniResourcesSummary.get(muni.name);
+              if (!summary) return null;
 
-            const totalEfetivoDiario =
-              (summary.militares || 0) +
-              (summary.seg || 0) +
-              (summary.brigadistas || 0) +
-              (summary.brigadistasSema || 0);
+              const totalEfetivoDiario =
+                (summary.militares || 0) +
+                (summary.seg || 0) +
+                (summary.brigadistas || 0) +
+                (summary.brigadistasSema || 0) +
+                (summary.prevfogo || 0) +
+                (summary.fn || 0);
 
-            if (totalEfetivoDiario <= 0) return null;
+              if (totalEfetivoDiario <= 0) return null;
 
-            const isSelected = selectedMuniName === muni.name;
-            const badgeWidth =
-              totalEfetivoDiario >= 100
-                ? 54
-                : totalEfetivoDiario >= 10
-                  ? 42
-                  : 34;
+              const isSelected = selectedMuniName === muni.name;
+              const badgeWidth =
+                totalEfetivoDiario >= 100
+                  ? 54
+                  : totalEfetivoDiario >= 10
+                    ? 42
+                    : 34;
 
-            const offset = METRO_CLUSTER_OFFSETS[muni.name] || { x: 0, y: 0 };
-            const pinX = muni.cx + offset.x * clusterSpread;
-            const pinY = muni.cy - 6 + offset.y * clusterSpread;
+              const offset = METRO_CLUSTER_OFFSETS[muni.name] || { x: 0, y: 0 };
+              const pinX = muni.cx + offset.x * clusterSpread;
+              const pinY = muni.cy - 6 + offset.y * clusterSpread;
 
-            return (
-              <g
-                key={`cbmam-pin-${muni.id}`}
-                className={`cbmam-pin-marker ${isSelected ? 'selected' : ''}`}
-                transform={`translate(${pinX}, ${pinY}) scale(${pinScale})`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectMuni(muni.name);
-                }}
-              >
-                <title>{`${muni.name}\nEfetivo Diário: ${totalEfetivoDiario} operacionais\n• Militares CBMAM: ${(summary.militares || 0) + (summary.seg || 0)}\n• Brigadistas: ${(summary.brigadistas || 0) + (summary.brigadistasSema || 0)}\n${summary.viaturas > 0 ? `• Viaturas: ${summary.viaturas}\n` : ''}${summary.aeronaves > 0 ? `• Aeronaves: ${summary.aeronaves}\n` : ''}Clique para abrir a ficha completa do município`}</title>
+              return (
+                <g
+                  key={`cbmam-pin-${muni.id}`}
+                  className={`cbmam-pin-marker ${isSelected ? 'selected' : ''}`}
+                  transform={`translate(${pinX}, ${pinY}) scale(${pinScale})`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectMuni(muni.name);
+                  }}
+                >
+                  <title>{`${muni.name}\nEfetivo Diário: ${totalEfetivoDiario} operacionais\n• Militares CBMAM: ${(summary.militares || 0) + (summary.seg || 0)}\n• Brigadistas: ${(summary.brigadistas || 0) + (summary.brigadistasSema || 0)}${summary.prevfogo > 0 ? `\n• Prevfogo/IBAMA: ${summary.prevfogo}` : ''}${summary.fn > 0 ? `\n• Força Nacional: ${summary.fn}` : ''}${summary.viaturas > 0 ? `\n• Viaturas: ${summary.viaturas}` : ''}${summary.aeronaves > 0 ? `\n• Aeronaves: ${summary.aeronaves}` : ''}\nClique para abrir a ficha completa do município`}</title>
 
-                {/* Halo Dourado Estático no município selecionado */}
-                {isSelected && (
+                  {/* Halo Dourado Estático no município selecionado */}
+                  {isSelected && (
+                    <circle
+                      cx="0"
+                      cy="-14"
+                      r="30"
+                      fill="none"
+                      stroke="#facc15"
+                      strokeWidth="3"
+                      strokeDasharray="6 3"
+                      opacity="0.95"
+                    />
+                  )}
+
+                  {/* 1. Base Circular Branca com Borda Vermelha Oficial (Estilo CBMAM) */}
                   <circle
                     cx="0"
                     cy="-14"
-                    r="30"
-                    fill="none"
-                    stroke="#facc15"
-                    strokeWidth="3"
-                    strokeDasharray="6 3"
-                    opacity="0.95"
+                    r="22"
+                    fill="#ffffff"
+                    stroke={isSelected ? '#facc15' : '#dc2626'}
+                    strokeWidth={isSelected ? '3.5' : '2.5'}
+                    className="cbmam-pin-disc"
+                    filter={
+                      isSelected
+                        ? 'url(#cbmam-pin-glow-gold)'
+                        : 'url(#cbmam-pin-shadow)'
+                    }
                   />
-                )}
 
-                {/* 1. Base Circular Branca com Borda Vermelha Oficial (Estilo CBMAM) */}
-                <circle
-                  cx="0"
-                  cy="-14"
-                  r="22"
-                  fill="#ffffff"
-                  stroke={isSelected ? '#facc15' : '#dc2626'}
-                  strokeWidth={isSelected ? '3.5' : '2.5'}
-                  className="cbmam-pin-disc"
-                  filter={
-                    isSelected
-                      ? 'url(#cbmam-pin-glow-gold)'
-                      : 'url(#cbmam-pin-shadow)'
-                  }
-                />
+                  {/* 2. Brasão Oficial do CBMAM perfeitamente nítido e destacado */}
+                  <image
+                    href="/brasao-cbmam.png"
+                    x="-17"
+                    y="-31"
+                    width="34"
+                    height="34"
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ pointerEvents: 'none' }}
+                  />
 
-                {/* 2. Brasão Oficial do CBMAM perfeitamente nítido e destacado */}
-                <image
-                  href="/brasao-cbmam.png"
-                  x="-17"
-                  y="-31"
-                  width="34"
-                  height="34"
-                  preserveAspectRatio="xMidYMid meet"
-                  style={{ pointerEvents: 'none' }}
-                />
+                  {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca) */}
+                  <rect
+                    x={-badgeWidth / 2}
+                    y="7"
+                    width={badgeWidth}
+                    height="20"
+                    rx="10"
+                    fill="#dc2626"
+                    stroke={isSelected ? '#facc15' : '#ffffff'}
+                    strokeWidth="2"
+                    className="cbmam-pin-pill"
+                    filter="url(#cbmam-pin-shadow)"
+                  />
 
-                {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca) */}
-                <rect
-                  x={-badgeWidth / 2}
-                  y="7"
-                  width={badgeWidth}
-                  height="20"
-                  rx="10"
-                  fill="#dc2626"
-                  stroke={isSelected ? '#facc15' : '#ffffff'}
-                  strokeWidth="2"
-                  className="cbmam-pin-pill"
-                  filter="url(#cbmam-pin-shadow)"
-                />
+                  {/* 4. Número do Efetivo Diário (Branco Brilhante em Negrito de Alto Impacto) */}
+                  <text
+                    x="0"
+                    y="21"
+                    fontSize="12"
+                    fontWeight="900"
+                    fontFamily="'Inter', system-ui, -apple-system, sans-serif"
+                    fill="#ffffff"
+                    textAnchor="middle"
+                    letterSpacing="0.3"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {totalEfetivoDiario}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
 
-                {/* 4. Número do Efetivo Diário (Branco Brilhante em Negrito de Alto Impacto) */}
-                <text
-                  x="0"
-                  y="21"
-                  fontSize="12"
-                  fontWeight="900"
-                  fontFamily="'Inter', system-ui, -apple-system, sans-serif"
-                  fill="#ffffff"
-                  textAnchor="middle"
-                  letterSpacing="0.3"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {totalEfetivoDiario}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      )}
-
-      {/* ------------------------------------------------------------------
+        {/* ------------------------------------------------------------------
             CAMADA DE VIATURAS: SOMENTE APARECEM QUANDO O BOTÃO É CLICADO
             (Ao desativar o botão, apenas as viaturas somem do mapa)
             ------------------------------------------------------------------ */}
@@ -1066,35 +1429,38 @@ export function OperationalMap({
       </svg>
 
       {/* BARRA DE ROLAGEM HORIZONTAL DO MAPA */}
-      <div className="map-scrollbar-horizontal" title="Barra de rolagem horizontal do mapa">
-        <button 
+      <div
+        className="map-scrollbar-horizontal"
+        title="Barra de rolagem horizontal do mapa"
+      >
+        <button
           type="button"
-          className="map-scroll-nudge-btn" 
-          onClick={() => handleNudgeX('left')} 
+          className="map-scroll-nudge-btn"
+          onClick={() => handleNudgeX('left')}
           title="Mover mapa para a direita"
         >
           <ChevronLeft size={13} />
         </button>
-        <div 
-          className="map-scroll-track-h" 
-          ref={hTrackRef} 
+        <div
+          className="map-scroll-track-h"
+          ref={hTrackRef}
           onClick={handleHTrackClick}
           title="Clique na barra para navegar horizontalmente"
         >
-          <div 
-            className="map-scroll-thumb-h" 
-            style={{ 
-              width: `${thumbWidthPercent}%`, 
-              left: `${thumbLeftPercent}%` 
+          <div
+            className="map-scroll-thumb-h"
+            style={{
+              width: `${thumbWidthPercent}%`,
+              left: `${thumbLeftPercent}%`,
             }}
             onMouseDown={handleHThumbMouseDown}
             title="Arraste para rolar o mapa horizontalmente"
           />
         </div>
-        <button 
+        <button
           type="button"
-          className="map-scroll-nudge-btn" 
-          onClick={() => handleNudgeX('right')} 
+          className="map-scroll-nudge-btn"
+          onClick={() => handleNudgeX('right')}
           title="Mover mapa para a esquerda"
         >
           <ChevronRight size={13} />
@@ -1102,35 +1468,38 @@ export function OperationalMap({
       </div>
 
       {/* BARRA DE ROLAGEM VERTICAL DO MAPA */}
-      <div className="map-scrollbar-vertical" title="Barra de rolagem vertical do mapa">
-        <button 
+      <div
+        className="map-scrollbar-vertical"
+        title="Barra de rolagem vertical do mapa"
+      >
+        <button
           type="button"
-          className="map-scroll-nudge-btn" 
-          onClick={() => handleNudgeY('up')} 
+          className="map-scroll-nudge-btn"
+          onClick={() => handleNudgeY('up')}
           title="Mover mapa para baixo"
         >
           <ChevronUp size={13} />
         </button>
-        <div 
-          className="map-scroll-track-v" 
-          ref={vTrackRef} 
+        <div
+          className="map-scroll-track-v"
+          ref={vTrackRef}
           onClick={handleVTrackClick}
           title="Clique na barra para navegar verticalmente"
         >
-          <div 
-            className="map-scroll-thumb-v" 
-            style={{ 
-              height: `${thumbHeightPercent}%`, 
-              top: `${thumbTopPercent}%` 
+          <div
+            className="map-scroll-thumb-v"
+            style={{
+              height: `${thumbHeightPercent}%`,
+              top: `${thumbTopPercent}%`,
             }}
             onMouseDown={handleVThumbMouseDown}
             title="Arraste para rolar o mapa verticalmente"
           />
         </div>
-        <button 
+        <button
           type="button"
-          className="map-scroll-nudge-btn" 
-          onClick={() => handleNudgeY('down')} 
+          className="map-scroll-nudge-btn"
+          onClick={() => handleNudgeY('down')}
           title="Mover mapa para cima"
         >
           <ChevronDown size={13} />

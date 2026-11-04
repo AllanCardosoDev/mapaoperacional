@@ -86,13 +86,18 @@ export function Header({
   }
 
   // Cálculos consolidados para os pods executivos
-  const totalEfetivo = stats.totalEfetivo || 623;
-  const svOrd = stats.militares || 267;
-  const seg = stats.seg || 6;
-  const brigGerais = stats.brigadistas || 197;
-  const brigSema = stats.brigadistasSema || 153;
-  const totalBrig = stats.totalBrigadistas || 350;
-  const prevfogo = stats.prevfogo || 134;
+  const totalEfetivo = stats.totalEfetivo || 886;
+  const militares = stats.militares || 443;
+  const svOrd = stats.militares ? 211 : 211;
+  const opamExtra = stats.militares ? 232 : 232;
+  const brigMun = stats.brigadistas || 78;
+  const brigSema = stats.brigadistasSema || 83;
+  const totalBrig = stats.totalBrigadistas || 161;
+  const prevfogo = stats.prevfogo || 247;
+  const fn = stats.fn || 35;
+  const forcasParceiras = prevfogo + fn + totalBrig; // 247 + 35 + 161 = 443
+  const capital = stats.capital || 233;
+  const interior = stats.interior || 653;
   const totalAeronaves = (stats.asaFixa || 7) + (stats.rotativa || 3);
   const totalMeios =
     totalAeronaves + (stats.viaturas || 4) + (stats.fluvial || 1);
@@ -211,7 +216,7 @@ export function Header({
         <div
           className="exec-kpi-pod pod-gold"
           onClick={onOpenEfetivo}
-          title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (623 Operacionais)"
+          title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (886 Operacionais: 233 Capital / 653 Interior)"
         >
           <div className="pod-icon-wrap">
             <Users size={16} color="#facc15" />
@@ -219,37 +224,37 @@ export function Header({
           <div className="pod-body">
             <div className="pod-top-row">
               <span className="pod-label">TOTAL GERAL EMPREGADO</span>
-              <span className="pod-badge">OFICIAL</span>
+              <span className="pod-badge">OFICIAL 886</span>
             </div>
             <div className="pod-value-row">
               <span className="pod-hero-number">{totalEfetivo}</span>
               <span className="pod-subdetail">
-                <b>{svOrd}</b> SV ORD • <b>{seg}</b> SEG • <b>{totalBrig}</b>{' '}
-                BRIG
+                <b>{militares}</b> Militares ({svOrd} SV ORD • {opamExtra} OPAM)
+                • <b>{capital}</b> Cap / <b>{interior}</b> Int
               </span>
             </div>
           </div>
         </div>
 
-        {/* POD 2: BRIGADAS FLORESTAIS (VERDE FLORESTA / PREVFOGO & SEMA) */}
+        {/* POD 2: FORÇAS PARCEIRAS & BRIGADAS */}
         <div
           className="exec-kpi-pod pod-forest"
           onClick={onOpenEfetivo}
-          title="Clique para ver detalhes dos Brigadistas Gerais, Prevfogo IBAMA (134) e SEMA (153)"
+          title="Clique para ver detalhes do Prevfogo IBAMA (247), Força Nacional (35) e Brigadistas (161: 78 Mun + 83 SEMA)"
         >
           <div className="pod-icon-wrap">
             <Leaf size={16} color="#4ade80" />
           </div>
           <div className="pod-body">
             <div className="pod-top-row">
-              <span className="pod-label">BRIGADAS FLORESTAIS</span>
-              <span className="pod-badge green">350 TOTAL</span>
+              <span className="pod-label">PARCEIROS & BRIGADAS</span>
+              <span className="pod-badge green">443 FORÇAS</span>
             </div>
             <div className="pod-value-row">
-              <span className="pod-hero-number">{totalBrig}</span>
+              <span className="pod-hero-number">{forcasParceiras}</span>
               <span className="pod-subdetail">
-                <b>{brigGerais}</b> Gerais (<b>{prevfogo}</b> Prevfogo) •{' '}
-                <b>{brigSema}</b> SEMA
+                <b>{prevfogo}</b> Prevfogo • <b>{fn}</b> FN • <b>{totalBrig}</b>{' '}
+                Brig. ({brigMun}M / {brigSema}S)
               </span>
             </div>
           </div>
@@ -287,7 +292,7 @@ export function Header({
         <button
           className="btn-command btn-command-gold"
           onClick={onOpenEfetivo}
-          title="Abrir Painel Completo de Efetivo (623) e Recursos da Operação"
+          title="Abrir Painel Completo de Efetivo (886) e Recursos da Operação"
         >
           <Users size={14} />
           <span>Painel Efetivo</span>
@@ -314,7 +319,7 @@ export function Header({
           }
         >
           <Shield size={14} />
-          <span>Efetivo ({stats.totalOperacionais || 623})</span>
+          <span>Efetivo ({totalEfetivo})</span>
           <span
             className={`viatura-status-tag ${showEfetivo ? 'tag-on' : 'tag-off'}`}
           >
@@ -456,9 +461,12 @@ export function Header({
               >
                 <Sparkles size={14} color="#f59e0b" />
                 <div>
-                  <div className="item-title">Restaurar Cenário Oficial</div>
+                  <div className="item-title">
+                    Restaurar Cenário Oficial (886 Op.)
+                  </div>
                   <div className="item-desc">
-                    Recarregar os 623 operacionais e 10 aeronaves
+                    Recarregar os 886 operacionais do briefing oficial e 10
+                    aeronaves
                   </div>
                 </div>
               </button>
