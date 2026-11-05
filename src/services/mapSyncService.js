@@ -356,7 +356,7 @@ export async function saveRemoteMapState({
   supabaseRecursos,
   shift = 'noturno',
 }) {
-  const finalDate = targetDate || '2026-11-03';
+  const finalDate = targetDate || '2026-11-04';
   const updatedAt = new Date().toISOString();
 
   // 1. SEMPRE gravar no armazenamento local persistente vinculado à data

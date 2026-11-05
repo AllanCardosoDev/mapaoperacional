@@ -23,9 +23,9 @@ import {
 } from './utils/spreadsheetParser';
 import { efetivoDB } from './services/efetivoDatabase';
 
-const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v7_oficial886';
-const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v7';
-const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v7';
+const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v8_04112026';
+const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v8';
+const STORAGE_KEY_NOTES = 'cbmam_muni_notes_v8';
 
 export default function App() {
   // Inicializa a partir de link compartilhado (URL hash) se existir, ou do localStorage, ou do cenário padrão
@@ -140,7 +140,7 @@ export default function App() {
   // Status de sincronização com o banco de dados Supabase
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'synced' | 'saving' | 'offline' | 'idle'
   const [lastSyncTime, setLastSyncTime] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('2026-11-03');
+  const [selectedDate, setSelectedDate] = useState('2026-11-04');
   const [availableDates, setAvailableDates] = useState([]);
   const isInitialMount = useRef(true);
 
