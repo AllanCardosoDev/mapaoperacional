@@ -1,8 +1,52 @@
 import { supabase } from './supabaseClient';
-import { OPERACAO_EFETIVO_MUNICIPIOS } from '../data/operacaoAmazonasData';
+import {
+  OPERACAO_EFETIVO_MUNICIPIOS,
+  OPERACAO_RECURSOS_MUNICIPIOS,
+} from '../data/operacaoAmazonasData';
 import { AMAZONAS_DATA } from '../data/amazonasData';
 
 const LOCAL_STORAGE_BACKUP_PREFIX = 'cbmam_map_supabase_backup_';
+
+/**
+ * Converte a matriz de 160 meios materiais para a estrutura da coluna `recursos` do Supabase
+ */
+export function buildSupabaseRecursosArray() {
+  const RECURSOS_COLUMNS_KEYS = [
+    'abt',
+    'at',
+    'aem',
+    'atp',
+    'ata',
+    'abf',
+    'atf',
+    'abs',
+    'abtf',
+    'pipa',
+    'dosa',
+    'crs',
+    'ar',
+    'ur',
+    'gse',
+    'mt',
+    'ta',
+    'quadriciclo',
+    'embarcacao',
+    'picape_fn',
+    'picape_muni',
+    'autoarp',
+    'picape_esfron',
+    'helicoptero',
+    'aviao',
+    'jetski',
+  ];
+  return OPERACAO_RECURSOS_MUNICIPIOS.map((r) => {
+    const row = { mun: r.mun };
+    for (const k of RECURSOS_COLUMNS_KEYS) {
+      row[k] = Number(r[k]) || 0;
+    }
+    return row;
+  });
+}
 
 /**
  * Converte a matriz de 886 operacionais para a estrutura da coluna `efetivo` do Supabase
@@ -135,13 +179,82 @@ function generateTokensFromEfetivo(efetivoList) {
 }
 
 /**
+ * Converte o array de recursos de uma data do Supabase em tokens no mapa caso a data não tenha map_state explícito
+ */
+function generateTokensFromRecursos(recursosList) {
+  if (!Array.isArray(recursosList) || recursosList.length === 0) return [];
+  const tokens = [];
+
+  recursosList.forEach((rec) => {
+    const muniName = rec.mun || rec.muni;
+    if (!muniName) return;
+
+    const mObj = AMAZONAS_DATA.municipalities.find(
+      (m) =>
+        m.name.toLowerCase() === muniName.toLowerCase() ||
+        muniName.toLowerCase().includes(m.name.toLowerCase())
+    );
+    const cx = mObj ? mObj.cx : 520;
+    const cy = mObj ? mObj.cy : 480;
+
+    let offsetIdx = 3;
+    const addTk = (type, count, label) => {
+      if (!count || count <= 0) return;
+      const offX = (offsetIdx % 3) * 28 - 28;
+      const offY = Math.floor(offsetIdx / 3) * 28 - 14;
+      offsetIdx += 1;
+      tokens.push({
+        id: `tk-vtr-${muniName.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${type}-${tokens.length}`,
+        type,
+        muni: muniName,
+        x: Math.round(cx + offX),
+        y: Math.round(cy + offY),
+        count,
+        label,
+      });
+    };
+
+    if (rec.abt > 0) addTk('vtr_abt', rec.abt, `${rec.abt} ABT CBMAM`);
+    const florestal =
+      (rec.atf || 0) +
+      (rec.abf || 0) +
+      (rec.ata || 0) +
+      (rec.at || 0) +
+      (rec.picape_esfron || 0) +
+      (rec.picape_fn || 0) +
+      (rec.picape_muni || 0) +
+      (rec.ar || 0);
+    if (florestal > 0)
+      addTk('vtr_florestal', florestal, `${florestal} Combate/Apoio Florestal`);
+    const resgate =
+      (rec.ur || 0) +
+      (rec.abs || 0) +
+      (rec.crs || 0) +
+      (rec.gse || 0) +
+      (rec.dosa || 0);
+    if (resgate > 0) addTk('vtr_ur', resgate, `${resgate} UR / Resgate / GSE`);
+    const fluvial = (rec.embarcacao || 0) + (rec.jetski || 0);
+    if (fluvial > 0)
+      addTk('embarcacao', fluvial, `${fluvial} Fluvial (Lancha/Jet)`);
+    if (rec.helicoptero > 0)
+      addTk('helicoptero', rec.helicoptero, `${rec.helicoptero} Harpia CBMAM`);
+    if (rec.aviao > 0)
+      addTk('air_tractor', rec.aviao, `${rec.aviao} Air Tractor`);
+  });
+
+  return tokens;
+}
+
+/**
  * Busca o estado do mapa para uma data específica (ou o mais recente oficial se omitido)
  */
 export async function fetchRemoteMapState(targetDate = null) {
   try {
     let query = supabase
       .from('daily_reports')
-      .select('id, report_date, shift, notes, efetivo, version, updated_at');
+      .select(
+        'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
+      );
 
     if (targetDate) {
       query = query.eq('report_date', targetDate);
@@ -187,9 +300,18 @@ export async function fetchRemoteMapState(targetDate = null) {
     let muniStatuses = mapState?.muniStatuses || null;
     let muniNotes = mapState?.muniNotes || null;
 
-    // Se não tinha map_state explícito mas possui efetivo estruturado no banco, sintetiza os tokens
-    if (!tokens && Array.isArray(report.efetivo) && report.efetivo.length > 0) {
-      tokens = generateTokensFromEfetivo(report.efetivo);
+    // Se não tinha map_state explícito mas possui efetivo/recursos estruturado no banco, sintetiza os tokens
+    if (!tokens) {
+      const efTokens =
+        Array.isArray(report.efetivo) && report.efetivo.length > 0
+          ? generateTokensFromEfetivo(report.efetivo)
+          : [];
+      const recTokens =
+        Array.isArray(report.recursos) && report.recursos.length > 0
+          ? generateTokensFromRecursos(report.recursos)
+          : [];
+      const combined = [...(efTokens || []), ...(recTokens || [])];
+      if (combined.length > 0) tokens = combined;
     }
 
     return {
@@ -202,6 +324,7 @@ export async function fetchRemoteMapState(targetDate = null) {
       muniStatuses,
       muniNotes,
       efetivo: report.efetivo || null,
+      recursos: report.recursos || null,
       updatedAt: mapState?.updatedAt || report.updated_at,
     };
   } catch (err) {
@@ -221,6 +344,7 @@ export async function saveRemoteMapState({
   muniNotes,
   efetivoMatriz,
   supabaseEfetivo,
+  supabaseRecursos,
   shift = 'noturno',
 }) {
   try {
@@ -229,7 +353,7 @@ export async function saveRemoteMapState({
     // 1. Verificar se já existe registro para esta data
     const { data: existingRows, error: searchErr } = await supabase
       .from('daily_reports')
-      .select('id, notes, efetivo, version')
+      .select('id, notes, efetivo, recursos, version')
       .eq('report_date', finalDate)
       .order('updated_at', { ascending: false })
       .limit(1);
@@ -269,6 +393,12 @@ export async function saveRemoteMapState({
       supabaseEfetivo ||
       (existing?.efetivo ? existing.efetivo : buildSupabaseEfetivoArray());
 
+    const finalRecursos =
+      supabaseRecursos ||
+      (existing?.recursos && existing.recursos.length > 0
+        ? existing.recursos
+        : buildSupabaseRecursosArray());
+
     let reportId = null;
 
     if (existing) {
@@ -278,6 +408,7 @@ export async function saveRemoteMapState({
         .update({
           notes: JSON.stringify(notesObj),
           efetivo: finalEfetivo,
+          recursos: finalRecursos,
           updated_at: updatedAt,
         })
         .eq('id', existing.id);
@@ -296,7 +427,7 @@ export async function saveRemoteMapState({
           shift,
           notes: JSON.stringify(notesObj),
           efetivo: finalEfetivo,
-          recursos: [],
+          recursos: finalRecursos,
           incendios: [],
           outras: [],
           version: 1,

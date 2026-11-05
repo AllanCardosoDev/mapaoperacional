@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { AMAZONAS_DATA } from '../data/amazonasData.js';
+import { OPERACAO_RECURSOS_MUNICIPIOS } from '../data/operacaoAmazonasData.js';
 
 /**
  * Extrai a data no formato YYYY-MM-DD a partir do nome do arquivo ou conteúdo
@@ -274,7 +275,144 @@ export function parseSpreadsheetBuffer(buffer, fileName = '') {
 
   const allPersonnel = [...parsedMunis, ...parsedBases];
 
-  // 4. Gerar tokens táticos posicionados no mapa
+  // 3. Ler Tabela de RECURSOS / VIATURAS (linhas seguintes de RELATORIO1)
+  let recursosHeaderRow = -1;
+  for (let r = 20; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const text = row.map((c) => String(c || '').toUpperCase()).join(' ');
+    if (
+      (text.includes('ABT') && text.includes('ATF')) ||
+      (text.includes('RECURSOS') && text.includes('MUNICÍPIO')) ||
+      (text.includes('ABT') && text.includes('AR'))
+    ) {
+      recursosHeaderRow = r;
+      break;
+    }
+  }
+
+  const parsedRecursos = [];
+  if (recursosHeaderRow !== -1) {
+    const headerRow = rows[recursosHeaderRow];
+    const colMap = {};
+    headerRow.forEach((cell, idx) => {
+      const clean = String(cell || '')
+        .trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Z0-9]/g, '');
+
+      if (clean === 'ABT') colMap.abt = idx;
+      else if (clean === 'AT') colMap.at = idx;
+      else if (clean === 'ATP') colMap.atp = idx;
+      else if (clean === 'ATA') colMap.ata = idx;
+      else if (clean === 'ABF') colMap.abf = idx;
+      else if (clean === 'ATF') colMap.atf = idx;
+      else if (clean === 'ABS') colMap.abs = idx;
+      else if (clean === 'PIPA') colMap.pipa = idx;
+      else if (clean === 'DOSA') colMap.dosa = idx;
+      else if (clean === 'CRS') colMap.crs = idx;
+      else if (clean === 'AR') colMap.ar = idx;
+      else if (clean === 'UR') colMap.ur = idx;
+      else if (clean === 'GSE') colMap.gse = idx;
+      else if (clean === 'MT') colMap.mt = idx;
+      else if (clean === 'TA') colMap.ta = idx;
+      else if (clean.includes('EMBARC')) colMap.embarcacao = idx;
+      else if (clean.includes('PICAPEFN')) colMap.picape_fn = idx;
+      else if (clean.includes('PICAPEMUNI')) colMap.picape_muni = idx;
+      else if (clean.includes('AUTOARP')) colMap.autoarp = idx;
+      else if (clean.includes('ESFRON')) colMap.picape_esfron = idx;
+      else if (clean.includes('HELIC')) colMap.helicoptero = idx;
+      else if (clean.includes('AVIAO')) colMap.aviao = idx;
+      else if (clean.includes('JETSKI')) colMap.jetski = idx;
+      else if (clean.includes('QUADRI')) colMap.quadriciclo = idx;
+      else if (clean === 'AEM') colMap.aem = idx;
+      else if (clean === 'TOTAL') colMap.total = idx;
+    });
+
+    for (let r = recursosHeaderRow + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const muniName = String(row[1] || row[0] || '').trim();
+      if (!muniName || muniName.toUpperCase().includes('TOTAL')) {
+        if (muniName.toUpperCase().includes('TOTAL')) break;
+        continue;
+      }
+
+      const rec = {
+        muni: muniName,
+        abt: Number(row[colMap.abt]) || 0,
+        at: Number(row[colMap.at]) || 0,
+        atp: Number(row[colMap.atp]) || 0,
+        ata: Number(row[colMap.ata]) || 0,
+        abf: Number(row[colMap.abf]) || 0,
+        atf: Number(row[colMap.atf]) || 0,
+        abs: Number(row[colMap.abs]) || 0,
+        pipa: Number(row[colMap.pipa]) || 0,
+        dosa: Number(row[colMap.dosa]) || 0,
+        crs: Number(row[colMap.crs]) || 0,
+        ar: Number(row[colMap.ar]) || 0,
+        ur: Number(row[colMap.ur]) || 0,
+        gse: Number(row[colMap.gse]) || 0,
+        mt: Number(row[colMap.mt]) || 0,
+        ta: Number(row[colMap.ta]) || 0,
+        embarcacao: Number(row[colMap.embarcacao]) || 0,
+        picape_fn: Number(row[colMap.picape_fn]) || 0,
+        picape_muni: Number(row[colMap.picape_muni]) || 0,
+        autoarp: Number(row[colMap.autoarp]) || 0,
+        picape_esfron: Number(row[colMap.picape_esfron]) || 0,
+        helicoptero: Number(row[colMap.helicoptero]) || 0,
+        aviao: Number(row[colMap.aviao]) || 0,
+        jetski: Number(row[colMap.jetski]) || 0,
+        quadriciclo: Number(row[colMap.quadriciclo]) || 0,
+        aem: Number(row[colMap.aem]) || 0,
+      };
+
+      const rowTotal =
+        Number(row[colMap.total]) ||
+        rec.abt +
+          rec.at +
+          rec.atp +
+          rec.ata +
+          rec.abf +
+          rec.atf +
+          rec.abs +
+          rec.pipa +
+          rec.dosa +
+          rec.crs +
+          rec.ar +
+          rec.ur +
+          rec.gse +
+          rec.mt +
+          rec.ta +
+          rec.embarcacao +
+          rec.picape_fn +
+          rec.picape_muni +
+          rec.autoarp +
+          rec.picape_esfron +
+          rec.helicoptero +
+          rec.aviao +
+          rec.jetski +
+          rec.quadriciclo +
+          rec.aem;
+
+      rec.total = rowTotal;
+      if (rowTotal > 0 || muniName.length > 2) {
+        parsedRecursos.push(rec);
+      }
+    }
+  }
+
+  // Fallback se não encontrou recursos na planilha
+  const effectiveRecursos =
+    parsedRecursos.length > 0
+      ? parsedRecursos
+      : OPERACAO_RECURSOS_MUNICIPIOS.map((r) => ({
+          ...r,
+          muni: r.mun,
+        }));
+
+  // 4. Gerar tokens táticos posicionados no mapa (Efetivo + Viaturas + Aeronaves)
   const tokens = [];
   const muniStatuses = {};
   const muniNotes = {};
@@ -334,136 +472,76 @@ export function parseSpreadsheetBuffer(buffer, fileName = '') {
     muniStatuses[name] = 'normal';
   });
 
-  // Garantir meios aéreos e viaturas padrão da operação caso não estejam na planilha
-  const hasAero = tokens.some(
-    (t) => t.type === 'air_tractor' || t.type === 'helicoptero'
-  );
-  if (!hasAero) {
-    tokens.push(
-      {
-        id: 'tk-harpia-01',
-        type: 'helicoptero',
-        muni: 'Manaus',
-        x: 575,
-        y: 440,
-        label: 'Harpia 01',
-      },
-      {
-        id: 'tk-harpia-02',
-        type: 'helicoptero',
-        muni: 'Manaus',
-        x: 605,
-        y: 440,
-        label: 'Harpia 02',
-      },
-      {
-        id: 'tk-harpia-03',
-        type: 'helicoptero',
-        muni: 'Humaitá',
-        x: 495,
-        y: 720,
-        label: 'Harpia 03',
-      },
-      {
-        id: 'tk-at-01',
-        type: 'air_tractor',
-        muni: 'Apuí',
-        x: 670,
-        y: 725,
-        label: 'Air Tractor 01',
-      },
-      {
-        id: 'tk-at-02',
-        type: 'air_tractor',
-        muni: 'Apuí',
-        x: 645,
-        y: 745,
-        label: 'Air Tractor 02',
-      },
-      {
-        id: 'tk-at-03',
-        type: 'air_tractor',
-        muni: 'Humaitá',
-        x: 470,
-        y: 735,
-        label: 'Air Tractor 03',
-      },
-      {
-        id: 'tk-at-04',
-        type: 'air_tractor',
-        muni: 'Lábrea',
-        x: 345,
-        y: 780,
-        label: 'Air Tractor 04',
-      },
-      {
-        id: 'tk-at-05',
-        type: 'air_tractor',
-        muni: 'Boca do Acre',
-        x: 260,
-        y: 720,
-        label: 'Air Tractor 05',
-      },
-      {
-        id: 'tk-at-06',
-        type: 'air_tractor',
-        muni: 'Manicoré',
-        x: 580,
-        y: 690,
-        label: 'Air Tractor 06',
-      },
-      {
-        id: 'tk-at-07',
-        type: 'air_tractor',
-        muni: 'Novo Aripuanã',
-        x: 635,
-        y: 670,
-        label: 'Air Tractor 07',
-      },
-      {
-        id: 'tk-vtr-abt-01',
-        type: 'vtr_abt',
-        muni: 'Manaus',
-        x: 565,
-        y: 475,
-        label: 'ABT-29 CBMAM',
-      },
-      {
-        id: 'tk-vtr-ur-01',
-        type: 'vtr_ur',
-        muni: 'Manaus',
-        x: 590,
-        y: 485,
-        label: 'UR-Resgate CBMAM',
-      },
-      {
-        id: 'tk-vtr-4x4-01',
-        type: 'vtr_florestal',
-        muni: 'Humaitá',
-        x: 485,
-        y: 745,
-        label: 'Pick-up 4x4 Florestal',
-      },
-      {
-        id: 'tk-vtr-4x4-02',
-        type: 'vtr_florestal',
-        muni: 'Apuí',
-        x: 630,
-        y: 715,
-        label: 'Pick-up 4x4 Sul AM',
-      },
-      {
-        id: 'tk-fluvial-01',
-        type: 'embarcacao',
-        muni: 'Manaus',
-        x: 545,
-        y: 460,
-        label: 'Lancha Rápida Fluvial',
-      }
-    );
-  }
+  // Gerar tokens de Viaturas, Aeronaves e Embarcações
+  effectiveRecursos.forEach((rec) => {
+    const name = rec.muni;
+    const coords = findCoordinates(name);
+    let offsetIdx = 3;
 
-  // 5. Gerar formato de coluna efetivo para o Supabase daily_reports
+    const pushVtrTk = (type, count, label) => {
+      if (!count || count <= 0) return;
+      const offX = (offsetIdx % 3) * 28 - 28;
+      const offY = Math.floor(offsetIdx / 3) * 28 - 14;
+      offsetIdx += 1;
+
+      tokens.push({
+        id: `tk-vtr-${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${type}-${tokens.length}`,
+        type,
+        muni: name,
+        x: Math.round(coords.x + offX),
+        y: Math.round(coords.y + offY),
+        count,
+        label,
+      });
+    };
+
+    if (rec.abt > 0) pushVtrTk('vtr_abt', rec.abt, `${rec.abt} ABT CBMAM`);
+
+    const florestalCount =
+      (rec.atf || 0) +
+      (rec.abf || 0) +
+      (rec.ata || 0) +
+      (rec.at || 0) +
+      (rec.picape_esfron || 0) +
+      (rec.picape_fn || 0) +
+      (rec.picape_muni || 0) +
+      (rec.ar || 0);
+    if (florestalCount > 0)
+      pushVtrTk(
+        'vtr_florestal',
+        florestalCount,
+        `${florestalCount} Combate/Apoio Florestal`
+      );
+
+    const resgateCount =
+      (rec.ur || 0) +
+      (rec.abs || 0) +
+      (rec.crs || 0) +
+      (rec.gse || 0) +
+      (rec.dosa || 0);
+    if (resgateCount > 0)
+      pushVtrTk('vtr_ur', resgateCount, `${resgateCount} UR / Resgate / GSE`);
+
+    const fluvialCount = (rec.embarcacao || 0) + (rec.jetski || 0);
+    if (fluvialCount > 0)
+      pushVtrTk(
+        'embarcacao',
+        fluvialCount,
+        `${fluvialCount} Fluvial (Lancha/Jet)`
+      );
+
+    if (rec.helicoptero > 0)
+      pushVtrTk(
+        'helicoptero',
+        rec.helicoptero,
+        `${rec.helicoptero} Harpia CBMAM`
+      );
+
+    if (rec.aviao > 0)
+      pushVtrTk('air_tractor', rec.aviao, `${rec.aviao} Air Tractor`);
+  });
+
+  // 5. Gerar formato de coluna efetivo e recursos para o Supabase daily_reports
   const supabaseEfetivo = allPersonnel.map((item) => ({
     mun: item.muni,
     ord: item.serv_ord || 0,
@@ -484,7 +562,49 @@ export function parseSpreadsheetBuffer(buffer, fileName = '') {
     cbmam: item.cbmam_militares || 0,
   }));
 
+  const RECURSOS_KEYS = [
+    'abt',
+    'at',
+    'aem',
+    'atp',
+    'ata',
+    'abf',
+    'atf',
+    'abs',
+    'abtf',
+    'pipa',
+    'dosa',
+    'crs',
+    'ar',
+    'ur',
+    'gse',
+    'mt',
+    'ta',
+    'quadriciclo',
+    'embarcacao',
+    'picape_fn',
+    'picape_muni',
+    'autoarp',
+    'picape_esfron',
+    'helicoptero',
+    'aviao',
+    'jetski',
+  ];
+
+  const supabaseRecursos = effectiveRecursos.map((r) => {
+    const row = { mun: r.muni };
+    for (const k of RECURSOS_KEYS) {
+      row[k] = Number(r[k]) || 0;
+    }
+    return row;
+  });
+
   const totalEmpregado = allPersonnel.reduce(
+    (acc, curr) => acc + (curr.total || 0),
+    0
+  );
+
+  const totalRecursos = effectiveRecursos.reduce(
     (acc, curr) => acc + (curr.total || 0),
     0
   );
@@ -493,11 +613,14 @@ export function parseSpreadsheetBuffer(buffer, fileName = '') {
     reportDate,
     shift: 'noturno',
     totalEmpregado,
+    totalRecursos,
     municipios: parsedMunis,
     bases: parsedBases,
+    recursos: effectiveRecursos,
     tokens,
     muniStatuses,
     muniNotes,
     supabaseEfetivo,
+    supabaseRecursos,
   };
 }

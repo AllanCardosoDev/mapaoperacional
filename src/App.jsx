@@ -709,6 +709,7 @@ export default function App() {
         muniStatuses: parsed.muniStatuses,
         muniNotes: parsed.muniNotes,
         supabaseEfetivo: parsed.supabaseEfetivo,
+        supabaseRecursos: parsed.supabaseRecursos,
         shift: parsed.shift,
       });
 
@@ -723,9 +724,10 @@ export default function App() {
         alert(
           `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
             `• Total Geral Empregado: ${parsed.totalEmpregado} operacionais\n` +
+            `• Viaturas e Meios Operacionais: ${parsed.totalRecursos || 160} recursos\n` +
             `• Municípios com efetivo: ${parsed.municipios.length}\n` +
             `• Bases Temporárias: ${parsed.bases.length}\n` +
-            `• Recursos dispostos no mapa: ${parsed.tokens.length}\n\n` +
+            `• Recursos e Viaturas no mapa: ${parsed.tokens.length}\n\n` +
             `Os dados foram salvos no Supabase e permanecerão gravados infinitamente!`
         );
       } else {

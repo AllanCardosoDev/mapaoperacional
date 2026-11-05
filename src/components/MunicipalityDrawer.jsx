@@ -16,6 +16,7 @@ import { TokenSvg } from './TokenSvg';
 import {
   PREVFOGO_RECURSOS_DISPONIVEIS,
   FOCOS_COMBATE_ATIVOS,
+  OPERACAO_RECURSOS_MUNICIPIOS,
 } from '../data/operacaoAmazonasData';
 
 export function MunicipalityDrawer({
@@ -47,6 +48,16 @@ export function MunicipalityDrawer({
     if (!muni) return [];
     return FOCOS_COMBATE_ATIVOS.filter(
       (f) => f.muni.toLowerCase() === muni.name.toLowerCase()
+    );
+  }, [muni]);
+
+  // Recursos e Viaturas Oficiais deste município
+  const recursosData = useMemo(() => {
+    if (!muni) return null;
+    return (
+      OPERACAO_RECURSOS_MUNICIPIOS.find(
+        (r) => r.mun.toLowerCase() === muni.name.toLowerCase()
+      ) || null
     );
   }, [muni]);
 
@@ -579,6 +590,487 @@ export function MunicipalityDrawer({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* VIATURAS & MEIOS OPERACIONAIS OFICIAIS ALOCADOS */}
+        {recursosData && recursosData.total > 0 && (
+          <div
+            className="info-card-block"
+            style={{
+              background: 'rgba(30, 58, 138, 0.15)',
+              border: '1.5px solid #3b82f6',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Truck size={16} color="#60a5fa" />
+                <span
+                  className="block-title"
+                  style={{ color: '#93c5fd', fontWeight: 900 }}
+                >
+                  Meios e Viaturas Alocados
+                </span>
+              </div>
+              <span
+                style={{
+                  background: '#1d4ed8',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                }}
+              >
+                {recursosData.total}{' '}
+                {recursosData.total === 1 ? 'Recurso' : 'Recursos'}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: 6,
+              }}
+            >
+              {recursosData.abt > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#f87171',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Auto Bomba Tanque
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.abt}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      ABT
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.atf > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#fbbf24',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Tanque Florestal
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.atf}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      ATF
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.ar > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#60a5fa',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Apoio Rápido 4x4
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.ar}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      AR
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.ur > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#c084fc',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Unidade Resgate
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.ur}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      UR
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.mt > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(14, 165, 233, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#38bdf8',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Motocicleta
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.mt}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      MT
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.embarcacao > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(20, 184, 166, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#2dd4bf',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Embarcação / Lancha
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.embarcacao}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Fluvial
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.jetski > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(20, 184, 166, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#2dd4bf',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Jet Ski Tático
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.jetski}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Jet Ski
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.helicoptero > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#facc15',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Helicóptero Harpia
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.helicoptero}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Harpia
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.aviao > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#facc15',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Avião Air Tractor
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.aviao}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Aero
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.dosa > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#94a3b8',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    DOSA
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.dosa}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      DOSA
+                    </span>
+                  </div>
+                </div>
+              )}
+              {recursosData.gse > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#94a3b8',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    GSE Apoio
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {recursosData.gse}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      GSE
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

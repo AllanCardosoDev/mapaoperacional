@@ -11,11 +11,14 @@ import {
   Building2,
   TreePine,
   Compass,
+  Truck,
 } from 'lucide-react';
 import {
   OPERACAO_EFETIVO_MUNICIPIOS,
   RESUMO_EXECUTIVO_OFICIAL,
   PREVFOGO_RECURSOS_DISPONIVEIS,
+  OPERACAO_RECURSOS_MUNICIPIOS,
+  RESUMO_RECURSOS_OFICIAL,
 } from '../data/operacaoAmazonasData';
 
 export function RelatorioOficialModal({ onClose, onSelectMuni }) {
@@ -374,9 +377,28 @@ export function RelatorioOficialModal({ onClose, onSelectMuni }) {
               />
               Prevfogo IBAMA (247 Brigadistas)
             </button>
+
+            <button
+              className={`sidebar-tab-btn ${activeTab === 'recursos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('recursos')}
+              style={{
+                padding: '6px 14px',
+                fontSize: 11.5,
+                borderRadius: 20,
+                border:
+                  activeTab === 'recursos'
+                    ? '1.5px solid #3b82f6'
+                    : '1px solid transparent',
+                color: activeTab === 'recursos' ? '#60a5fa' : undefined,
+                fontWeight: 800,
+              }}
+            >
+              <Truck size={14} style={{ display: 'inline', marginRight: 6 }} />
+              Viaturas & Meios Operacionais (160)
+            </button>
           </div>
 
-          {activeTab === 'tabelas' && (
+          {(activeTab === 'tabelas' || activeTab === 'recursos') && (
             <div
               style={{
                 display: 'flex',
@@ -3357,6 +3379,538 @@ export function RelatorioOficialModal({ onClose, onSelectMuni }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================================
+              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
+              =================================================================== */}
+          {activeTab === 'recursos' && (
+            <div style={{ padding: '20px 24px' }}>
+              {/* Cards de Resumo dos 160 Meios */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: 12,
+                  marginBottom: 20,
+                }}
+              >
+                <div
+                  style={{
+                    background: 'rgba(30, 58, 138, 0.25)',
+                    border: '1.5px solid #3b82f6',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#93c5fd',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Truck size={15} color="#60a5fa" />
+                    Total de Meios Materiais
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                      marginTop: 4,
+                    }}
+                  >
+                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#93c5fd',
+                        fontWeight: 600,
+                      }}
+                    >
+                      recursos ativos
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
+                    Briefing Oficial • 35 Municípios
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1.5px solid #ef4444',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#fca5a5',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Flame size={15} color="#f87171" />
+                    Viaturas de Combate
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                      marginTop: 4,
+                    }}
+                  >
+                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#fca5a5',
+                        fontWeight: 600,
+                      }}
+                    >
+                      viaturas
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
+                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1.5px solid #10b981',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#6ee7b7',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Shield size={15} color="#34d399" />
+                    Apoio, Resgate & Salvamento
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                      marginTop: 4,
+                    }}
+                  >
+                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#6ee7b7',
+                        fontWeight: 600,
+                      }}
+                    >
+                      meios
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
+                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    border: '1.5px solid #eab308',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#fde047',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Plane size={15} color="#facc15" />
+                    Aeronaves & Meios Fluviais
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                      marginTop: 4,
+                    }}
+                  >
+                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
+                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#fde047',
+                        fontWeight: 600,
+                      }}
+                    >
+                      aéreos / barcos
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
+                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabela Completa de Recursos por Município */}
+              <div
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '12px 18px',
+                    background: 'rgba(30, 41, 59, 0.6)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
+                    MUNICÍPIO
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    Total: <strong>160 Recursos Operacionais</strong>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
+                  <table
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: 12,
+                      textAlign: 'left',
+                    }}
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          background: 'rgba(15, 23, 42, 0.95)',
+                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
+                          color: '#94a3b8',
+                          fontSize: 11,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        <th style={{ padding: '10px 14px' }}>Município</th>
+                        <th style={{ padding: '10px 12px' }}>
+                          Combate a Incêndio
+                        </th>
+                        <th style={{ padding: '10px 12px' }}>
+                          Apoio & Resgate
+                        </th>
+                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
+                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
+                        <th
+                          style={{ padding: '10px 14px', textAlign: 'center' }}
+                        >
+                          Total
+                        </th>
+                        <th
+                          style={{ padding: '10px 14px', textAlign: 'center' }}
+                        >
+                          Ação
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
+                        if (!searchTerm.trim()) return true;
+                        return r.mun
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase());
+                      }).map((r, idx) => {
+                        const combateItems = [];
+                        if (r.abt) combateItems.push(`${r.abt} ABT`);
+                        if (r.atf) combateItems.push(`${r.atf} ATF`);
+                        if (r.ata) combateItems.push(`${r.ata} ATA`);
+                        if (r.at) combateItems.push(`${r.at} AT`);
+                        if (r.abf) combateItems.push(`${r.abf} ABF`);
+                        if (r.abs) combateItems.push(`${r.abs} ABS`);
+
+                        const apoioItems = [];
+                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
+                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
+                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
+                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
+                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
+                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
+                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
+                        if (r.picape_esfron)
+                          apoioItems.push(`${r.picape_esfron} Esfron`);
+                        if (r.quadriciclo)
+                          apoioItems.push(`${r.quadriciclo} Quadri`);
+
+                        const aereosItems = [];
+                        if (r.helicoptero)
+                          aereosItems.push(`${r.helicoptero} Harpia`);
+                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
+
+                        const fluvialItems = [];
+                        if (r.embarcacao)
+                          fluvialItems.push(`${r.embarcacao} Embarcação`);
+                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
+
+                        return (
+                          <tr
+                            key={idx}
+                            style={{
+                              borderBottom:
+                                '1px solid rgba(255, 255, 255, 0.05)',
+                              background:
+                                idx % 2 === 0
+                                  ? 'rgba(15, 23, 42, 0.3)'
+                                  : 'rgba(30, 41, 59, 0.25)',
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: '10px 14px',
+                                fontWeight: 800,
+                                color: '#ffffff',
+                              }}
+                            >
+                              {r.mun}
+                            </td>
+
+                            <td style={{ padding: '10px 12px' }}>
+                              {combateItems.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 4,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {combateItems.map((ci, cIdx) => (
+                                    <span
+                                      key={cIdx}
+                                      style={{
+                                        background: 'rgba(239, 68, 68, 0.2)',
+                                        color: '#fca5a5',
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        border:
+                                          '1px solid rgba(239, 68, 68, 0.3)',
+                                      }}
+                                    >
+                                      {ci}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span
+                                  style={{ color: '#475569', fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '10px 12px' }}>
+                              {apoioItems.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 4,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {apoioItems.map((ai, aIdx) => (
+                                    <span
+                                      key={aIdx}
+                                      style={{
+                                        background: 'rgba(59, 130, 246, 0.2)',
+                                        color: '#93c5fd',
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        border:
+                                          '1px solid rgba(59, 130, 246, 0.3)',
+                                      }}
+                                    >
+                                      {ai}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span
+                                  style={{ color: '#475569', fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '10px 12px' }}>
+                              {aereosItems.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 4,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {aereosItems.map((ai, aIdx) => (
+                                    <span
+                                      key={aIdx}
+                                      style={{
+                                        background: 'rgba(234, 179, 8, 0.2)',
+                                        color: '#fde047',
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        border:
+                                          '1px solid rgba(234, 179, 8, 0.3)',
+                                      }}
+                                    >
+                                      {ai}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span
+                                  style={{ color: '#475569', fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '10px 12px' }}>
+                              {fluvialItems.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    gap: 4,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {fluvialItems.map((fi, fIdx) => (
+                                    <span
+                                      key={fIdx}
+                                      style={{
+                                        background: 'rgba(20, 184, 166, 0.2)',
+                                        color: '#5eead4',
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        border:
+                                          '1px solid rgba(20, 184, 166, 0.3)',
+                                      }}
+                                    >
+                                      {fi}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span
+                                  style={{ color: '#475569', fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                padding: '10px 14px',
+                                textAlign: 'center',
+                                fontWeight: 900,
+                                color: r.total > 0 ? '#38bdf8' : '#64748b',
+                                fontSize: 13,
+                              }}
+                            >
+                              {r.total}
+                            </td>
+
+                            <td
+                              style={{
+                                padding: '10px 14px',
+                                textAlign: 'center',
+                              }}
+                            >
+                              {onSelectMuni && r.total > 0 ? (
+                                <button
+                                  className="btn-tactical"
+                                  onClick={() => {
+                                    onSelectMuni(r.mun);
+                                    onClose();
+                                  }}
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: 11,
+                                    borderRadius: 14,
+                                    background: 'rgba(56, 189, 248, 0.15)',
+                                    color: '#38bdf8',
+                                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                                  }}
+                                >
+                                  Ver no Mapa
+                                </button>
+                              ) : (
+                                <span
+                                  style={{ color: '#475569', fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
