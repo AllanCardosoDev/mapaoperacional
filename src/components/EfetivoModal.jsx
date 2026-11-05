@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { X, Search, RefreshCw, TreePine } from 'lucide-react';
+import { X, Search, RefreshCw, TreePine, Upload } from 'lucide-react';
 import {
   OPERACAO_EFETIVO_MUNICIPIOS,
   RESUMO_EXECUTIVO_OFICIAL,
   PREVFOGO_RECURSOS_DISPONIVEIS,
 } from '../data/operacaoAmazonasData';
 
-export function EfetivoModal({ onClose, onSelectMuni, onSyncOfficialTokens }) {
+export function EfetivoModal({
+  onClose,
+  onSelectMuni,
+  onSyncOfficialTokens,
+  onUploadSpreadsheet,
+}) {
   const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'municipios' | 'bases' | 'resumo' | 'prevfogo'
   const [search, setSearch] = useState('');
 
@@ -155,20 +160,57 @@ export function EfetivoModal({ onClose, onSelectMuni, onSyncOfficialTokens }) {
               </p>
             </div>
           </div>
-          <button
-            className="modal-close-btn"
-            onClick={onClose}
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: 'none',
-              borderRadius: 6,
-              color: '#cbd5e1',
-              cursor: 'pointer',
-              padding: 6,
-            }}
-          >
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onUploadSpreadsheet && (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  background: '#059669',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  border: '1px solid #10b981',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                }}
+                title="Subir arquivo de Efetivo (.json exportado do sistema ou .xlsx) para atualizar todo o efetivo no mapa"
+              >
+                <Upload size={14} />
+                <span>Importar Efetivo</span>
+                <input
+                  type="file"
+                  accept=".json,.xlsx,.xls"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      onUploadSpreadsheet(file);
+                      onClose();
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
+            <button
+              className="modal-close-btn"
+              onClick={onClose}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#cbd5e1',
+                cursor: 'pointer',
+                padding: 6,
+              }}
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* CARDS COM A SOMA TOTAL DE TUDO (KPIs CONSOLIDADOS) */}

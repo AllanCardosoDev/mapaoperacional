@@ -624,3 +624,308 @@ export function parseSpreadsheetBuffer(buffer, fileName = '') {
     supabaseRecursos,
   };
 }
+
+/**
+ * Processa um objeto JSON exportado da aba Efetivo do CBMAM e gera a estrutura completa
+ * para exibição dos tokens e gravação no Supabase.
+ */
+export function parseEfetivoJson(jsonData, fileName = '') {
+  const rawMunis = jsonData.municipios || jsonData.data?.municipios || [];
+  const rawBases = jsonData.bases || jsonData.data?.bases || [];
+  const reportDate =
+    jsonData.reportDate ||
+    jsonData.date ||
+    extractDateFromSpreadsheet(fileName) ||
+    new Date().toISOString().slice(0, 10);
+
+  const parsedMunis = rawMunis.map((m) => {
+    const name = m.muni || m.nome || '';
+    const serv_ord = Number(m.serv_ord) || 0;
+    const opam = Number(m.opamv) || 0;
+    const opam_extra = Number(m.opam_ref) || 0;
+    const inc1 = Number(m.inc_1 ?? m.inc1) || 0;
+    const inc2 = Number(m.inc_2 ?? m.inc2) || 0;
+    const inc3 = Number(m.inc_3 ?? m.inc3) || 0;
+    const cbmsp = Number(m.cbmsp) || 0;
+    const prevfogo = Number(m.prevfogo) || 0;
+    const fn = Number(m.fn) || 0;
+    const marinha = Number(m.icmbio ?? m.marinha) || 0;
+    const brig_mun = Number(m.brig_mun) || 0;
+    const brig_sema = Number(m.brig_sema ?? m.brig_semas) || 0;
+    const cbmam_militares =
+      serv_ord + opam + opam_extra + inc1 + inc2 + inc3 + cbmsp;
+    const total =
+      Number(m.total) ||
+      cbmam_militares + prevfogo + fn + marinha + brig_mun + brig_sema;
+
+    return {
+      muni: name,
+      serv_ord,
+      opam,
+      opam_extra,
+      inc1,
+      inc2,
+      inc3,
+      cbmsp,
+      prevfogo,
+      fn,
+      marinha,
+      brigadista: brig_mun,
+      brigadista_sema: brig_sema,
+      cbmam_militares,
+      total,
+      tipo:
+        m.tipo || (name.toLowerCase() === 'manaus' ? 'capital' : 'interior'),
+    };
+  });
+
+  const parsedBases = rawBases.map((b) => {
+    const name = b.base || b.nome || '';
+    const serv_ord = Number(b.serv_ord) || 0;
+    const opam = Number(b.opamv) || 0;
+    const opam_extra = Number(b.opam_ref) || 0;
+    const inc1 = Number(b.inc_1 ?? b.inc1) || 0;
+    const inc2 = Number(b.inc_2 ?? b.inc2) || 0;
+    const inc3 = Number(b.inc_3 ?? b.inc3) || 0;
+    const cbmsp = Number(b.cbmsp) || 0;
+    const prevfogo = Number(b.prevfogo) || 0;
+    const fn = Number(b.fn) || 0;
+    const marinha = Number(b.icmbio ?? b.marinha) || 0;
+    const brig_mun = Number(b.brig_mun) || 0;
+    const brig_sema = Number(b.brig_sema ?? b.brig_semas) || 0;
+    const cbmam_militares =
+      serv_ord + opam + opam_extra + inc1 + inc2 + inc3 + cbmsp;
+    const total =
+      Number(b.total) ||
+      cbmam_militares + prevfogo + fn + marinha + brig_mun + brig_sema;
+
+    return {
+      muni: name,
+      base: name,
+      serv_ord,
+      opam,
+      opam_extra,
+      inc1,
+      inc2,
+      inc3,
+      cbmsp,
+      prevfogo,
+      fn,
+      marinha,
+      brigadista: brig_mun,
+      brigadista_sema: brig_sema,
+      cbmam_militares,
+      total,
+      tipo: 'base_temporaria',
+    };
+  });
+
+  const allPersonnel = [...parsedMunis, ...parsedBases];
+  const totalEmpregado =
+    jsonData.totals?.totalGeral ||
+    allPersonnel.reduce((acc, curr) => acc + (curr.total || 0), 0);
+
+  // Gerar tokens táticos posicionados no mapa
+  const tokens = [];
+  const muniStatuses = {};
+  const muniNotes = {};
+
+  allPersonnel.forEach((item) => {
+    const name = item.muni;
+    const coords = findCoordinates(name);
+    let offsetIdx = 0;
+
+    const pushTk = (type, count, label) => {
+      if (!count || count <= 0) return;
+      const offX = (offsetIdx % 3) * 28 - 28;
+      const offY = Math.floor(offsetIdx / 3) * 28 - 14;
+      offsetIdx += 1;
+
+      tokens.push({
+        id: `tk-${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${type}-${tokens.length}`,
+        type,
+        muni: name,
+        x: Math.round(coords.x + offX),
+        y: Math.round(coords.y + offY),
+        count,
+        label,
+      });
+    };
+
+    if (item.cbmam_militares > 0) {
+      pushTk(
+        'serv_ord',
+        item.cbmam_militares,
+        `${item.cbmam_militares} Militares CBMAM`
+      );
+    }
+    if (item.prevfogo > 0) {
+      pushTk('prevfogo', item.prevfogo, `${item.prevfogo} Prevfogo`);
+    }
+    if (item.fn > 0) {
+      pushTk('fn', item.fn, `${item.fn} Força Nacional`);
+    }
+    if (item.brigadista > 0) {
+      pushTk('brigadista', item.brigadista, `${item.brigadista} Brig. Mun.`);
+    }
+    if (item.brigadista_sema > 0) {
+      pushTk(
+        'brigadista_sema',
+        item.brigadista_sema,
+        `${item.brigadista_sema} Brig. SEMA`
+      );
+    }
+
+    muniStatuses[name] = 'normal';
+    muniNotes[name] =
+      `Efetivo Total: ${item.total} operacionais (${item.cbmam_militares} CBMAM)`;
+  });
+
+  // Anexar viaturas e recursos operacionais (160 meios oficiais)
+  const effectiveRecursos = OPERACAO_RECURSOS_MUNICIPIOS;
+  effectiveRecursos.forEach((rec) => {
+    const name = rec.muni;
+    const coords = findCoordinates(name);
+    let offsetIdx = 3;
+
+    const pushVtrTk = (type, count, label) => {
+      if (!count || count <= 0) return;
+      const offX = (offsetIdx % 3) * 28 - 28;
+      const offY = Math.floor(offsetIdx / 3) * 28 - 14;
+      offsetIdx += 1;
+
+      tokens.push({
+        id: `tk-vtr-${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}-${type}-${tokens.length}`,
+        type,
+        muni: name,
+        x: Math.round(coords.x + offX),
+        y: Math.round(coords.y + offY),
+        count,
+        label,
+      });
+    };
+
+    if (rec.abt > 0) pushVtrTk('vtr_abt', rec.abt, `${rec.abt} ABT CBMAM`);
+
+    const florestalCount =
+      (rec.atf || 0) +
+      (rec.abf || 0) +
+      (rec.ata || 0) +
+      (rec.at || 0) +
+      (rec.picape_esfron || 0) +
+      (rec.picape_fn || 0) +
+      (rec.picape_muni || 0) +
+      (rec.ar || 0);
+    if (florestalCount > 0)
+      pushVtrTk(
+        'vtr_florestal',
+        florestalCount,
+        `${florestalCount} Combate/Apoio Florestal`
+      );
+
+    const resgateCount =
+      (rec.ur || 0) +
+      (rec.abs || 0) +
+      (rec.crs || 0) +
+      (rec.gse || 0) +
+      (rec.dosa || 0);
+    if (resgateCount > 0)
+      pushVtrTk('vtr_ur', resgateCount, `${resgateCount} UR / Resgate / GSE`);
+
+    const fluvialCount = (rec.embarcacao || 0) + (rec.jetski || 0);
+    if (fluvialCount > 0)
+      pushVtrTk(
+        'embarcacao',
+        fluvialCount,
+        `${fluvialCount} Fluvial (Lancha/Jet)`
+      );
+
+    if (rec.helicoptero > 0)
+      pushVtrTk(
+        'helicoptero',
+        rec.helicoptero,
+        `${rec.helicoptero} Harpia CBMAM`
+      );
+
+    if (rec.aviao > 0)
+      pushVtrTk('air_tractor', rec.aviao, `${rec.aviao} Air Tractor`);
+  });
+
+  const supabaseEfetivo = allPersonnel.map((item) => ({
+    mun: item.muni,
+    ord: item.serv_ord || 0,
+    seg: 0,
+    brig: (item.brigadista || 0) + (item.brigadista_sema || 0),
+    servico: item.serv_ord || 0,
+    opamv: item.opam || 0,
+    opam_ref: item.opam_extra || 0,
+    inc1: item.inc1 || 0,
+    inc2: item.inc2 || 0,
+    inc3: item.inc3 || 0,
+    cbmsp: item.cbmsp || 0,
+    prevfogo: item.prevfogo || 0,
+    fn: item.fn || 0,
+    marinha: item.marinha || 0,
+    brig_mun: item.brigadista || 0,
+    brig_semas: item.brigadista_sema || 0,
+    cbmam: item.cbmam_militares || 0,
+    total: item.total || 0,
+  }));
+
+  const RECURSOS_KEYS = [
+    'abt',
+    'at',
+    'aem',
+    'atp',
+    'ata',
+    'abf',
+    'atf',
+    'abs',
+    'abtf',
+    'pipa',
+    'dosa',
+    'crs',
+    'ar',
+    'ur',
+    'gse',
+    'mt',
+    'ta',
+    'quadriciclo',
+    'embarcacao',
+    'picape_fn',
+    'picape_muni',
+    'autoarp',
+    'picape_esfron',
+    'helicoptero',
+    'aviao',
+    'jetski',
+  ];
+
+  const supabaseRecursos = effectiveRecursos.map((r) => {
+    const row = { mun: r.muni };
+    for (const k of RECURSOS_KEYS) {
+      row[k] = Number(r[k]) || 0;
+    }
+    return row;
+  });
+
+  const totalRecursos = effectiveRecursos.reduce(
+    (acc, curr) => acc + (curr.total || 0),
+    0
+  );
+
+  return {
+    reportDate,
+    shift: 'noturno',
+    totalEmpregado,
+    totalRecursos,
+    municipios: parsedMunis,
+    bases: parsedBases,
+    recursos: effectiveRecursos,
+    tokens,
+    muniStatuses,
+    muniNotes,
+    supabaseEfetivo,
+    supabaseRecursos,
+  };
+}

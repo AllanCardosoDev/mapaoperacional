@@ -16,7 +16,11 @@ import {
   saveRemoteMapState,
   fetchAvailableDates,
 } from './services/mapSyncService';
-import { parseSpreadsheetBuffer } from './utils/spreadsheetParser';
+import {
+  parseSpreadsheetBuffer,
+  parseEfetivoJson,
+} from './utils/spreadsheetParser';
+import { efetivoDB } from './services/efetivoDatabase';
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v7_oficial886';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v7';
@@ -667,6 +671,58 @@ export default function App() {
       if (file.name.endsWith('.json')) {
         const text = await file.text();
         const parsed = JSON.parse(text);
+
+        // Caso 1: Arquivo de Efetivo exportado do sistema de Relatórios (ou matriz de efetivo CBMAM)
+        if (
+          parsed.type === 'cbmam_efetivo_mapas' ||
+          parsed.municipios ||
+          parsed.bases ||
+          (parsed.data && (parsed.data.municipios || parsed.data.bases))
+        ) {
+          efetivoDB.importJSON(parsed);
+          const result = parseEfetivoJson(parsed, file.name);
+
+          setTokens(result.tokens);
+          setMuniStatuses(result.muniStatuses);
+          setMuniNotes(result.muniNotes);
+          setSelectedDate(result.reportDate);
+
+          const saveRes = await saveRemoteMapState({
+            targetDate: result.reportDate,
+            tokens: result.tokens,
+            muniStatuses: result.muniStatuses,
+            muniNotes: result.muniNotes,
+            supabaseEfetivo: result.supabaseEfetivo,
+            supabaseRecursos: result.supabaseRecursos,
+            shift: result.shift,
+          });
+
+          if (saveRes.ok) {
+            setCloudStatus('synced');
+            setLastSyncTime(new Date());
+
+            const dates = await fetchAvailableDates();
+            if (dates && dates.length > 0) setAvailableDates(dates);
+
+            alert(
+              `Efetivo oficial de ${result.reportDate} importado e atualizado no mapa com sucesso!\n\n` +
+                `• Total Geral Empregado: ${result.totalEmpregado} operacionais\n` +
+                `• Viaturas e Meios: ${result.totalRecursos} recursos\n` +
+                `• Municípios com tropa: ${result.municipios.length}\n` +
+                `• Bases Temporárias: ${result.bases.length}\n` +
+                `• Tokens táticos no mapa: ${result.tokens.length}\n\n` +
+                `Os dados foram atualizados no mapa e salvos permanentemente no Supabase!`
+            );
+          } else {
+            setCloudStatus('offline');
+            alert(
+              `Efetivo posicionado no mapa, porém houve falha ao salvar no Supabase: ${saveRes.error}`
+            );
+          }
+          return;
+        }
+
+        // Caso 2: Arquivo JSON de missão tática padrão com tokens
         if (parsed.tokens && Array.isArray(parsed.tokens)) {
           setTokens(parsed.tokens);
           const nextStatuses = parsed.muniStatuses || muniStatuses;
@@ -916,6 +972,7 @@ export default function App() {
       {showEfetivoModal && (
         <EfetivoModal
           onClose={() => setShowEfetivoModal(false)}
+          onUploadSpreadsheet={handleUploadSpreadsheet}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
             setShowEfetivoModal(false);
