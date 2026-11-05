@@ -49,7 +49,7 @@ export function extractDateFromSpreadsheet(fileName, sheetHeader = '') {
 /**
  * Localiza as coordenadas centrais do município para posicionamento dos ícones
  */
-function findCoordinates(muniName) {
+export function findCoordinates(muniName) {
   if (!muniName) return { x: 500, y: 500 };
   const clean = muniName.trim().toLowerCase();
 

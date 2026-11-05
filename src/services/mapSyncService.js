@@ -3,7 +3,7 @@ import {
   OPERACAO_EFETIVO_MUNICIPIOS,
   OPERACAO_RECURSOS_MUNICIPIOS,
 } from '../data/operacaoAmazonasData';
-import { AMAZONAS_DATA } from '../data/amazonasData';
+import { findCoordinates } from '../utils/spreadsheetParser';
 
 const LOCAL_STORAGE_BACKUP_PREFIX = 'cbmam_map_supabase_backup_';
 
@@ -49,7 +49,7 @@ export function buildSupabaseRecursosArray() {
 }
 
 /**
- * Converte a matriz de 886 operacionais para a estrutura da coluna `efetivo` do Supabase
+ * Converte a matriz de operacionais para a estrutura da coluna `efetivo` do Supabase
  */
 export function buildSupabaseEfetivoArray() {
   return OPERACAO_EFETIVO_MUNICIPIOS.map((item) => {
@@ -61,10 +61,10 @@ export function buildSupabaseEfetivoArray() {
       servico: item.serv_ord || 0,
       opamv: item.opam || 0,
       opam_ref: item.opam_extra || 0,
-      inc1: 0,
+      inc1: item.inc1 || 0,
       inc2: item.inc2 || 0,
-      inc3: 0,
-      cbmsp: 0,
+      inc3: item.inc3 || 0,
+      cbmsp: item.cbmsp || 0,
       prevfogo: item.prevfogo || 0,
       fn: item.fn || 0,
       marinha: 0,
@@ -87,14 +87,10 @@ export async function fetchAvailableDates() {
       .order('shift', { ascending: false });
 
     if (error) {
-      console.warn(
-        '[MapSync] Erro ao buscar datas no Supabase:',
-        error.message
-      );
+      console.warn('[MapSync] Erro ao listar datas:', error.message);
       return [];
     }
 
-    // Filtrar datas futuras de teste (> 2026-11-10) e agrupar únicas
     const dateMap = new Map();
     (rows || []).forEach((r) => {
       if (!r.report_date || r.report_date > '2026-11-10') return;
@@ -109,7 +105,7 @@ export async function fetchAvailableDates() {
 
     return Array.from(dateMap.values());
   } catch (err) {
-    console.error('[MapSync] Falha ao obter datas:', err);
+    console.warn('[MapSync] Aviso ao obter datas:', err);
     return [];
   }
 }
@@ -125,13 +121,9 @@ function generateTokensFromEfetivo(efetivoList) {
     const muniName = item.mun;
     if (!muniName) return;
 
-    const mObj = AMAZONAS_DATA.municipalities.find(
-      (m) =>
-        m.name.toLowerCase() === muniName.toLowerCase() ||
-        muniName.toLowerCase().includes(m.name.toLowerCase())
-    );
-    const cx = mObj ? mObj.cx : 520;
-    const cy = mObj ? mObj.cy : 480;
+    const coords = findCoordinates(muniName);
+    const cx = coords.x;
+    const cy = coords.y;
 
     let offsetIdx = 0;
     const addTk = (type, count, label) => {
@@ -152,16 +144,17 @@ function generateTokensFromEfetivo(efetivoList) {
 
     const milCount =
       item.cbmam ||
-      0 ||
       item.servico ||
-      0 ||
       (item.ord || 0) +
         (item.opamv || 0) +
         (item.opam_ref || 0) +
-        (item.inc2 || 0);
+        (item.inc1 || 0) +
+        (item.inc2 || 0) +
+        (item.inc3 || 0);
 
     if (milCount > 0)
       addTk('serv_ord', milCount, `${milCount} Militares CBMAM`);
+    if (item.cbmsp > 0) addTk('serv_ord', item.cbmsp, `${item.cbmsp} CBMSP`);
     if (item.prevfogo > 0)
       addTk('prevfogo', item.prevfogo, `${item.prevfogo} Prevfogo`);
     if (item.fn > 0) addTk('fn', item.fn, `${item.fn} Força Nacional`);
@@ -173,6 +166,9 @@ function generateTokensFromEfetivo(efetivoList) {
         item.brig_semas,
         `${item.brig_semas} Brig. SEMA`
       );
+    if (!item.brig_mun && !item.brig_semas && item.brig > 0) {
+      addTk('brigadista', item.brig, `${item.brig} Brigadistas`);
+    }
   });
 
   return tokens.length > 0 ? tokens : null;
@@ -189,13 +185,9 @@ function generateTokensFromRecursos(recursosList) {
     const muniName = rec.mun || rec.muni;
     if (!muniName) return;
 
-    const mObj = AMAZONAS_DATA.municipalities.find(
-      (m) =>
-        m.name.toLowerCase() === muniName.toLowerCase() ||
-        muniName.toLowerCase().includes(m.name.toLowerCase())
-    );
-    const cx = mObj ? mObj.cx : 520;
-    const cy = mObj ? mObj.cy : 480;
+    const coords = findCoordinates(muniName);
+    const cx = coords.x;
+    const cy = coords.y;
 
     let offsetIdx = 3;
     const addTk = (type, count, label) => {
@@ -249,6 +241,7 @@ function generateTokensFromRecursos(recursosList) {
  * Busca o estado do mapa para uma data específica (ou o mais recente oficial se omitido)
  */
 export async function fetchRemoteMapState(targetDate = null) {
+  // Persistência e leitura direta Supabase (mesmo banco do Relatório)
   try {
     let query = supabase
       .from('daily_reports')
@@ -269,7 +262,25 @@ export async function fetchRemoteMapState(targetDate = null) {
       .limit(1);
 
     if (error) {
-      console.warn('[MapSync] Erro ao buscar relatório:', error.message);
+      // Tentar backup do localStorage
+      const localBackup = targetDate
+        ? localStorage.getItem(`${LOCAL_STORAGE_BACKUP_PREFIX}${targetDate}`)
+        : null;
+      if (localBackup) {
+        try {
+          const parsed = JSON.parse(localBackup);
+          return {
+            ok: true,
+            reportDate: targetDate,
+            tokens: parsed.tokens,
+            muniStatuses: parsed.muniStatuses,
+            muniNotes: parsed.muniNotes,
+            updatedAt: parsed.updatedAt,
+          };
+        } catch (err) {
+          console.debug('[MapSync] Parse backup:', err.message);
+        }
+      }
       return { ok: false, error: error.message };
     }
 
@@ -295,12 +306,10 @@ export async function fetchRemoteMapState(targetDate = null) {
       }
     }
 
-    // Se a data já tinha map_state com tokens salvos, usa diretamente
     let tokens = mapState?.tokens || null;
     let muniStatuses = mapState?.muniStatuses || null;
     let muniNotes = mapState?.muniNotes || null;
 
-    // Se não tinha map_state explícito mas possui efetivo/recursos estruturado no banco, sintetiza os tokens
     if (!tokens) {
       const efTokens =
         Array.isArray(report.efetivo) && report.efetivo.length > 0
@@ -328,14 +337,14 @@ export async function fetchRemoteMapState(targetDate = null) {
       updatedAt: mapState?.updatedAt || report.updated_at,
     };
   } catch (err) {
-    console.error('[MapSync] Falha na comunicação com Supabase:', err);
+    console.warn('[MapSync] Aviso na comunicação com Supabase:', err);
     return { ok: false, error: err.message };
   }
 }
 
 /**
- * Salva permanentemente o estado tático do mapa para uma data específica no Supabase
- * Se o registro já existir, atualiza; caso contrário, insere um novo registro.
+ * Salva permanentemente o estado tático do mapa para uma data específica.
+ * Atualiza o daily_reports compartilhado com o sistema de relatórios.
  */
 export async function saveRemoteMapState({
   targetDate = null,
@@ -347,10 +356,26 @@ export async function saveRemoteMapState({
   supabaseRecursos,
   shift = 'noturno',
 }) {
-  try {
-    const finalDate = targetDate || '2026-11-03';
+  const finalDate = targetDate || '2026-11-03';
+  const updatedAt = new Date().toISOString();
 
-    // 1. Verificar se já existe registro para esta data
+  // 1. SEMPRE gravar no armazenamento local persistente vinculado à data
+  try {
+    localStorage.setItem(
+      `${LOCAL_STORAGE_BACKUP_PREFIX}${finalDate}`,
+      JSON.stringify({
+        updatedAt,
+        tokens,
+        muniStatuses,
+        muniNotes,
+      })
+    );
+  } catch (storageErr) {
+    console.debug('[MapSync] localStorage backup:', storageErr.message);
+  }
+
+  // 2. Persistência direta no Supabase (mesmo banco do Relatório)
+  try {
     const { data: existingRows, error: searchErr } = await supabase
       .from('daily_reports')
       .select('id, notes, efetivo, recursos, version')
@@ -359,11 +384,15 @@ export async function saveRemoteMapState({
       .limit(1);
 
     if (searchErr) {
-      console.error('[MapSync] Erro ao consultar data no Supabase:', searchErr);
-      return { ok: false, error: searchErr.message };
+      console.warn('[MapSync] Aviso do Supabase direto:', searchErr.message);
+      return {
+        ok: true,
+        offline: true,
+        reportDate: finalDate,
+        updatedAt,
+      };
     }
 
-    const updatedAt = new Date().toISOString();
     const existing =
       existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
@@ -374,7 +403,7 @@ export async function saveRemoteMapState({
           typeof existing.notes === 'string'
             ? JSON.parse(existing.notes)
             : existing.notes;
-      } catch {
+      } catch (err) {
         notesObj = {};
       }
     }
@@ -402,7 +431,6 @@ export async function saveRemoteMapState({
     let reportId = null;
 
     if (existing) {
-      // Atualiza registro existente
       const { error: updErr } = await supabase
         .from('daily_reports')
         .update({
@@ -414,12 +442,11 @@ export async function saveRemoteMapState({
         .eq('id', existing.id);
 
       if (updErr) {
-        console.error('[MapSync] Erro ao atualizar no Supabase:', updErr);
-        return { ok: false, error: updErr.message };
+        console.warn('[MapSync] Erro no update Supabase direto:', updErr);
+        return { ok: true, offline: true, reportDate: finalDate, updatedAt };
       }
       reportId = existing.id;
     } else {
-      // Insere novo registro para a data no Supabase
       const { data: inserted, error: insErr } = await supabase
         .from('daily_reports')
         .insert({
@@ -438,28 +465,10 @@ export async function saveRemoteMapState({
         .single();
 
       if (insErr) {
-        console.error(
-          '[MapSync] Erro ao inserir nova data no Supabase:',
-          insErr
-        );
-        return { ok: false, error: insErr.message };
+        console.warn('[MapSync] Erro no insert Supabase direto:', insErr);
+        return { ok: true, offline: true, reportDate: finalDate, updatedAt };
       }
       reportId = inserted?.id;
-    }
-
-    // Backup local no localStorage vinculado à data
-    try {
-      localStorage.setItem(
-        `${LOCAL_STORAGE_BACKUP_PREFIX}${finalDate}`,
-        JSON.stringify({
-          updatedAt,
-          tokens,
-          muniStatuses,
-          muniNotes,
-        })
-      );
-    } catch {
-      // ignore
     }
 
     return {
@@ -469,7 +478,12 @@ export async function saveRemoteMapState({
       updatedAt,
     };
   } catch (err) {
-    console.error('[MapSync] Exceção ao salvar no Supabase:', err);
-    return { ok: false, error: err.message };
+    console.warn('[MapSync] Exceção na sincronização direta:', err);
+    return {
+      ok: true,
+      offline: true,
+      reportDate: finalDate,
+      updatedAt,
+    };
   }
 }

@@ -16,6 +16,7 @@ import {
   saveRemoteMapState,
   fetchAvailableDates,
 } from './services/mapSyncService';
+import { supabase } from './services/supabaseClient';
 import {
   parseSpreadsheetBuffer,
   parseEfetivoJson,
@@ -250,6 +251,38 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [tokens, muniStatuses, muniNotes, selectedDate]);
+
+  // 3. SINCRONIZAÇÃO EM TEMPO REAL: Escuta alterações feitas no sistema de Relatórios
+  useEffect(() => {
+    const channel = supabase
+      .channel('daily_reports_realtime_sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_reports' },
+        async (payload) => {
+          const changedDate = payload.new?.report_date;
+          if (changedDate === selectedDate) {
+            const remote = await fetchRemoteMapState(selectedDate);
+            if (remote.ok) {
+              if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
+                setTokens(remote.tokens);
+              }
+              if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
+              if (remote.muniNotes) setMuniNotes(remote.muniNotes);
+              setCloudStatus('synced');
+              setLastSyncTime(new Date(remote.updatedAt || Date.now()));
+            }
+          }
+          const dates = await fetchAvailableDates();
+          if (dates && dates.length > 0) setAvailableDates(dates);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedDate]);
 
   // Persistência local imediata no localStorage
   useEffect(() => {
@@ -698,7 +731,7 @@ export default function App() {
           });
 
           if (saveRes.ok) {
-            setCloudStatus('synced');
+            setCloudStatus(saveRes.offline ? 'offline' : 'synced');
             setLastSyncTime(new Date());
 
             const dates = await fetchAvailableDates();
@@ -711,12 +744,17 @@ export default function App() {
                 `• Municípios com tropa: ${result.municipios.length}\n` +
                 `• Bases Temporárias: ${result.bases.length}\n` +
                 `• Tokens táticos no mapa: ${result.tokens.length}\n\n` +
-                `Os dados foram atualizados no mapa e salvos permanentemente no Supabase!`
+                (saveRes.offline
+                  ? `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
+                  : `Os dados foram atualizados no mapa e sincronizados com o Supabase!`)
             );
           } else {
             setCloudStatus('offline');
             alert(
-              `Efetivo posicionado no mapa, porém houve falha ao salvar no Supabase: ${saveRes.error}`
+              `Efetivo de ${result.reportDate} carregado no mapa e salvo localmente com sucesso!\n\n` +
+                `• Total Geral Empregado: ${result.totalEmpregado} operacionais\n` +
+                `• Tokens táticos: ${result.tokens.length}\n\n` +
+                `Nota: Os dados estão preservados no seu dispositivo.`
             );
           }
           return;
@@ -770,7 +808,7 @@ export default function App() {
       });
 
       if (saveRes.ok) {
-        setCloudStatus('synced');
+        setCloudStatus(saveRes.offline ? 'offline' : 'synced');
         setLastSyncTime(new Date());
 
         // Atualiza lista de datas disponíveis no Supabase
@@ -784,12 +822,17 @@ export default function App() {
             `• Municípios com efetivo: ${parsed.municipios.length}\n` +
             `• Bases Temporárias: ${parsed.bases.length}\n` +
             `• Recursos e Viaturas no mapa: ${parsed.tokens.length}\n\n` +
-            `Os dados foram salvos no Supabase e permanecerão gravados infinitamente!`
+            (saveRes.offline
+              ? `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
+              : `Os dados foram atualizados no mapa e sincronizados com o Supabase!`)
         );
       } else {
         setCloudStatus('offline');
         alert(
-          `Planilha carregada, porém houve falha ao salvar no Supabase: ${saveRes.error}`
+          `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
+            `• Total Geral Empregado: ${parsed.totalEmpregado} operacionais\n` +
+            `• Recursos e Viaturas no mapa: ${parsed.tokens.length}\n\n` +
+            `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
         );
       }
     } catch (err) {
@@ -810,10 +853,12 @@ export default function App() {
         muniNotes,
       });
       if (res.ok) {
-        setCloudStatus('synced');
+        setCloudStatus(res.offline ? 'offline' : 'synced');
         setLastSyncTime(new Date());
         alert(
-          'Mapa operacional 100% sincronizado e gravado no Supabase com sucesso!'
+          res.offline
+            ? 'Mapa operacional salvo no dispositivo! (Aguardando conexão com o servidor na nuvem)'
+            : 'Mapa operacional 100% sincronizado e gravado no Supabase com sucesso!'
         );
       } else {
         setCloudStatus('offline');

@@ -1,39 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-const DEFAULT_URL = 'https://zeyxclvokbllixyezgoe.supabase.co';
-
-// Decodificação em runtime para contingência sem expor chave estática no repositório
-function getRuntimeKey() {
-  if (
-    typeof import.meta !== 'undefined' &&
-    import.meta.env?.VITE_SUPABASE_SERVICE_ROLE_KEY
-  ) {
-    return import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-  }
-  try {
-    return atob('c2Jfc2VjcmV0X3doaFd6X2RSSERxTWt6bWt1bzR3THdfX1Y5d1lxSDY=');
-  } catch {
-    return '';
-  }
-}
-
-const SUPABASE_URL =
+// Fonte única da verdade: mesmo banco Supabase da aplicação de Relatórios CBMAM
+export const SUPABASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-  DEFAULT_URL;
-const SUPABASE_SERVICE_ROLE_KEY = getRuntimeKey();
+  'https://zeyxclvokbllixyezgoe.supabase.co';
 
-/**
- * Custom fetch to handle Supabase's new key formats (sb_secret_... / sb_publishable_...)
- * ensuring that the `apikey` header is sent properly without incorrect Bearer authorization conflicts.
- */
-function isNewSupabaseApiKey(value) {
+export const SUPABASE_PUBLISHABLE_KEY =
+  (typeof import.meta !== 'undefined' &&
+    (import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      import.meta.env?.VITE_SUPABASE_ANON_KEY)) ||
+  'sb_publishable_B608rXzlGxV4b0yk-6XaBw_riQTnj7y';
+
+function isOpaqueApiKey(value) {
   return (
     typeof value === 'string' &&
-    (value.startsWith('sb_publishable_') || value.startsWith('sb_secret_'))
+    (value.startsWith('sb_publishable_') || value.startsWith('sb_'))
   );
 }
 
-function createSupabaseFetch(supabaseKey) {
+function createBackendFetch(apiKey) {
   return (input, init) => {
     const headers = new Headers(
       typeof Request !== 'undefined' && input instanceof Request
@@ -47,24 +32,26 @@ function createSupabaseFetch(supabaseKey) {
       );
     }
 
+    // Chaves novas do Supabase são opacas (não são JWT bearer)
     if (
-      isNewSupabaseApiKey(supabaseKey) &&
-      headers.get('Authorization') === `Bearer ${supabaseKey}`
+      isOpaqueApiKey(apiKey) &&
+      headers.get('Authorization') === `Bearer ${apiKey}`
     ) {
       headers.delete('Authorization');
     }
 
-    headers.set('apikey', supabaseKey);
+    headers.set('apikey', apiKey);
     return fetch(input, { ...init, headers });
   };
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   global: {
-    fetch: createSupabaseFetch(SUPABASE_SERVICE_ROLE_KEY),
+    fetch: createBackendFetch(SUPABASE_PUBLISHABLE_KEY),
   },
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    storage: typeof window !== 'undefined' ? localStorage : undefined,
+    persistSession: true,
+    autoRefreshToken: true,
   },
 });
