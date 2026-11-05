@@ -17,6 +17,7 @@ import {
   PREVFOGO_RECURSOS_DISPONIVEIS,
   FOCOS_COMBATE_ATIVOS,
   OPERACAO_RECURSOS_MUNICIPIOS,
+  OPERACAO_EFETIVO_MUNICIPIOS,
 } from '../data/operacaoAmazonasData';
 
 export function MunicipalityDrawer({
@@ -29,6 +30,8 @@ export function MunicipalityDrawer({
   onAddToken,
   onRemoveToken,
   onClose,
+  dbEfetivo = null,
+  dbRecursos = null,
 }) {
   const [personnelToAdd, setPersonnelToAdd] = useState(10);
   const [personnelType, setPersonnelType] = useState('efetivo_militar');
@@ -51,15 +54,82 @@ export function MunicipalityDrawer({
     );
   }, [muni]);
 
-  // Recursos e Viaturas Oficiais deste município
+  // Efetivo Oficial (Consome Banco Supabase em harmonia ou fallback institucional)
+  const officialEfetivo = useMemo(() => {
+    if (!muni) return null;
+    const nameLow = (muni.name || '').toLowerCase().trim();
+    const normalize = (s) =>
+      (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+    const targetNorm = normalize(nameLow);
+
+    if (Array.isArray(dbEfetivo) && dbEfetivo.length > 0) {
+      const found = dbEfetivo.find((e) => {
+        const n = normalize(e.mun || e.muni || '');
+        return (
+          n === targetNorm ||
+          (targetNorm === 'careiro' && n.includes('careiro')) ||
+          (n === 'careiro' && targetNorm.includes('careiro'))
+        );
+      });
+      if (found) return found;
+    }
+    return (
+      OPERACAO_EFETIVO_MUNICIPIOS.find((e) => {
+        const n = normalize(e.muni || '');
+        return (
+          n === targetNorm ||
+          (targetNorm === 'careiro' && n.includes('careiro')) ||
+          (n === 'careiro' && targetNorm.includes('careiro'))
+        );
+      }) || null
+    );
+  }, [muni, dbEfetivo]);
+
+  // Recursos e Viaturas Oficiais deste município (Supabase ou fallback oficial)
   const recursosData = useMemo(() => {
     if (!muni) return null;
+    const normalize = (s) =>
+      (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+    const targetNorm = normalize(muni.name || '');
+
+    if (Array.isArray(dbRecursos) && dbRecursos.length > 0) {
+      const found = dbRecursos.find((r) => {
+        const n = normalize(r.mun || r.muni || '');
+        return (
+          n === targetNorm ||
+          (targetNorm === 'careiro' && n.includes('careiro')) ||
+          (n === 'careiro' && targetNorm.includes('careiro'))
+        );
+      });
+      if (found) {
+        const total = Object.keys(found).reduce((acc, k) => {
+          if (
+            k !== 'mun' &&
+            k !== 'muni' &&
+            k !== 'total' &&
+            typeof found[k] === 'number'
+          ) {
+            return acc + found[k];
+          }
+          return acc;
+        }, 0);
+        return { ...found, total: found.total || total };
+      }
+    }
     return (
       OPERACAO_RECURSOS_MUNICIPIOS.find(
         (r) => r.mun.toLowerCase() === muni.name.toLowerCase()
       ) || null
     );
-  }, [muni]);
+  }, [muni, dbRecursos]);
 
   // Totalizadores específicos deste município
   const breakdown = useMemo(() => {
@@ -82,44 +152,110 @@ export function MunicipalityDrawer({
     let fluvial = 0;
 
     muniTokens.forEach((tk) => {
+      const t = tk.type || '';
       if (
-        tk.type === 'efetivo_militar' ||
-        tk.type === 'efetivo' ||
-        tk.type === 'serv_ord' ||
-        tk.type === 'efetivo_seg'
+        t === 'efetivo_militar' ||
+        t === 'efetivo' ||
+        t === 'serv_ord' ||
+        t === 'efetivo_seg' ||
+        t === 'seg' ||
+        t === 'opam' ||
+        t === 'efetivo_fn' ||
+        t === 'fn' ||
+        t === 'cbmsp'
       ) {
         militares += tk.count || 10;
       } else if (
-        tk.type === 'efetivo_brigadista' ||
-        tk.type === 'efetivo_brigadista_sema'
+        t === 'efetivo_brigadista' ||
+        t === 'efetivo_brigadista_sema' ||
+        t === 'brigadista' ||
+        t === 'brigadista_sema'
       ) {
         brigadistas += tk.count || 10;
-      } else if (tk.type === 'efetivo_prevfogo') {
+      } else if (t === 'efetivo_prevfogo' || t === 'prevfogo') {
         prevfogo += tk.count || 10;
-      } else if (tk.type.startsWith('vtr_')) {
-        viaturas += 1;
+      } else if (t.startsWith('vtr_') || t === 'caminhao' || t === 'pick_up') {
+        viaturas += tk.count || 1;
       } else if (
-        tk.type === 'air_tractor' ||
-        tk.type === 'helicoptero' ||
-        tk.type === 'kc390'
+        t === 'air_tractor' ||
+        t === 'helicoptero' ||
+        t === 'kc390' ||
+        t === 'aviao'
       ) {
-        aeronaves += 1;
-      } else if (tk.type === 'embarcacao') {
-        fluvial += 1;
+        aeronaves += tk.count || 1;
+      } else if (t === 'embarcacao' || t === 'jetski') {
+        fluvial += tk.count || 1;
       }
     });
+
+    // Se nenhum token de pessoal foi cadastrado no mapa, busca o efetivo do banco de dados (Supabase)
+    if (
+      militares === 0 &&
+      brigadistas === 0 &&
+      prevfogo === 0 &&
+      officialEfetivo
+    ) {
+      militares =
+        (officialEfetivo.cbmam ||
+          officialEfetivo.ord ||
+          officialEfetivo.servico ||
+          0) +
+        (officialEfetivo.fn || 0) +
+        (officialEfetivo.cbmsp || 0);
+      brigadistas =
+        officialEfetivo.brig ||
+        (officialEfetivo.brig_mun || 0) + (officialEfetivo.brig_semas || 0);
+      prevfogo = officialEfetivo.prevfogo || 0;
+    }
+
+    // Se nenhum token de viatura/meios foi cadastrado no mapa, busca os recursos do banco de dados
+    if (viaturas === 0 && recursosData) {
+      const vtrCount =
+        (recursosData.abt || 0) +
+        (recursosData.at || 0) +
+        (recursosData.atp || 0) +
+        (recursosData.ata || 0) +
+        (recursosData.abf || 0) +
+        (recursosData.atf || 0) +
+        (recursosData.abs || 0) +
+        (recursosData.pipa || 0) +
+        (recursosData.dosa || 0) +
+        (recursosData.crs || 0) +
+        (recursosData.ar || 0) +
+        (recursosData.ur || 0) +
+        (recursosData.gse || 0) +
+        (recursosData.mt || 0) +
+        (recursosData.picape_fn || 0) +
+        (recursosData.picape_muni || 0) +
+        (recursosData.picape_esfron || 0) +
+        (recursosData.autoarp || 0) +
+        (recursosData.quadriciclo || 0);
+      viaturas = vtrCount;
+    }
+    if (aeronaves === 0 && recursosData) {
+      aeronaves = (recursosData.helicoptero || 0) + (recursosData.aviao || 0);
+    }
+    if (fluvial === 0 && recursosData) {
+      fluvial = (recursosData.embarcacao || 0) + (recursosData.jetski || 0);
+    }
+
+    const totalEfetivo = militares + brigadistas + prevfogo;
+    const totalAtivos =
+      muniTokens.length > 0
+        ? muniTokens.length
+        : (totalEfetivo > 0 ? 1 : 0) + (viaturas > 0 ? 1 : 0);
 
     return {
       militares,
       brigadistas,
       prevfogo,
-      totalEfetivo: militares + brigadistas + prevfogo,
+      totalEfetivo,
       viaturas,
       aeronaves,
       fluvial,
-      totalAtivos: muniTokens.length,
+      totalAtivos,
     };
-  }, [muni, muniTokens]);
+  }, [muni, muniTokens, officialEfetivo, recursosData]);
 
   if (!muni) return null;
 
@@ -367,6 +503,284 @@ export function MunicipalityDrawer({
             </div>
           </div>
         </div>
+
+        {/* EFETIVO OFICIAL HOMOLOGADO NO BANCO DE DADOS (SUPABASE) */}
+        {officialEfetivo && (
+          <div
+            className="info-card-block"
+            style={{
+              background: 'rgba(15, 23, 42, 0.85)',
+              border: '1.5px solid #10b981',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Users size={16} color="#34d399" />
+                <span
+                  className="block-title"
+                  style={{ color: '#6ee7b7', fontWeight: 900 }}
+                >
+                  Efetivo Homologado (Banco Supabase)
+                </span>
+              </div>
+              <span
+                style={{
+                  background: '#065f46',
+                  color: '#ecfdf5',
+                  fontWeight: 900,
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                }}
+              >
+                {(officialEfetivo.cbmam ||
+                  officialEfetivo.ord ||
+                  officialEfetivo.servico ||
+                  0) +
+                  (officialEfetivo.seg || 0) +
+                  (officialEfetivo.fn || 0) +
+                  (officialEfetivo.cbmsp || 0) +
+                  (officialEfetivo.prevfogo || 0) +
+                  (officialEfetivo.brig ||
+                    (officialEfetivo.brig_mun || 0) +
+                      (officialEfetivo.brig_semas || 0))}{' '}
+                Op.
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                gap: 6,
+              }}
+            >
+              {(officialEfetivo.cbmam ||
+                officialEfetivo.ord ||
+                officialEfetivo.servico ||
+                0) > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#f87171',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Militares CBMAM
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.cbmam ||
+                      officialEfetivo.ord ||
+                      officialEfetivo.servico}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {(officialEfetivo.seg || 0) > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#facc15',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    SEG Gratificado
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.seg}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {((officialEfetivo.brig || 0) > 0 ||
+                (officialEfetivo.brig_mun || 0) > 0) && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(249, 115, 22, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#fb923c',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Brigadistas Mun.
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.brig_mun || officialEfetivo.brig}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {(officialEfetivo.brig_semas || 0) > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#4ade80',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Brigadistas SEMA
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.brig_semas}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {(officialEfetivo.prevfogo || 0) > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#4ade80',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Prevfogo IBAMA
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.prevfogo}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {(officialEfetivo.fn || 0) > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#60a5fa',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Força Nacional
+                  </div>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
+                  >
+                    {officialEfetivo.fn}{' '}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        color: '#cbd5e1',
+                        fontWeight: 400,
+                      }}
+                    >
+                      Op.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* PREVFOGO / IBAMA - SEÇÃO EXECUTIVA SE HOUVER RECURSOS NESTE MUNICÍPIO */}
         {prevfogoData && (
@@ -1168,7 +1582,18 @@ export function MunicipalityDrawer({
                         >
                           {tk.label || tk.type}
                         </div>
-                        {tk.count ? (
+                        {tk.type?.startsWith('vtr_') ||
+                        tk.type === 'embarcacao' ||
+                        tk.type === 'helicoptero' ||
+                        tk.type === 'air_tractor' ||
+                        tk.type === 'kc390' ? (
+                          <div style={{ fontSize: 9.5, color: '#94a3b8' }}>
+                            {tk.count || 1}{' '}
+                            {(tk.count || 1) === 1
+                              ? 'recurso / viatura em operação'
+                              : 'recursos / viaturas em operação'}
+                          </div>
+                        ) : tk.count ? (
                           <div
                             style={{
                               fontSize: 9.5,

@@ -310,7 +310,7 @@ export async function fetchRemoteMapState(targetDate = null) {
     let muniStatuses = mapState?.muniStatuses || null;
     let muniNotes = mapState?.muniNotes || null;
 
-    if (!tokens) {
+    if (!tokens || tokens.length === 0) {
       const efTokens =
         Array.isArray(report.efetivo) && report.efetivo.length > 0
           ? generateTokensFromEfetivo(report.efetivo)

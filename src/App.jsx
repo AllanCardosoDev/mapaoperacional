@@ -142,6 +142,8 @@ export default function App() {
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [selectedDate, setSelectedDate] = useState('2026-11-04');
   const [availableDates, setAvailableDates] = useState([]);
+  const [dbEfetivo, setDbEfetivo] = useState(null);
+  const [dbRecursos, setDbRecursos] = useState(null);
   const isInitialMount = useRef(true);
 
   // 1. CARGA INICIAL DO SUPABASE: Garante persistência remota absoluta e lista de datas
@@ -161,6 +163,8 @@ export default function App() {
         if (!active) return;
 
         if (remote.ok) {
+          if (remote.efetivo) setDbEfetivo(remote.efetivo);
+          if (remote.recursos) setDbRecursos(remote.recursos);
           if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
             setTokens(remote.tokens);
             try {
@@ -264,6 +268,8 @@ export default function App() {
           if (changedDate === selectedDate) {
             const remote = await fetchRemoteMapState(selectedDate);
             if (remote.ok) {
+              if (remote.efetivo) setDbEfetivo(remote.efetivo);
+              if (remote.recursos) setDbRecursos(remote.recursos);
               if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
                 setTokens(remote.tokens);
               }
@@ -671,6 +677,8 @@ export default function App() {
     try {
       const remote = await fetchRemoteMapState(newDate);
       if (remote.ok) {
+        if (remote.efetivo) setDbEfetivo(remote.efetivo);
+        if (remote.recursos) setDbRecursos(remote.recursos);
         if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
           setTokens(remote.tokens);
           try {
@@ -984,6 +992,8 @@ export default function App() {
             onAddToken={handleAddTokenToMuni}
             onRemoveToken={handleDeleteToken}
             onClose={() => setSelectedMuniName(null)}
+            dbEfetivo={dbEfetivo}
+            dbRecursos={dbRecursos}
           />
         )}
       </div>
