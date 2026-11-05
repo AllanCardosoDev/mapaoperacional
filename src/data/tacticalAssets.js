@@ -891,7 +891,7 @@ export const INITIAL_REAL_SCENARIO = [
   {
     id: 'tk-careiro_da_v_rzea-serv_ord-76',
     type: 'serv_ord',
-    muni: 'Careiro da várzea',
+    muni: 'Careiro da Várzea',
     x: 1679,
     y: 641,
     count: 19,
@@ -900,7 +900,7 @@ export const INITIAL_REAL_SCENARIO = [
   {
     id: 'tk-careiro_da_v_rzea-prevfogo-77',
     type: 'prevfogo',
-    muni: 'Careiro da várzea',
+    muni: 'Careiro da Várzea',
     x: 1707,
     y: 641,
     count: 23,
@@ -909,7 +909,7 @@ export const INITIAL_REAL_SCENARIO = [
   {
     id: 'tk-careiro_da_v_rzea-fn-78',
     type: 'fn',
-    muni: 'Careiro da várzea',
+    muni: 'Careiro da Várzea',
     x: 1735,
     y: 641,
     count: 6,

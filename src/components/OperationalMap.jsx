@@ -137,6 +137,9 @@ export function OperationalMap({
       let mName = tk.muni;
       if (!mName) return;
       if (mName === 'Careiro') mName = 'Careiro Castanho';
+      if (mName === 'Careiro da várzea' || mName === 'Careiro da Varzea')
+        mName = 'Careiro da Várzea';
+      if (mName === 'Autazes Posto Km 53') mName = 'Autazes';
       if (!map.has(mName)) {
         map.set(mName, {
           muni: mName,

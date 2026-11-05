@@ -1375,7 +1375,7 @@ export const DEFAULT_BASES = [
   },
   {
     id: 'base_careiro_da_v_rzea',
-    base: 'Careiro da várzea',
+    base: 'Careiro da Várzea',
     tipo: 'base_temporaria',
     serv_ord: 0,
     opamv: 0,

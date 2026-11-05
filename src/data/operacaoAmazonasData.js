@@ -1378,8 +1378,8 @@ export const OPERACAO_EFETIVO_MUNICIPIOS = [
     tipo: 'base_temporaria',
   },
   {
-    muni: 'Careiro da várzea',
-    base: 'Careiro da várzea',
+    muni: 'Careiro da Várzea',
+    base: 'Careiro da Várzea',
     ef_permanente: 0,
     serv_ord: 0,
     opam: 0,
