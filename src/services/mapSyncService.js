@@ -93,7 +93,7 @@ export async function fetchAvailableDates() {
 
     const dateMap = new Map();
     (rows || []).forEach((r) => {
-      if (!r.report_date || r.report_date > '2026-11-10') return;
+      if (!r.report_date) return;
       if (!dateMap.has(r.report_date)) {
         dateMap.set(r.report_date, {
           date: r.report_date,
@@ -252,9 +252,7 @@ export async function fetchRemoteMapState(targetDate = null) {
     if (targetDate) {
       query = query.eq('report_date', targetDate);
     } else {
-      query = query
-        .lte('report_date', '2026-11-05')
-        .order('report_date', { ascending: false });
+      query = query.order('report_date', { ascending: false });
     }
 
     const { data: rows, error } = await query
@@ -284,11 +282,31 @@ export async function fetchRemoteMapState(targetDate = null) {
       return { ok: false, error: error.message };
     }
 
-    if (!rows || rows.length === 0) {
-      return { ok: false, empty: true, targetDate };
+    let reportRows = rows;
+    if (!reportRows || reportRows.length === 0) {
+      if (targetDate) {
+        // Herança automática do dia anterior mais recente (carry-over)
+        const { data: prevRows } = await supabase
+          .from('daily_reports')
+          .select(
+            'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
+          )
+          .lt('report_date', targetDate)
+          .order('report_date', { ascending: false })
+          .order('shift', { ascending: false })
+          .limit(1);
+
+        if (prevRows && prevRows.length > 0) {
+          reportRows = prevRows;
+        } else {
+          return { ok: false, empty: true, targetDate };
+        }
+      } else {
+        return { ok: false, empty: true, targetDate };
+      }
     }
 
-    const report = rows[0];
+    const report = reportRows[0];
     let mapState = null;
 
     if (report.notes) {
