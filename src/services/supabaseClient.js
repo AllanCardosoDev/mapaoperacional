@@ -7,9 +7,10 @@ export const SUPABASE_URL =
 
 export const SUPABASE_PUBLISHABLE_KEY =
   (typeof import.meta !== 'undefined' &&
-    (import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    (import.meta.env?.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+      import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
       import.meta.env?.VITE_SUPABASE_ANON_KEY)) ||
-  'sb_publishable_B608rXzlGxV4b0yk-6XaBw_riQTnj7y';
+  '';
 
 function isOpaqueApiKey(value) {
   return (

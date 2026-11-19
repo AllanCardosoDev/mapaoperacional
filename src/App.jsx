@@ -14,7 +14,6 @@ import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
 import {
   fetchRemoteMapState,
   saveRemoteMapState,
-  fetchAvailableDates,
 } from './services/mapSyncService';
 import { supabase } from './services/supabaseClient';
 import {
@@ -140,29 +139,24 @@ export default function App() {
   // Status de sincronização com o banco de dados Supabase
   const [cloudStatus, setCloudStatus] = useState('idle'); // 'synced' | 'saving' | 'offline' | 'idle'
   const [lastSyncTime, setLastSyncTime] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('2026-11-04');
-  const [availableDates, setAvailableDates] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [dbEfetivo, setDbEfetivo] = useState(null);
   const [dbRecursos, setDbRecursos] = useState(null);
   const isInitialMount = useRef(true);
 
-  // 1. CARGA INICIAL DO SUPABASE: Garante persistência remota absoluta e lista de datas
+  // 1. CARGA INICIAL DO SUPABASE: Garante persistência remota absoluta da data mais recente do banco
   useEffect(() => {
     let active = true;
     async function loadCloudState() {
       try {
         setCloudStatus('saving');
 
-        // Carrega datas disponíveis gravadas no Supabase
-        const dates = await fetchAvailableDates();
-        if (active && dates && dates.length > 0) {
-          setAvailableDates(dates);
-        }
-
-        const remote = await fetchRemoteMapState(selectedDate);
+        // Carrega sempre o relatório mais recente salvo no banco de dados (mesmo do sistema de relatórios)
+        const remote = await fetchRemoteMapState(null);
         if (!active) return;
 
         if (remote.ok) {
+          if (remote.reportDate) setSelectedDate(remote.reportDate);
           if (remote.efetivo) setDbEfetivo(remote.efetivo);
           if (remote.recursos) setDbRecursos(remote.recursos);
           if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
@@ -201,9 +195,11 @@ export default function App() {
           setCloudStatus('synced');
           setLastSyncTime(new Date(remote.updatedAt || Date.now()));
         } else {
-          // Se o relatório para esta data ainda não tinha map_state salvo, grava o cenário oficial
+          // Se não encontrou no banco, grava o cenário padrão com a data de hoje
+          const todayIso = new Date().toISOString().split('T')[0];
+          setSelectedDate(todayIso);
           await saveRemoteMapState({
-            targetDate: selectedDate,
+            targetDate: todayIso,
             tokens,
             muniStatuses,
             muniNotes,
@@ -263,24 +259,21 @@ export default function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'daily_reports' },
-        async (payload) => {
-          const changedDate = payload.new?.report_date;
-          if (changedDate === selectedDate) {
-            const remote = await fetchRemoteMapState(selectedDate);
-            if (remote.ok) {
-              if (remote.efetivo) setDbEfetivo(remote.efetivo);
-              if (remote.recursos) setDbRecursos(remote.recursos);
-              if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
-                setTokens(remote.tokens);
-              }
-              if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
-              if (remote.muniNotes) setMuniNotes(remote.muniNotes);
-              setCloudStatus('synced');
-              setLastSyncTime(new Date(remote.updatedAt || Date.now()));
+        async () => {
+          // Sempre recarrega os dados mais recentes do banco (mesmo de relatórios)
+          const remote = await fetchRemoteMapState(null);
+          if (remote.ok) {
+            if (remote.reportDate) setSelectedDate(remote.reportDate);
+            if (remote.efetivo) setDbEfetivo(remote.efetivo);
+            if (remote.recursos) setDbRecursos(remote.recursos);
+            if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
+              setTokens(remote.tokens);
             }
+            if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
+            if (remote.muniNotes) setMuniNotes(remote.muniNotes);
+            setCloudStatus('synced');
+            setLastSyncTime(new Date(remote.updatedAt || Date.now()));
           }
-          const dates = await fetchAvailableDates();
-          if (dates && dates.length > 0) setAvailableDates(dates);
         }
       )
       .subscribe();
@@ -288,7 +281,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedDate]);
+  }, []);
 
   // Persistência local imediata no localStorage
   useEffect(() => {
@@ -669,40 +662,6 @@ export default function App() {
     e.target.value = '';
   };
 
-  // Ação: Selecionar data da operação (histórico ou atual)
-  const handleSelectDate = async (newDate) => {
-    if (!newDate || newDate === selectedDate) return;
-    setSelectedDate(newDate);
-    setCloudStatus('saving');
-    try {
-      const remote = await fetchRemoteMapState(newDate);
-      if (remote.ok) {
-        if (remote.efetivo) setDbEfetivo(remote.efetivo);
-        if (remote.recursos) setDbRecursos(remote.recursos);
-        if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
-          setTokens(remote.tokens);
-          try {
-            localStorage.setItem(
-              STORAGE_KEY_TOKENS,
-              JSON.stringify(remote.tokens)
-            );
-          } catch {
-            // ignore
-          }
-        }
-        if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
-        if (remote.muniNotes) setMuniNotes(remote.muniNotes);
-        setCloudStatus('synced');
-        setLastSyncTime(new Date(remote.updatedAt || Date.now()));
-      } else {
-        setCloudStatus('offline');
-      }
-    } catch (err) {
-      console.error('[App] Erro ao carregar data:', err);
-      setCloudStatus('offline');
-    }
-  };
-
   // Ação: Subir e processar planilha oficial (.xlsx ou .json) e salvar permanentemente no Supabase
   const handleUploadSpreadsheet = async (file) => {
     if (!file) return;
@@ -741,9 +700,6 @@ export default function App() {
           if (saveRes.ok) {
             setCloudStatus(saveRes.offline ? 'offline' : 'synced');
             setLastSyncTime(new Date());
-
-            const dates = await fetchAvailableDates();
-            if (dates && dates.length > 0) setAvailableDates(dates);
 
             alert(
               `Efetivo oficial de ${result.reportDate} importado e atualizado no mapa com sucesso!\n\n` +
@@ -818,10 +774,6 @@ export default function App() {
       if (saveRes.ok) {
         setCloudStatus(saveRes.offline ? 'offline' : 'synced');
         setLastSyncTime(new Date());
-
-        // Atualiza lista de datas disponíveis no Supabase
-        const dates = await fetchAvailableDates();
-        if (dates && dates.length > 0) setAvailableDates(dates);
 
         alert(
           `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
@@ -939,8 +891,6 @@ export default function App() {
         lastSyncTime={lastSyncTime}
         onForceSync={handleForceSync}
         selectedDate={selectedDate}
-        availableDates={availableDates}
-        onSelectDate={handleSelectDate}
         onUploadSpreadsheet={handleUploadSpreadsheet}
       />
 
