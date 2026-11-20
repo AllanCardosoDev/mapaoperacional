@@ -443,6 +443,19 @@ body {
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.55);
 }
 
+.btn-command-emerald {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+.btn-command-emerald:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #34d399;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.55);
+  transform: translateY(-1px);
+}
+
 .btn-command-blue {
   background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   border-color: #38bdf8;

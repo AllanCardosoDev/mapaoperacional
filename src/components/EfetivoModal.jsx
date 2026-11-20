@@ -1,78 +1,337 @@
-import React, { useState, useMemo } from 'react';
-import { X, Search, RefreshCw, TreePine, Upload } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  OPERACAO_EFETIVO_MUNICIPIOS,
-  RESUMO_EXECUTIVO_OFICIAL,
-  PREVFOGO_RECURSOS_DISPONIVEIS,
-} from '../data/operacaoAmazonasData';
+  X,
+  Search,
+  RefreshCw,
+  Edit3,
+  Save,
+  Check,
+  RotateCcw,
+  Building2,
+  Tent,
+} from 'lucide-react';
+
+// Lista canônica oficial dos 26 Municípios Polo
+export const MUNICIPIOS_POLO_LIST = [
+  'Manaus',
+  'Apuí',
+  'Atalaia do Norte',
+  'Autazes',
+  'Barcelos',
+  'Coari',
+  'Envira',
+  'Humaitá',
+  'Iranduba',
+  'Itacoatiara',
+  'Itapiranga',
+  'Jutaí',
+  'Lábrea',
+  'Manaquiri',
+  'Manacapuru',
+  'Manicoré',
+  'Maués',
+  'Nhamundá',
+  'Novo Airão',
+  'Novo Aripuanã',
+  'Parintins',
+  'Presidente Figueiredo',
+  'Rio Preto da Eva',
+  'Tabatinga',
+  'Tapauá',
+  'Tefé',
+];
+
+// Lista canônica oficial das 12 Bases Temporárias de Combate
+export const BASES_TEMPORARIAS_LIST = [
+  'Autazes Posto Km 53',
+  'Anamã',
+  'Barreirinha',
+  'Boa Vista do Ramos',
+  'Boca do Acre',
+  'Borba',
+  'Caapiranga',
+  'Canutama',
+  'Careiro Castanho',
+  'Careiro da Várzea',
+  'São Sebastião do Uatumã',
+  'Urucurituba',
+];
+
+function norm(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
 
 export function EfetivoModal({
   onClose,
-  onSelectMuni,
-  onSyncOfficialTokens,
-  onUploadSpreadsheet,
+  dbEfetivo = null,
+  reportDate = null,
+  initialEditMode = false,
+  onSaveEfetivo = async () => {},
+  onSelectMuni = () => {},
 }) {
-  const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'municipios' | 'bases' | 'resumo' | 'prevfogo'
+  const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'municipios' | 'bases' | 'resumo'
   const [search, setSearch] = useState('');
+  const [isEditing, setIsEditing] = useState(initialEditMode);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-  // Separar municípios permanentes (26) e bases temporárias (11)
-  const municipiosList = useMemo(() => {
-    return OPERACAO_EFETIVO_MUNICIPIOS.filter(
-      (item) => item.tipo === 'capital' || item.tipo === 'interior'
-    );
-  }, []);
+  // Inicializa mapa de edições a partir de dbEfetivo ou benchmarks
+  const [editedData, setEditedData] = useState(() => {
+    const map = {};
+    // Carrega municípios polo
+    MUNICIPIOS_POLO_LIST.forEach((nome) => {
+      const isCap = nome === 'Manaus';
+      const found = (dbEfetivo || []).find(
+        (r) =>
+          norm(r.mun) === norm(nome) &&
+          (r.tipo === 'capital' || r.tipo === 'interior' || !r.tipo)
+      );
+      map[`mun:${norm(nome)}`] = {
+        nome,
+        tipo: isCap ? 'capital' : 'interior',
+        serv_ord: Number(
+          found?.cbmam ||
+            found?.serv_ord ||
+            found?.ord ||
+            found?.servico ||
+            (isCap ? 477 : 0)
+        ),
+        opamv: Number(found?.opamv || 0),
+        opam_ref: Number(found?.opam_ref || 0),
+        prevfogo: Number(found?.prevfogo || 0),
+        fn: Number(found?.fn || 0),
+        brig_mun: Number(
+          found?.brig_mun ||
+            (found?.brig && !found?.brig_semas ? found.brig : 0)
+        ),
+        brig_semas: Number(found?.brig_semas || 0),
+      };
+    });
 
-  const basesList = useMemo(() => {
-    return OPERACAO_EFETIVO_MUNICIPIOS.filter(
-      (item) => item.tipo === 'base_temporaria'
-    );
-  }, []);
+    // Carrega bases temporárias
+    BASES_TEMPORARIAS_LIST.forEach((nome) => {
+      const found = (dbEfetivo || []).find(
+        (r) =>
+          norm(r.mun) === norm(nome) ||
+          (r.tipo === 'base' && norm(r.mun) === norm(nome))
+      );
+      map[`base:${norm(nome)}`] = {
+        nome,
+        tipo: 'base',
+        serv_ord: Number(
+          found?.cbmam || found?.serv_ord || found?.ord || found?.servico || 0
+        ),
+        opamv: Number(found?.opamv || 0),
+        opam_ref: Number(found?.opam_ref || 0),
+        prevfogo: Number(found?.prevfogo || 0),
+        fn: Number(found?.fn || 0),
+        brig_mun: Number(found?.brig_mun || 0),
+        brig_semas: Number(found?.brig_semas || 0),
+      };
+    });
 
-  // Filtragem pela busca
-  const filterList = (list) => {
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter((item) => item.muni.toLowerCase().includes(q));
+    return map;
+  });
+
+  // Atualiza editedData quando dbEfetivo muda do banco
+  useEffect(() => {
+    if (!dbEfetivo || dbEfetivo.length === 0) return;
+    setEditedData((prev) => {
+      const next = { ...prev };
+      dbEfetivo.forEach((r) => {
+        if (!r.mun) return;
+        const isBase =
+          r.tipo === 'base' ||
+          BASES_TEMPORARIAS_LIST.some((b) => norm(b) === norm(r.mun));
+        const key = `${isBase ? 'base' : 'mun'}:${norm(r.mun)}`;
+        const nomeOriginal = isBase
+          ? BASES_TEMPORARIAS_LIST.find((b) => norm(b) === norm(r.mun)) || r.mun
+          : MUNICIPIOS_POLO_LIST.find((m) => norm(m) === norm(r.mun)) || r.mun;
+
+        next[key] = {
+          nome: nomeOriginal,
+          tipo: isBase ? 'base' : r.mun === 'Manaus' ? 'capital' : 'interior',
+          serv_ord: Number(r.cbmam || r.serv_ord || r.ord || r.servico || 0),
+          opamv: Number(r.opamv || 0),
+          opam_ref: Number(r.opam_ref || 0),
+          prevfogo: Number(r.prevfogo || 0),
+          fn: Number(r.fn || 0),
+          brig_mun: Number(r.brig_mun || 0),
+          brig_semas: Number(r.brig_semas || 0),
+        };
+      });
+      return next;
+    });
+  }, [dbEfetivo]);
+
+  // Manipulador de alteração de campo em modo de edição
+  const handleCellChange = (key, field, val) => {
+    const num = Math.max(0, parseInt(val, 10) || 0);
+    setEditedData((prev) => {
+      const current = prev[key] || {};
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          [field]: num,
+        },
+      };
+    });
   };
 
-  const filteredMunis = filterList(municipiosList);
-  const filteredBases = filterList(basesList);
+  // Listas processadas
+  const municipiosList = useMemo(() => {
+    return MUNICIPIOS_POLO_LIST.map((nome) => {
+      const data = editedData[`mun:${norm(nome)}`] || {
+        nome,
+        tipo: nome === 'Manaus' ? 'capital' : 'interior',
+      };
+      const serv_ord = data.serv_ord || 0;
+      const opamv = data.opamv || 0;
+      const opam_ref = data.opam_ref || 0;
+      const cbmam = serv_ord + opamv + opam_ref;
+      const prevfogo = data.prevfogo || 0;
+      const fn = data.fn || 0;
+      const brig_mun = data.brig_mun || 0;
+      const brig_semas = data.brig_semas || 0;
+      const total = cbmam + prevfogo + fn + brig_mun + brig_semas;
+      return {
+        key: `mun:${norm(nome)}`,
+        nome,
+        tipo: data.tipo,
+        serv_ord,
+        opamv,
+        opam_ref,
+        cbmam,
+        prevfogo,
+        fn,
+        brig_mun,
+        brig_semas,
+        total,
+      };
+    });
+  }, [editedData]);
 
-  // Totais calculados
-  const calcTotals = (list) => {
-    return list.reduce(
-      (acc, curr) => {
-        acc.ef_permanente += curr.ef_permanente || 0;
-        acc.serv_ord += curr.serv_ord || 0;
-        acc.opam += curr.opam || 0;
-        acc.opam_extra += curr.opam_extra || 0;
-        acc.inc2 += curr.inc2 || 0;
-        acc.cbmam += curr.cbmam_militares || 0;
-        acc.prevfogo += curr.prevfogo || 0;
-        acc.fn += curr.fn || 0;
-        acc.brigadista += curr.brigadista || 0;
-        acc.brigadista_sema += curr.brigadista_sema || 0;
-        acc.total += curr.total || 0;
+  const basesList = useMemo(() => {
+    return BASES_TEMPORARIAS_LIST.map((nome) => {
+      const data = editedData[`base:${norm(nome)}`] || { nome, tipo: 'base' };
+      const serv_ord = data.serv_ord || 0;
+      const opamv = data.opamv || 0;
+      const opam_ref = data.opam_ref || 0;
+      const cbmam = serv_ord + opamv + opam_ref;
+      const prevfogo = data.prevfogo || 0;
+      const fn = data.fn || 0;
+      const brig_mun = data.brig_mun || 0;
+      const brig_semas = data.brig_semas || 0;
+      const total = cbmam + prevfogo + fn + brig_mun + brig_semas;
+      return {
+        key: `base:${norm(nome)}`,
+        nome,
+        tipo: 'base',
+        serv_ord,
+        opamv,
+        opam_ref,
+        cbmam,
+        prevfogo,
+        fn,
+        brig_mun,
+        brig_semas,
+        total,
+      };
+    });
+  }, [editedData]);
+
+  // Filtragem da busca
+  const filterRows = (list) => {
+    if (!search.trim()) return list;
+    const q = norm(search);
+    return list.filter((r) => norm(r.nome).includes(q));
+  };
+
+  const filteredMunis = filterRows(municipiosList);
+  const filteredBases = filterRows(basesList);
+
+  // Totais consolidados
+  const totals = useMemo(() => {
+    const all = [...municipiosList, ...basesList];
+    return all.reduce(
+      (acc, r) => {
+        acc.serv_ord += r.serv_ord || 0;
+        acc.opamv += r.opamv || 0;
+        acc.opam_ref += r.opam_ref || 0;
+        acc.cbmam += r.cbmam || 0;
+        acc.prevfogo += r.prevfogo || 0;
+        acc.fn += r.fn || 0;
+        acc.brig_mun += r.brig_mun || 0;
+        acc.brig_semas += r.brig_semas || 0;
+        acc.total += r.total || 0;
+        if (r.tipo === 'capital' || r.nome === 'Manaus') {
+          acc.capital += r.total || 0;
+        } else {
+          acc.interior += r.total || 0;
+        }
         return acc;
       },
       {
-        ef_permanente: 0,
         serv_ord: 0,
-        opam: 0,
-        opam_extra: 0,
-        inc2: 0,
+        opamv: 0,
+        opam_ref: 0,
         cbmam: 0,
         prevfogo: 0,
         fn: 0,
-        brigadista: 0,
-        brigadista_sema: 0,
+        brig_mun: 0,
+        brig_semas: 0,
         total: 0,
+        capital: 0,
+        interior: 0,
       }
     );
-  };
+  }, [municipiosList, basesList]);
 
-  const totMunis = calcTotals(municipiosList);
-  const totBases = calcTotals(basesList);
+  // Salvar edições no banco de dados Supabase
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setErrorMessage(null);
+
+      // Constrói array no formato oficial para tabela daily_reports.efetivo
+      const payload = [...municipiosList, ...basesList].map((r) => ({
+        mun: r.nome,
+        tipo: r.tipo,
+        cbmam: r.cbmam,
+        serv_ord: r.serv_ord,
+        ord: r.serv_ord,
+        servico: r.serv_ord,
+        opamv: r.opamv,
+        opam_ref: r.opam_ref,
+        prevfogo: r.prevfogo,
+        fn: r.fn,
+        marinha: 0,
+        cbmsp: 0,
+        brig_mun: r.brig_mun,
+        brig_semas: r.brig_semas,
+        total: r.total,
+        _custom: true,
+      }));
+
+      await onSaveEfetivo(payload);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 4000);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Erro ao salvar no banco:', err);
+      setErrorMessage(
+        'Falha ao gravar no Supabase: ' + (err.message || String(err))
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
@@ -80,35 +339,43 @@ export function EfetivoModal({
         className="modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: 1120,
+          maxWidth: 1220,
           width: '96vw',
-          maxHeight: '92vh',
+          maxHeight: '94vh',
           display: 'flex',
           flexDirection: 'column',
           background: '#090d16',
-          border: '1.5px solid #0284c7',
+          border: isEditing ? '2px solid #10b981' : '1.5px solid #0284c7',
           borderRadius: 14,
           overflow: 'hidden',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.95)',
+          boxShadow: isEditing
+            ? '0 25px 60px rgba(16, 185, 129, 0.35)'
+            : '0 25px 60px rgba(0,0,0,0.95)',
         }}
       >
-        {/* Topo do Modal */}
+        {/* TOPO DO MODAL */}
         <div
           className="modal-header"
           style={{
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-            borderBottom: '1.5px solid #ef4444',
-            padding: '14px 20px',
+            background: isEditing
+              ? 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)'
+              : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            borderBottom: isEditing
+              ? '2px solid #10b981'
+              : '1.5px solid #ef4444',
+            padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 borderRadius: '50%',
                 background: '#ffffff',
                 border: '2px solid #dc2626',
@@ -122,90 +389,146 @@ export function EfetivoModal({
               <img
                 src="/brasao-cbmam.png"
                 alt="Brasão CBMAM"
-                style={{ width: 36, height: 36, objectFit: 'contain' }}
+                style={{ width: 34, height: 34, objectFit: 'contain' }}
               />
             </div>
             <div>
-              <h2
-                style={{
-                  fontSize: 15,
-                  fontWeight: 900,
-                  color: '#f8fafc',
-                  margin: 0,
-                  letterSpacing: '0.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span>SOMA TOTAL DE TUDO & DETALHAMENTO DE EFETIVO</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 900,
+                    color: '#f8fafc',
+                    margin: 0,
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  PAINEL & MODIFICAÇÃO DE EFETIVO OPERACIONAL
+                </h2>
                 <span
                   style={{
-                    background: '#dc2626',
+                    background: isEditing ? '#059669' : '#dc2626',
                     color: '#ffffff',
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 900,
                     padding: '2px 8px',
                     borderRadius: 12,
                   }}
                 >
-                  886 OPERACIONAIS
+                  {totals.total} OPERACIONAIS
                 </span>
-              </h2>
-              <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>
-                Briefing Oficial 03/11/2026 - 8h30 • Coordenador:{' '}
-                <strong style={{ color: '#cbd5e1' }}>
-                  {RESUMO_EXECUTIVO_OFICIAL.coordenador}
-                </strong>
+                {isEditing && (
+                  <span
+                    style={{
+                      background: '#10b981',
+                      color: '#022c22',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '2px 7px',
+                      borderRadius: 10,
+                    }}
+                  >
+                    MODO EDIÇÃO ATIVO
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
+                Dados integrados com o Banco de Dados do Relatório Diário CBMAM
+                {reportDate ? ` • Data: ${reportDate}` : ''}
               </p>
             </div>
           </div>
+
+          {/* BOTÕES DE AÇÃO: EDITAR, SALVAR, FECHAR */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {onUploadSpreadsheet && (
-              <label
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 16px',
+                    borderRadius: 8,
+                    background:
+                      'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    border: '1.5px solid #34d399',
+                    cursor: isSaving ? 'wait' : 'pointer',
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.4)',
+                  }}
+                  title="Gravar alterações permanentemente no banco Supabase"
+                >
+                  {isSaving ? (
+                    <RefreshCw size={14} className="spin-slow" />
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  <span>
+                    {isSaving ? 'Gravando no Banco...' : 'Salvar no Banco'}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setIsEditing(false)}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: '1px solid #475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <RotateCcw size={13} />
+                  <span>Cancelar</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '6px 14px',
-                  borderRadius: 6,
-                  background: '#059669',
+                  padding: '7px 15px',
+                  borderRadius: 8,
+                  background:
+                    'linear-gradient(135deg, #059669 0%, #047857 100%)',
                   color: '#ffffff',
                   fontSize: 12,
                   fontWeight: 800,
-                  cursor: 'pointer',
                   border: '1px solid #10b981',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
                 }}
-                title="Subir arquivo de Efetivo (.json exportado do sistema ou .xlsx) para atualizar todo o efetivo no mapa"
+                title="Editar os quantitativos de efetivo diretamente neste painel"
               >
-                <Upload size={14} />
-                <span>Importar Efetivo</span>
-                <input
-                  type="file"
-                  accept=".json,.xlsx,.xls"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      onUploadSpreadsheet(file);
-                      onClose();
-                    }
-                    e.target.value = '';
-                  }}
-                />
-              </label>
+                <Edit3 size={14} />
+                <span>Modificar Efetivo</span>
+              </button>
             )}
+
             <button
               className="modal-close-btn"
               onClick={onClose}
               style={{
-                background: 'rgba(255,255,255,0.06)',
+                background: 'rgba(255,255,255,0.08)',
                 border: 'none',
-                borderRadius: 6,
+                borderRadius: 8,
                 color: '#cbd5e1',
                 cursor: 'pointer',
-                padding: 6,
+                padding: '6px 8px',
               }}
             >
               <X size={20} />
@@ -213,10 +536,48 @@ export function EfetivoModal({
           </div>
         </div>
 
-        {/* CARDS COM A SOMA TOTAL DE TUDO (KPIs CONSOLIDADOS) */}
+        {/* FEEDBACK BANNERS */}
+        {saveSuccess && (
+          <div
+            style={{
+              background: '#064e3b',
+              borderBottom: '1px solid #10b981',
+              color: '#a7f3d0',
+              padding: '8px 20px',
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Check size={16} color="#34d399" />
+            <span>
+              Efetivo atualizado e gravado no Banco de Dados com sucesso! Os
+              mapas e indicadores foram sincronizados.
+            </span>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div
+            style={{
+              background: '#7f1d1d',
+              borderBottom: '1px solid #ef4444',
+              color: '#fecaca',
+              padding: '8px 20px',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        {/* CARDS DE KPIS CONSOLIDADOS */}
         <div
           style={{
-            padding: '12px 18px',
+            padding: '10px 18px',
             background: '#090d16',
             borderBottom: '1px solid #1e293b',
           }}
@@ -228,16 +589,15 @@ export function EfetivoModal({
               gap: 8,
             }}
           >
-            {/* SOMA TOTAL DE TUDO */}
+            {/* TOTAL GERAL */}
             <div
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(202, 138, 4, 0.08) 100%)',
+                  'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.05) 100%)',
                 border: '1.5px solid #eab308',
                 borderRadius: 8,
                 padding: '8px 10px',
                 textAlign: 'center',
-                boxShadow: '0 4px 16px rgba(234, 179, 8, 0.2)',
               }}
             >
               <div
@@ -248,65 +608,29 @@ export function EfetivoModal({
                   textTransform: 'uppercase',
                 }}
               >
-                Soma Total
+                TOTAL EMPREGADO
               </div>
               <div
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#ffffff',
-                  fontFamily: 'monospace',
+                  color: '#facc15',
                   margin: '2px 0',
                 }}
               >
-                {RESUMO_EXECUTIVO_OFICIAL.total_geral.total}
+                {totals.total}
               </div>
-              <div style={{ fontSize: 9, color: '#facc15', fontWeight: 700 }}>
-                Total Empregado
-              </div>
-            </div>
-
-            {/* MILITARES CBMAM */}
-            <div
-              style={{
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid #0284c7',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  color: '#7dd3fc',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Militares CBMAM
-              </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 900,
-                  color: '#38bdf8',
-                  fontFamily: 'monospace',
-                  margin: '2px 0',
-                }}
-              >
-                {RESUMO_EXECUTIVO_OFICIAL.total_militares_cbmam.total}
-              </div>
-              <div style={{ fontSize: 9, color: '#94a3b8' }}>
-                211 Ord • 192 OPAM • 40 INC2
+              <div style={{ fontSize: 10, color: '#ca8a04', fontWeight: 700 }}>
+                {totals.capital} Cap • {totals.interior} Int
               </div>
             </div>
 
-            {/* PREVFOGO / IBAMA */}
+            {/* CBMAM PERMANENTE / ORD */}
             <div
               style={{
-                background: 'rgba(34, 197, 94, 0.12)',
-                border: '1.5px solid #22c55e',
+                background:
+                  'linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.05) 100%)',
+                border: '1px solid #ef4444',
                 borderRadius: 8,
                 padding: '8px 10px',
                 textAlign: 'center',
@@ -316,32 +640,32 @@ export function EfetivoModal({
                 style={{
                   fontSize: 9.5,
                   fontWeight: 800,
-                  color: '#86efac',
+                  color: '#fca5a5',
                   textTransform: 'uppercase',
                 }}
               >
-                Prevfogo / IBAMA
+                CBMAM PERMANENTE
               </div>
               <div
                 style={{
                   fontSize: 20,
                   fontWeight: 900,
-                  color: '#4ade80',
-                  fontFamily: 'monospace',
+                  color: '#f87171',
                   margin: '2px 0',
                 }}
               >
-                {RESUMO_EXECUTIVO_OFICIAL.prevfogo.total}
+                {totals.serv_ord}
               </div>
-              <div style={{ fontSize: 9, color: '#bbf7d0', fontWeight: 700 }}>
-                94 Cap • 153 Interior
+              <div style={{ fontSize: 10, color: '#fca5a5' }}>
+                Serviço Diário Ordinário
               </div>
             </div>
 
-            {/* FORÇA NACIONAL */}
+            {/* CBMAM OPAM (REFORÇO) */}
             <div
               style={{
-                background: 'rgba(14, 165, 233, 0.1)',
+                background:
+                  'linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(3, 105, 161, 0.05) 100%)',
                 border: '1px solid #0284c7',
                 borderRadius: 8,
                 padding: '8px 10px',
@@ -351,33 +675,103 @@ export function EfetivoModal({
               <div
                 style={{
                   fontSize: 9.5,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: '#7dd3fc',
                   textTransform: 'uppercase',
                 }}
               >
-                Força Nacional
+                CBMAM OPAM (6ª+7ª)
               </div>
               <div
                 style={{
                   fontSize: 20,
                   fontWeight: 900,
                   color: '#38bdf8',
-                  fontFamily: 'monospace',
                   margin: '2px 0',
                 }}
               >
-                {RESUMO_EXECUTIVO_OFICIAL.fn.total}
+                {totals.opamv + totals.opam_ref}
               </div>
-              <div style={{ fontSize: 9, color: '#94a3b8' }}>
-                17 Cap • 18 Interior
+              <div style={{ fontSize: 10, color: '#7dd3fc' }}>
+                {totals.opamv} (6ª) • {totals.opam_ref} (7ª)
               </div>
             </div>
 
-            {/* BRIGADISTAS FLORESTAIS */}
+            {/* PREVFOGO IBAMA */}
             <div
               style={{
-                background: 'rgba(249, 115, 22, 0.1)',
+                background:
+                  'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.05) 100%)',
+                border: '1px solid #10b981',
+                borderRadius: 8,
+                padding: '8px 10px',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: '#6ee7b7',
+                  textTransform: 'uppercase',
+                }}
+              >
+                PREVFOGO IBAMA
+              </div>
+              <div
+                style={{
+                  fontSize: 20,
+                  fontWeight: 900,
+                  color: '#34d399',
+                  margin: '2px 0',
+                }}
+              >
+                {totals.prevfogo}
+              </div>
+              <div style={{ fontSize: 10, color: '#6ee7b7' }}>
+                Brigadistas Federais
+              </div>
+            </div>
+
+            {/* FORÇA NACIONAL */}
+            <div
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(8, 145, 178, 0.05) 100%)',
+                border: '1px solid #06b6d4',
+                borderRadius: 8,
+                padding: '8px 10px',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: '#67e8f9',
+                  textTransform: 'uppercase',
+                }}
+              >
+                FORÇA NACIONAL
+              </div>
+              <div
+                style={{
+                  fontSize: 20,
+                  fontWeight: 900,
+                  color: '#22d3ee',
+                  margin: '2px 0',
+                }}
+              >
+                {totals.fn}
+              </div>
+              <div style={{ fontSize: 10, color: '#67e8f9' }}>Apoio FNSP</div>
+            </div>
+
+            {/* BRIGADISTAS (MUN + SEMA) */}
+            <div
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(194, 65, 12, 0.05) 100%)',
                 border: '1px solid #f97316',
                 borderRadius: 8,
                 padding: '8px 10px',
@@ -387,228 +781,183 @@ export function EfetivoModal({
               <div
                 style={{
                   fontSize: 9.5,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: '#fdba74',
                   textTransform: 'uppercase',
                 }}
               >
-                Brigadistas (Mun+SEMA)
+                BRIGADISTAS
               </div>
               <div
                 style={{
                   fontSize: 20,
                   fontWeight: 900,
-                  color: '#f97316',
-                  fontFamily: 'monospace',
+                  color: '#fb923c',
                   margin: '2px 0',
                 }}
               >
-                {RESUMO_EXECUTIVO_OFICIAL.total_brigadistas.total}
+                {totals.brig_mun + totals.brig_semas}
               </div>
-              <div style={{ fontSize: 9, color: '#94a3b8' }}>
-                78 Mun • 83 SEMA
-              </div>
-            </div>
-
-            {/* DISTRIBUIÇÃO */}
-            <div
-              style={{
-                background: 'rgba(30, 41, 59, 0.8)',
-                border: '1px solid #334155',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  color: '#cbd5e1',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Distribuição
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  color: '#ffffff',
-                  margin: '4px 0 2px',
-                }}
-              >
-                Cap: <span style={{ color: '#ef4444' }}>233</span> • Int:{' '}
-                <span style={{ color: '#38bdf8' }}>653</span>
-              </div>
-              <div style={{ fontSize: 9, color: '#94a3b8' }}>
-                26,3% vs 73,7%
+              <div style={{ fontSize: 10, color: '#fdba74' }}>
+                {totals.brig_mun} Mun • {totals.brig_semas} SEMA
               </div>
             </div>
           </div>
         </div>
 
-        {/* Abas e Filtro de Pesquisa */}
+        {/* BARRA DE CONTROLE: ABAS & BUSCA */}
         <div
           style={{
             padding: '10px 18px',
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: '#0d1322',
             borderBottom: '1px solid #1e293b',
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: 10,
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
           }}
         >
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {/* ABAS */}
+          <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={() => setActiveTab('todos')}
               style={{
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: 6,
-                fontSize: 11.5,
-                fontWeight: 700,
+                fontSize: 12,
+                fontWeight: 800,
                 cursor: 'pointer',
-                border: '1px solid',
-                background: activeTab === 'todos' ? '#ef4444' : '#1e293b',
-                borderColor: activeTab === 'todos' ? '#ef4444' : '#334155',
-                color: '#ffffff',
+                border:
+                  activeTab === 'todos'
+                    ? '1.5px solid #38bdf8'
+                    : '1px solid #334155',
+                background: activeTab === 'todos' ? '#0369a1' : '#1e293b',
+                color: activeTab === 'todos' ? '#ffffff' : '#94a3b8',
               }}
             >
-              Todos ({municipiosList.length + basesList.length} Polos)
+              Todos ({municipiosList.length + basesList.length})
             </button>
             <button
               onClick={() => setActiveTab('municipios')}
               style={{
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: 6,
-                fontSize: 11.5,
-                fontWeight: 700,
+                fontSize: 12,
+                fontWeight: 800,
                 cursor: 'pointer',
-                border: '1px solid',
-                background: activeTab === 'municipios' ? '#0284c7' : '#1e293b',
-                borderColor: activeTab === 'municipios' ? '#38bdf8' : '#334155',
-                color: '#ffffff',
+                border:
+                  activeTab === 'municipios'
+                    ? '1.5px solid #38bdf8'
+                    : '1px solid #334155',
+                background: activeTab === 'municipios' ? '#0369a1' : '#1e293b',
+                color: activeTab === 'municipios' ? '#ffffff' : '#94a3b8',
               }}
             >
-              Municípios Permanentes ({municipiosList.length})
+              Municípios Polo ({municipiosList.length})
             </button>
             <button
               onClick={() => setActiveTab('bases')}
               style={{
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: 6,
-                fontSize: 11.5,
-                fontWeight: 700,
+                fontSize: 12,
+                fontWeight: 800,
                 cursor: 'pointer',
-                border: '1px solid',
-                background: activeTab === 'bases' ? '#b91c1c' : '#1e293b',
-                borderColor: activeTab === 'bases' ? '#ef4444' : '#334155',
-                color: '#ffffff',
+                border:
+                  activeTab === 'bases'
+                    ? '1.5px solid #38bdf8'
+                    : '1px solid #334155',
+                background: activeTab === 'bases' ? '#0369a1' : '#1e293b',
+                color: activeTab === 'bases' ? '#ffffff' : '#94a3b8',
               }}
             >
               Bases Temporárias ({basesList.length})
             </button>
-            <button
-              onClick={() => setActiveTab('prevfogo')}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 6,
-                fontSize: 11.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                border: '1px solid',
-                background: activeTab === 'prevfogo' ? '#15803d' : '#1e293b',
-                borderColor: activeTab === 'prevfogo' ? '#22c55e' : '#334155',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <TreePine size={13} color="#4ade80" />
-              <span>Prevfogo IBAMA (247)</span>
-            </button>
           </div>
 
-          <div style={{ position: 'relative', width: 230 }}>
-            <Search
-              size={13}
-              color="#94a3b8"
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-              }}
-            />
+          {/* BUSCA */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#090d16',
+              border: '1px solid #334155',
+              borderRadius: 6,
+              padding: '5px 10px',
+              minWidth: 240,
+            }}
+          >
+            <Search size={14} color="#64748b" />
             <input
               type="text"
               placeholder="Buscar município ou base..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
-                width: '100%',
-                background: '#090d16',
-                border: '1px solid #334155',
-                borderRadius: 6,
-                padding: '5px 10px 5px 30px',
+                background: 'transparent',
+                border: 'none',
                 color: '#f8fafc',
-                fontSize: 11.5,
+                fontSize: 12,
+                outline: 'none',
+                width: '100%',
               }}
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Conteúdo das Tabelas Oficiais */}
-        <div
-          className="modal-body"
-          style={{
-            padding: '16px 20px',
-            background: '#090d16',
-            flex: 1,
-            overflowY: 'auto',
-          }}
-        >
-          {/* TABELA 1: MUNICÍPIOS PERMANENTES */}
+        {/* CORPO DO MODAL: TABELA COM SCROLL */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+          {/* TABELA: MUNICÍPIOS POLO */}
           {(activeTab === 'todos' || activeTab === 'municipios') && (
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 20 }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  gap: 8,
                   marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: '#38bdf8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
                 }}
               >
-                <h3
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    color: '#38bdf8',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    margin: 0,
-                  }}
-                >
-                  1. Municípios com Efetivo Permanente (26 Municípios •
-                  Subtotal: {totMunis.total})
-                </h3>
+                <Building2 size={16} />
+                <span>
+                  1. Municípios Polo Operacionais ({filteredMunis.length} de{' '}
+                  {municipiosList.length})
+                </span>
               </div>
 
               <div
                 style={{
                   overflowX: 'auto',
-                  border: '1px solid #334155',
                   borderRadius: 8,
+                  border: '1px solid #1e293b',
                 }}
               >
                 <table
                   style={{
                     width: '100%',
                     borderCollapse: 'collapse',
-                    fontSize: 11.5,
+                    fontSize: 12,
                     textAlign: 'left',
                   }}
                 >
@@ -616,446 +965,338 @@ export function EfetivoModal({
                     <tr
                       style={{
                         background: '#0f172a',
-                        borderBottom: '1.5px solid #334155',
                         color: '#94a3b8',
+                        borderBottom: '1px solid #334155',
                       }}
                     >
-                      <th style={{ padding: '8px 12px' }}>MUNICÍPIO</th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#cbd5e1',
-                        }}
-                      >
-                        EF. PERM.
+                      <th style={{ padding: '8px 12px' }}>Município</th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        CBMAM Perm.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        6ª Fase OPAM
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        7ª Fase OPAM
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Prevfogo
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Força Nac.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Brig. Mun.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Brig. SEMA
                       </th>
                       <th
                         style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#fca5a5',
+                          padding: '8px 12px',
+                          textAlign: 'right',
+                          color: '#facc15',
                         }}
                       >
-                        SV ORD
+                        Total
                       </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        6ª OPAM
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        OPAM EXT
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#fca5a5',
-                        }}
-                      >
-                        INC 2
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                          fontWeight: 900,
-                        }}
-                      >
-                        MIL. CBM
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#86efac',
-                        }}
-                      >
-                        PREVFOGO
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#7dd3fc',
-                        }}
-                      >
-                        FN
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#fdba74',
-                        }}
-                      >
-                        BRIG MUN
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        BRIG SEMA
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#ffffff',
-                          fontWeight: 900,
-                        }}
-                      >
-                        TOTAL
-                      </th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>
-                        AÇÃO
+                      <th style={{ padding: '8px 8px', textAlign: 'center' }}>
+                        Ações
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMunis.map((item, idx) => (
+                    {filteredMunis.map((r, idx) => (
                       <tr
-                        key={item.muni}
+                        key={r.key}
                         style={{
-                          background:
-                            idx % 2 === 0 ? 'rgba(15, 23, 42, 0.5)' : '#090d16',
-                          borderBottom: '1px solid #1e293b',
+                          background: idx % 2 === 0 ? '#090d16' : '#0c121e',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
                         }}
                       >
                         <td
                           style={{
-                            padding: '7px 12px',
+                            padding: '8px 12px',
                             fontWeight: 700,
-                            color: '#ffffff',
+                            color: '#f8fafc',
                           }}
                         >
-                          {item.muni}{' '}
-                          {item.tipo === 'capital' && (
+                          {r.nome}
+                          {r.nome === 'Manaus' && (
                             <span
                               style={{
-                                fontSize: 9.5,
+                                marginLeft: 6,
+                                fontSize: 10,
                                 color: '#ef4444',
-                                marginLeft: 4,
-                                fontWeight: 900,
+                                fontWeight: 800,
                               }}
                             >
                               (CAPITAL)
                             </span>
                           )}
                         </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: '#94a3b8',
-                          }}
-                        >
-                          {item.ef_permanente}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.serv_ord ? '#ef4444' : '#64748b',
-                            fontWeight: item.serv_ord ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.serv_ord || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.opam ? '#38bdf8' : '#64748b',
-                            fontWeight: item.opam ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.opam || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.opam_extra ? '#38bdf8' : '#64748b',
-                            fontWeight: item.opam_extra ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.opam_extra || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.inc2 ? '#ef4444' : '#64748b',
-                            fontWeight: item.inc2 ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.inc2 || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                            fontWeight: 900,
-                            fontFamily: 'monospace',
-                            background: 'rgba(56, 189, 248, 0.08)',
-                          }}
-                        >
-                          {item.cbmam_militares}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.prevfogo ? '#4ade80' : '#64748b',
-                            fontWeight: item.prevfogo ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.prevfogo || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.fn ? '#38bdf8' : '#64748b',
-                            fontWeight: item.fn ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.fn || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.brigadista ? '#f97316' : '#64748b',
-                            fontWeight: item.brigadista ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.brigadista || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.brigadista_sema ? '#10b981' : '#64748b',
-                            fontWeight: item.brigadista_sema ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.brigadista_sema || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            fontWeight: 900,
-                            color: '#ffffff',
-                            fontFamily: 'monospace',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                          }}
-                        >
-                          {item.total}
-                        </td>
-                        <td style={{ padding: '7px 12px', textAlign: 'right' }}>
-                          {onSelectMuni && (
-                            <button
-                              onClick={() => {
-                                onSelectMuni(item.muni);
-                                onClose();
-                              }}
+
+                        {/* CBMAM Permanente */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.serv_ord}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'serv_ord',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
                               style={{
-                                background: 'rgba(56, 189, 248, 0.15)',
-                                border: '1px solid #38bdf8',
-                                color: '#38bdf8',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: 10,
+                                color: r.serv_ord ? '#f87171' : '#475569',
                                 fontWeight: 700,
-                                cursor: 'pointer',
                               }}
                             >
-                              Ver
-                            </button>
+                              {r.serv_ord || '-'}
+                            </span>
                           )}
+                        </td>
+
+                        {/* 6ª Fase OPAM */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.opamv}
+                              onChange={(e) =>
+                                handleCellChange(r.key, 'opamv', e.target.value)
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.opamv ? '#fbbf24' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.opamv || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 7ª Fase OPAM */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.opam_ref}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'opam_ref',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.opam_ref ? '#38bdf8' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.opam_ref || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Prevfogo */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.prevfogo}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'prevfogo',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.prevfogo ? '#34d399' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.prevfogo || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Força Nacional */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.fn}
+                              onChange={(e) =>
+                                handleCellChange(r.key, 'fn', e.target.value)
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.fn ? '#22d3ee' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.fn || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Brigada Municipal */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.brig_mun}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'brig_mun',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.brig_mun ? '#fb923c' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.brig_mun || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Brigada SEMA */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.brig_semas}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'brig_semas',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.brig_semas ? '#a3e635' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.brig_semas || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Total Linha */}
+                        <td
+                          style={{
+                            padding: '8px 12px',
+                            textAlign: 'right',
+                            fontWeight: 900,
+                            color: '#facc15',
+                          }}
+                        >
+                          {r.total}
+                        </td>
+
+                        {/* Ação */}
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => onSelectMuni(r.nome)}
+                            style={{
+                              background: '#0369a1',
+                              border: 'none',
+                              color: '#ffffff',
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Ver Mapa
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr
-                      style={{
-                        background: '#0f172a',
-                        borderTop: '2px solid #334155',
-                        color: '#ffffff',
-                        fontWeight: 900,
-                      }}
-                    >
-                      <td style={{ padding: '9px 12px' }}>
-                        TOTAL MUNICÍPIOS (26)
-                      </td>
-                      <td style={{ padding: '9px 6px', textAlign: 'center' }}>
-                        {totMunis.ef_permanente}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#ef4444',
-                        }}
-                      >
-                        {totMunis.serv_ord}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totMunis.opam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totMunis.opam_extra}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#ef4444',
-                        }}
-                      >
-                        {totMunis.inc2}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totMunis.cbmam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#4ade80',
-                        }}
-                      >
-                        {totMunis.prevfogo}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totMunis.fn}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#f97316',
-                        }}
-                      >
-                        {totMunis.brigadista}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#10b981',
-                        }}
-                      >
-                        {totMunis.brigadista_sema}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#ffffff',
-                          background: '#dc2626',
-                        }}
-                      >
-                        {totMunis.total}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TABELA 2: BASES TEMPORÁRIAS */}
+          {/* TABELA: BASES TEMPORÁRIAS DE COMBATE */}
           {(activeTab === 'todos' || activeTab === 'bases') && (
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 20 }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  gap: 8,
                   marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: '#f97316',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
                 }}
               >
-                <h3
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    color: '#f59e0b',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    margin: 0,
-                  }}
-                >
-                  2. Bases Temporárias da Operação (11 Bases • Subtotal:{' '}
-                  {totBases.total})
-                </h3>
+                <Tent size={16} />
+                <span>
+                  2. Bases Temporárias de Combate ({filteredBases.length} de{' '}
+                  {basesList.length})
+                </span>
               </div>
 
               <div
                 style={{
                   overflowX: 'auto',
-                  border: '1px solid #334155',
                   borderRadius: 8,
+                  border: '1px solid #1e293b',
                 }}
               >
                 <table
                   style={{
                     width: '100%',
                     borderCollapse: 'collapse',
-                    fontSize: 11.5,
+                    fontSize: 12,
                     textAlign: 'left',
                   }}
                 >
@@ -1063,510 +1304,306 @@ export function EfetivoModal({
                     <tr
                       style={{
                         background: '#0f172a',
-                        borderBottom: '1.5px solid #334155',
                         color: '#94a3b8',
+                        borderBottom: '1px solid #334155',
                       }}
                     >
-                      <th style={{ padding: '8px 12px' }}>BASE TEMPORÁRIA</th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        6ª OPAM
+                      <th style={{ padding: '8px 12px' }}>Base Temporária</th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        CBMAM Perm.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        6ª Fase OPAM
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        7ª Fase OPAM
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Prevfogo
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Força Nac.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Brig. Mun.
+                      </th>
+                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
+                        Brig. SEMA
                       </th>
                       <th
                         style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
+                          padding: '8px 12px',
+                          textAlign: 'right',
+                          color: '#facc15',
                         }}
                       >
-                        OPAM EXT
+                        Total
                       </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#fca5a5',
-                        }}
-                      >
-                        INC 2
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                          fontWeight: 900,
-                        }}
-                      >
-                        MIL. CBM
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#86efac',
-                        }}
-                      >
-                        PREVFOGO
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#7dd3fc',
-                        }}
-                      >
-                        FN
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#fdba74',
-                        }}
-                      >
-                        BRIG MUN
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        BRIG SEMA
-                      </th>
-                      <th
-                        style={{
-                          padding: '8px 6px',
-                          textAlign: 'center',
-                          color: '#ffffff',
-                          fontWeight: 900,
-                        }}
-                      >
-                        TOTAL
-                      </th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>
-                        AÇÃO
+                      <th style={{ padding: '8px 8px', textAlign: 'center' }}>
+                        Ações
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredBases.map((item, idx) => (
+                    {filteredBases.map((r, idx) => (
                       <tr
-                        key={item.muni}
+                        key={r.key}
                         style={{
-                          background:
-                            idx % 2 === 0 ? 'rgba(15, 23, 42, 0.5)' : '#090d16',
-                          borderBottom: '1px solid #1e293b',
+                          background: idx % 2 === 0 ? '#090d16' : '#0c121e',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
                         }}
                       >
                         <td
                           style={{
-                            padding: '7px 12px',
+                            padding: '8px 12px',
                             fontWeight: 700,
-                            color: '#ffffff',
+                            color: '#f8fafc',
                           }}
                         >
-                          <span
-                            style={{
-                              background: '#1e3a8a',
-                              color: '#93c5fd',
-                              fontSize: 9,
-                              padding: '1px 5px',
-                              borderRadius: 4,
-                              marginRight: 6,
-                            }}
-                          >
-                            BASE
-                          </span>
-                          {item.muni}
+                          {r.nome}
                         </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.opam ? '#38bdf8' : '#64748b',
-                            fontWeight: item.opam ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.opam || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.opam_extra ? '#38bdf8' : '#64748b',
-                            fontWeight: item.opam_extra ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.opam_extra || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.inc2 ? '#ef4444' : '#64748b',
-                            fontWeight: item.inc2 ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.inc2 || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                            fontWeight: 900,
-                            fontFamily: 'monospace',
-                            background: 'rgba(56, 189, 248, 0.08)',
-                          }}
-                        >
-                          {item.cbmam_militares}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.prevfogo ? '#4ade80' : '#64748b',
-                            fontWeight: item.prevfogo ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.prevfogo || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.fn ? '#38bdf8' : '#64748b',
-                            fontWeight: item.fn ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.fn || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.brigadista ? '#f97316' : '#64748b',
-                            fontWeight: item.brigadista ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.brigadista || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            color: item.brigadista_sema ? '#10b981' : '#64748b',
-                            fontWeight: item.brigadista_sema ? 800 : 400,
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {item.brigadista_sema || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '7px 6px',
-                            textAlign: 'center',
-                            fontWeight: 900,
-                            color: '#ffffff',
-                            fontFamily: 'monospace',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                          }}
-                        >
-                          {item.total}
-                        </td>
-                        <td style={{ padding: '7px 12px', textAlign: 'right' }}>
-                          {onSelectMuni && (
-                            <button
-                              onClick={() => {
-                                onSelectMuni(item.muni_ref || item.muni);
-                                onClose();
-                              }}
+
+                        {/* CBMAM Perm */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.serv_ord}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'serv_ord',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
                               style={{
-                                background: 'rgba(250, 204, 21, 0.15)',
-                                border: '1px solid #facc15',
-                                color: '#facc15',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: 10,
+                                color: r.serv_ord ? '#f87171' : '#475569',
                                 fontWeight: 700,
-                                cursor: 'pointer',
                               }}
                             >
-                              Ver
-                            </button>
+                              {r.serv_ord || '-'}
+                            </span>
                           )}
+                        </td>
+
+                        {/* 6ª Fase OPAM */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.opamv}
+                              onChange={(e) =>
+                                handleCellChange(r.key, 'opamv', e.target.value)
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.opamv ? '#fbbf24' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.opamv || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 7ª Fase OPAM */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.opam_ref}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'opam_ref',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.opam_ref ? '#38bdf8' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.opam_ref || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Prevfogo */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.prevfogo}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'prevfogo',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.prevfogo ? '#34d399' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.prevfogo || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Força Nac */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.fn}
+                              onChange={(e) =>
+                                handleCellChange(r.key, 'fn', e.target.value)
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.fn ? '#22d3ee' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.fn || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Brigada Mun */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.brig_mun}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'brig_mun',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.brig_mun ? '#fb923c' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.brig_mun || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Brigada SEMA */}
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={r.brig_semas}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  r.key,
+                                  'brig_semas',
+                                  e.target.value
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: r.brig_semas ? '#a3e635' : '#475569',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.brig_semas || '-'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Total */}
+                        <td
+                          style={{
+                            padding: '8px 12px',
+                            textAlign: 'right',
+                            fontWeight: 900,
+                            color: '#facc15',
+                          }}
+                        >
+                          {r.total}
+                        </td>
+
+                        {/* Ação */}
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => onSelectMuni(r.nome)}
+                            style={{
+                              background: '#0369a1',
+                              border: 'none',
+                              color: '#ffffff',
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Ver Mapa
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr
-                      style={{
-                        background: '#0f172a',
-                        borderTop: '2px solid #334155',
-                        color: '#ffffff',
-                        fontWeight: 900,
-                      }}
-                    >
-                      <td style={{ padding: '9px 12px' }}>
-                        TOTAL BASES TEMPORÁRIAS (11)
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totBases.opam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totBases.opam_extra}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#ef4444',
-                        }}
-                      >
-                        {totBases.inc2}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totBases.cbmam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#4ade80',
-                        }}
-                      >
-                        {totBases.prevfogo}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#38bdf8',
-                        }}
-                      >
-                        {totBases.fn}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#f97316',
-                        }}
-                      >
-                        {totBases.brigadista}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#10b981',
-                        }}
-                      >
-                        {totBases.brigadista_sema}
-                      </td>
-                      <td
-                        style={{
-                          padding: '9px 6px',
-                          textAlign: 'center',
-                          color: '#ffffff',
-                          background: '#dc2626',
-                        }}
-                      >
-                        {totBases.total}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             </div>
           )}
-
-          {/* TABELA PREVFOGO */}
-          {activeTab === 'prevfogo' && (
-            <div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                  gap: 12,
-                }}
-              >
-                {PREVFOGO_RECURSOS_DISPONIVEIS.map((pf) => (
-                  <div
-                    key={pf.muni}
-                    style={{
-                      background: 'rgba(15, 23, 42, 0.85)',
-                      border: '1.5px solid rgba(34, 197, 94, 0.4)',
-                      borderRadius: 10,
-                      padding: '14px 16px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 10,
-                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
-                        paddingBottom: 6,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 13.5,
-                          fontWeight: 900,
-                          color: '#86efac',
-                        }}
-                      >
-                        {pf.muni}
-                      </span>
-                      <span
-                        style={{
-                          background: '#15803d',
-                          color: '#fff',
-                          fontSize: 10.5,
-                          fontWeight: 900,
-                          padding: '2px 8px',
-                          borderRadius: 12,
-                        }}
-                      >
-                        {pf.total} Brigadistas
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}
-                    >
-                      {pf.bases.map((b, bIdx) => (
-                        <div
-                          key={bIdx}
-                          style={{
-                            fontSize: 11,
-                            color: '#d1fae5',
-                            background: 'rgba(15, 23, 42, 0.6)',
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: '1px solid rgba(34, 197, 94, 0.15)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              fontWeight: 700,
-                            }}
-                          >
-                            <span>{b.local}</span>
-                            <span style={{ color: '#4ade80' }}>
-                              {b.efetivo} Op.
-                            </span>
-                          </div>
-                          {b.detalhe && (
-                            <div
-                              style={{
-                                fontSize: 9.5,
-                                color: '#94a3b8',
-                                marginTop: 2,
-                              }}
-                            >
-                              {b.detalhe}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Rodapé com Ação de Sincronizar Fichas no Mapa */}
-        <div
-          className="modal-footer"
-          style={{
-            background: '#0f172a',
-            borderTop: '1px solid #1e293b',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 20px',
-          }}
-        >
-          {onSyncOfficialTokens && (
-            <button
-              onClick={() => {
-                onSyncOfficialTokens();
-                onClose();
-              }}
-              style={{
-                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                border: '1px solid #34d399',
-                borderRadius: 6,
-                padding: '7px 16px',
-                color: '#ffffff',
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-              title="Carregar todos os 886 operacionais e 10 aeronaves diretamente no mapa"
-            >
-              <RefreshCw size={14} />
-              <span>Sincronizar Efetivo Oficial (886) no Mapa</span>
-            </button>
-          )}
-
-          <button
-            className="btn-tactical btn-primary"
-            onClick={onClose}
-            style={{ padding: '6px 18px', fontSize: 12, borderRadius: 6 }}
-          >
-            Fechar
-          </button>
         </div>
       </div>
     </div>
   );
 }
+
+const inputStyle = {
+  width: 50,
+  height: 26,
+  textAlign: 'right',
+  fontFamily: 'monospace',
+  fontSize: 12,
+  padding: '2px 4px',
+  borderRadius: 4,
+  border: '1px solid #10b981',
+  background: '#042f2e',
+  color: '#f8fafc',
+  outline: 'none',
+};

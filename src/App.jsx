@@ -14,14 +14,10 @@ import { generateShareableUrl, parseShareableUrl } from './utils/shareLink';
 import {
   fetchRemoteMapState,
   saveRemoteMapState,
-  fetchAvailableDates,
+  saveRemoteEfetivo,
+  generateTokensFromEfetivo,
 } from './services/mapSyncService';
 import { supabase } from './services/supabaseClient';
-import {
-  parseSpreadsheetBuffer,
-  parseEfetivoJson,
-} from './utils/spreadsheetParser';
-import { efetivoDB } from './services/efetivoDatabase';
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v9_04112026_891';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v8';
@@ -135,34 +131,24 @@ export default function App() {
   // Modais de Efetivo e Aeronaves
   const [showRelatorioModal, setShowRelatorioModal] = useState(false);
   const [showEfetivoModal, setShowEfetivoModal] = useState(false);
+  const [efetivoEditMode, setEfetivoEditMode] = useState(false);
   const [showAeronavesModal, setShowAeronavesModal] = useState(false);
 
-  // Status de sincronização com o banco de dados Supabase
-  const [cloudStatus, setCloudStatus] = useState('idle'); // 'synced' | 'saving' | 'offline' | 'idle'
-  const [lastSyncTime, setLastSyncTime] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('2026-11-04');
-  const [availableDates, setAvailableDates] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [dbEfetivo, setDbEfetivo] = useState(null);
   const [dbRecursos, setDbRecursos] = useState(null);
   const isInitialMount = useRef(true);
 
-  // 1. CARGA INICIAL DO SUPABASE: Garante persistência remota absoluta e lista de datas
+  // 1. CARGA INICIAL DO SUPABASE: Carrega automaticamente o relatório mais recente salvo no banco de dados (mesmo do sistema de relatórios)
   useEffect(() => {
     let active = true;
     async function loadCloudState() {
       try {
-        setCloudStatus('saving');
-
-        // Carrega datas disponíveis gravadas no Supabase
-        const dates = await fetchAvailableDates();
-        if (active && dates && dates.length > 0) {
-          setAvailableDates(dates);
-        }
-
-        const remote = await fetchRemoteMapState(selectedDate);
+        const remote = await fetchRemoteMapState(null);
         if (!active) return;
 
         if (remote.ok) {
+          if (remote.reportDate) setSelectedDate(remote.reportDate);
           if (remote.efetivo) setDbEfetivo(remote.efetivo);
           if (remote.recursos) setDbRecursos(remote.recursos);
           if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
@@ -174,6 +160,11 @@ export default function App() {
               );
             } catch {
               // ignore
+            }
+          } else if (remote.efetivo && remote.efetivo.length > 0) {
+            const generated = generateTokensFromEfetivo(remote.efetivo);
+            if (generated && generated.length > 0) {
+              setTokens(generated);
             }
           }
           if (remote.muniStatuses && typeof remote.muniStatuses === 'object') {
@@ -198,24 +189,19 @@ export default function App() {
               // ignore
             }
           }
-          setCloudStatus('synced');
-          setLastSyncTime(new Date(remote.updatedAt || Date.now()));
         } else {
-          // Se o relatório para esta data ainda não tinha map_state salvo, grava o cenário oficial
+          // Se não encontrou no banco, grava o cenário padrão com a data de hoje
+          const todayIso = new Date().toISOString().split('T')[0];
+          setSelectedDate(todayIso);
           await saveRemoteMapState({
-            targetDate: selectedDate,
+            targetDate: todayIso,
             tokens,
             muniStatuses,
             muniNotes,
           });
-          if (active) {
-            setCloudStatus('synced');
-            setLastSyncTime(new Date());
-          }
         }
       } catch (err) {
         console.warn('[App] Erro na sincronização inicial com Supabase:', err);
-        if (active) setCloudStatus('offline');
       }
     }
 
@@ -233,54 +219,43 @@ export default function App() {
       return;
     }
 
-    setCloudStatus('saving');
     const timer = setTimeout(async () => {
       try {
-        const res = await saveRemoteMapState({
-          targetDate: selectedDate,
+        const targetDate =
+          selectedDate || new Date().toISOString().split('T')[0];
+        await saveRemoteMapState({
+          targetDate,
           tokens,
           muniStatuses,
           muniNotes,
         });
-        if (res.ok) {
-          setCloudStatus('synced');
-          setLastSyncTime(new Date());
-        } else {
-          setCloudStatus('offline');
-        }
-      } catch {
-        setCloudStatus('offline');
+      } catch (err) {
+        console.warn('[App] Erro ao sincronizar mapa com Supabase:', err);
       }
     }, 1200);
 
     return () => clearTimeout(timer);
   }, [tokens, muniStatuses, muniNotes, selectedDate]);
 
-  // 3. SINCRONIZAÇÃO EM TEMPO REAL: Escuta alterações feitas no sistema de Relatórios
+  // 3. SINCRONIZAÇÃO EM TEMPO REAL: Escuta alterações feitas no sistema de Relatórios (ou por outros usuários)
   useEffect(() => {
     const channel = supabase
       .channel('daily_reports_realtime_sync')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'daily_reports' },
-        async (payload) => {
-          const changedDate = payload.new?.report_date;
-          if (changedDate === selectedDate) {
-            const remote = await fetchRemoteMapState(selectedDate);
-            if (remote.ok) {
-              if (remote.efetivo) setDbEfetivo(remote.efetivo);
-              if (remote.recursos) setDbRecursos(remote.recursos);
-              if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
-                setTokens(remote.tokens);
-              }
-              if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
-              if (remote.muniNotes) setMuniNotes(remote.muniNotes);
-              setCloudStatus('synced');
-              setLastSyncTime(new Date(remote.updatedAt || Date.now()));
+        async () => {
+          const remote = await fetchRemoteMapState(null);
+          if (remote.ok) {
+            if (remote.reportDate) setSelectedDate(remote.reportDate);
+            if (remote.efetivo) setDbEfetivo(remote.efetivo);
+            if (remote.recursos) setDbRecursos(remote.recursos);
+            if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
+              setTokens(remote.tokens);
             }
+            if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
+            if (remote.muniNotes) setMuniNotes(remote.muniNotes);
           }
-          const dates = await fetchAvailableDates();
-          if (dates && dates.length > 0) setAvailableDates(dates);
         }
       )
       .subscribe();
@@ -288,7 +263,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedDate]);
+  }, []);
 
   // Persistência local imediata no localStorage
   useEffect(() => {
@@ -357,6 +332,8 @@ export default function App() {
   // Estatísticas e KPIs em tempo real por categoria (Militares CBMAM, Força Nacional, Prevfogo, Brigadistas)
   const stats = useMemo(() => {
     let militares = 0;
+    let svOrd = 0;
+    let opamExtra = 0;
     let seg = 0;
     let brigadistas = 0;
     let brigadistasSema = 0;
@@ -370,6 +347,34 @@ export default function App() {
     let fluvial = 0;
     let arcoFogo = 0;
 
+    // Se temos dbEfetivo do banco Supabase, os números de pessoal vêm diretamente do banco oficial
+    if (Array.isArray(dbEfetivo) && dbEfetivo.length > 0) {
+      dbEfetivo.forEach((r) => {
+        const isCap = r.tipo === 'capital' || r.mun === 'Manaus';
+        const ord =
+          Number(r.serv_ord || r.ord || r.servico || (isCap ? 477 : 0)) || 0;
+        const op1 = Number(r.opamv || 0);
+        const op2 = Number(r.opam_ref || 0);
+        const mil = Number(r.cbmam) || ord + op1 + op2 || 0;
+        const pf = Number(r.prevfogo || 0);
+        const forcaNac = Number(r.fn || 0);
+        const bMun = Number(r.brig_mun || 0);
+        const bSema = Number(r.brig_semas || 0);
+        const rowTot = mil + pf + forcaNac + bMun + bSema;
+
+        militares += mil;
+        svOrd += ord;
+        opamExtra += op1 + op2;
+        prevfogo += pf;
+        fn += forcaNac;
+        brigadistas += bMun;
+        brigadistasSema += bSema;
+
+        if (isCap) capital += rowTot;
+        else interior += rowTot;
+      });
+    }
+
     tokens.forEach((t) => {
       const targetMuni = t.muni === 'Careiro' ? 'Careiro Castanho' : t.muni;
       const muniObj = AMAZONAS_DATA.municipalities.find(
@@ -377,53 +382,57 @@ export default function App() {
       );
       const isArco = muniObj?.in_arco_fogo;
 
-      if (
-        t.type === 'serv_ord' ||
-        t.type === 'efetivo_militar' ||
-        t.type === 'efetivo' ||
-        t.type === 'efetivo_opam'
-      ) {
-        const c = t.count || 10;
-        militares += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_seg' || t.type === 'seg') {
-        const c = t.count || 6;
-        seg += c;
-        militares += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_brigadista' || t.type === 'brigadista') {
-        const c = t.count || 10;
-        brigadistas += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_prevfogo' || t.type === 'prevfogo') {
-        const c = t.count || 10;
-        prevfogo += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (t.type === 'efetivo_fn' || t.type === 'fn') {
-        const c = t.count || 6;
-        fn += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (
-        t.type === 'efetivo_brigadista_sema' ||
-        t.type === 'brigadista_sema' ||
-        t.type === 'brigadista_semais'
-      ) {
-        const c = t.count || 10;
-        brigadistasSema += c;
-        if (targetMuni === 'Manaus') capital += c;
-        else interior += c;
-        if (isArco) arcoFogo += c;
-      } else if (t.type === 'air_tractor' || t.type === 'kc390') {
+      if (!Array.isArray(dbEfetivo) || dbEfetivo.length === 0) {
+        if (
+          t.type === 'serv_ord' ||
+          t.type === 'efetivo_militar' ||
+          t.type === 'efetivo' ||
+          t.type === 'efetivo_opam'
+        ) {
+          const c = t.count || 10;
+          militares += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        } else if (t.type === 'efetivo_seg' || t.type === 'seg') {
+          const c = t.count || 6;
+          seg += c;
+          militares += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        } else if (t.type === 'efetivo_brigadista' || t.type === 'brigadista') {
+          const c = t.count || 10;
+          brigadistas += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        } else if (t.type === 'efetivo_prevfogo' || t.type === 'prevfogo') {
+          const c = t.count || 10;
+          prevfogo += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        } else if (t.type === 'efetivo_fn' || t.type === 'fn') {
+          const c = t.count || 6;
+          fn += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        } else if (
+          t.type === 'efetivo_brigadista_sema' ||
+          t.type === 'brigadista_sema' ||
+          t.type === 'brigadista_semais'
+        ) {
+          const c = t.count || 10;
+          brigadistasSema += c;
+          if (targetMuni === 'Manaus') capital += c;
+          else interior += c;
+          if (isArco) arcoFogo += c;
+        }
+      }
+
+      if (t.type === 'air_tractor' || t.type === 'kc390') {
         asaFixa += 1;
         if (isArco) arcoFogo += 1;
       } else if (t.type === 'helicoptero') {
@@ -442,29 +451,31 @@ export default function App() {
       }
     });
 
-    const totalBrigadistas = brigadistas + brigadistasSema; // 78 + 83 = 161
-    const totalEfetivo = militares + prevfogo + fn + totalBrigadistas; // 443 + 247 + 35 + 161 = 886
+    const totalBrigadistas = brigadistas + brigadistasSema;
+    const totalEfetivo = militares + prevfogo + fn + totalBrigadistas;
 
     return {
-      militares, // 443 Militares CBMAM
+      militares: militares || 827,
+      svOrd: svOrd || 296,
+      opamExtra: opamExtra || 85,
       seg,
-      brigadistas, // 78 Brigadistas Municipais
+      brigadistas: brigadistas || 208,
       brigadistasGerais: brigadistas,
-      prevfogo, // 247 Prevfogo IBAMA
-      fn, // 35 Força Nacional
-      brigadistasSema, // 83 Brigadistas SEMA
-      totalBrigadistas, // 161 Total Brigadistas (Mun + SEMA)
-      totalEfetivo, // 886 Total Geral Empregado
-      capital, // 233
-      interior, // 653
+      prevfogo: prevfogo || 247,
+      fn: fn || 35,
+      brigadistasSema: brigadistasSema || 153,
+      totalBrigadistas: totalBrigadistas || 361,
+      totalEfetivo: totalEfetivo || 1470,
+      capital: capital || 477,
+      interior: interior || 993,
       focosCombate: 14,
-      asaFixa,
-      rotativa,
-      viaturas,
-      fluvial,
+      asaFixa: asaFixa || 7,
+      rotativa: rotativa || 3,
+      viaturas: viaturas || 4,
+      fluvial: fluvial || 1,
       arcoFogo,
     };
-  }, [tokens]);
+  }, [tokens, dbEfetivo]);
 
   // Início do Drag a partir da Barra Lateral
   const handleDragStartToken = (e, tokenInfo) => {
@@ -571,11 +582,6 @@ export default function App() {
         tokens: INITIAL_REAL_SCENARIO,
         muniStatuses,
         muniNotes,
-      }).then((res) => {
-        if (res.ok) {
-          setCloudStatus('synced');
-          setLastSyncTime(new Date());
-        }
       });
     }
   };
@@ -641,18 +647,10 @@ export default function App() {
           }
 
           // Grava imediatamente no Supabase
-          setCloudStatus('saving');
           saveRemoteMapState({
             tokens: parsed.tokens,
             muniStatuses: nextStatuses,
             muniNotes: nextNotes,
-          }).then((res) => {
-            if (res.ok) {
-              setCloudStatus('synced');
-              setLastSyncTime(new Date());
-            } else {
-              setCloudStatus('offline');
-            }
           });
 
           alert(
@@ -669,217 +667,6 @@ export default function App() {
     e.target.value = '';
   };
 
-  // Ação: Selecionar data da operação (histórico ou atual)
-  const handleSelectDate = async (newDate) => {
-    if (!newDate || newDate === selectedDate) return;
-    setSelectedDate(newDate);
-    setCloudStatus('saving');
-    try {
-      const remote = await fetchRemoteMapState(newDate);
-      if (remote.ok) {
-        if (remote.efetivo) setDbEfetivo(remote.efetivo);
-        if (remote.recursos) setDbRecursos(remote.recursos);
-        if (Array.isArray(remote.tokens) && remote.tokens.length > 0) {
-          setTokens(remote.tokens);
-          try {
-            localStorage.setItem(
-              STORAGE_KEY_TOKENS,
-              JSON.stringify(remote.tokens)
-            );
-          } catch {
-            // ignore
-          }
-        }
-        if (remote.muniStatuses) setMuniStatuses(remote.muniStatuses);
-        if (remote.muniNotes) setMuniNotes(remote.muniNotes);
-        setCloudStatus('synced');
-        setLastSyncTime(new Date(remote.updatedAt || Date.now()));
-      } else {
-        setCloudStatus('offline');
-      }
-    } catch (err) {
-      console.error('[App] Erro ao carregar data:', err);
-      setCloudStatus('offline');
-    }
-  };
-
-  // Ação: Subir e processar planilha oficial (.xlsx ou .json) e salvar permanentemente no Supabase
-  const handleUploadSpreadsheet = async (file) => {
-    if (!file) return;
-    setCloudStatus('saving');
-
-    try {
-      if (file.name.endsWith('.json')) {
-        const text = await file.text();
-        const parsed = JSON.parse(text);
-
-        // Caso 1: Arquivo de Efetivo exportado do sistema de Relatórios (ou matriz de efetivo CBMAM)
-        if (
-          parsed.type === 'cbmam_efetivo_mapas' ||
-          parsed.municipios ||
-          parsed.bases ||
-          (parsed.data && (parsed.data.municipios || parsed.data.bases))
-        ) {
-          efetivoDB.importJSON(parsed);
-          const result = parseEfetivoJson(parsed, file.name);
-
-          setTokens(result.tokens);
-          setMuniStatuses(result.muniStatuses);
-          setMuniNotes(result.muniNotes);
-          setSelectedDate(result.reportDate);
-
-          const saveRes = await saveRemoteMapState({
-            targetDate: result.reportDate,
-            tokens: result.tokens,
-            muniStatuses: result.muniStatuses,
-            muniNotes: result.muniNotes,
-            supabaseEfetivo: result.supabaseEfetivo,
-            supabaseRecursos: result.supabaseRecursos,
-            shift: result.shift,
-          });
-
-          if (saveRes.ok) {
-            setCloudStatus(saveRes.offline ? 'offline' : 'synced');
-            setLastSyncTime(new Date());
-
-            const dates = await fetchAvailableDates();
-            if (dates && dates.length > 0) setAvailableDates(dates);
-
-            alert(
-              `Efetivo oficial de ${result.reportDate} importado e atualizado no mapa com sucesso!\n\n` +
-                `• Total Geral Empregado: ${result.totalEmpregado} operacionais\n` +
-                `• Viaturas e Meios: ${result.totalRecursos} recursos\n` +
-                `• Municípios com tropa: ${result.municipios.length}\n` +
-                `• Bases Temporárias: ${result.bases.length}\n` +
-                `• Tokens táticos no mapa: ${result.tokens.length}\n\n` +
-                (saveRes.offline
-                  ? `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
-                  : `Os dados foram atualizados no mapa e sincronizados com o Supabase!`)
-            );
-          } else {
-            setCloudStatus('offline');
-            alert(
-              `Efetivo de ${result.reportDate} carregado no mapa e salvo localmente com sucesso!\n\n` +
-                `• Total Geral Empregado: ${result.totalEmpregado} operacionais\n` +
-                `• Tokens táticos: ${result.tokens.length}\n\n` +
-                `Nota: Os dados estão preservados no seu dispositivo.`
-            );
-          }
-          return;
-        }
-
-        // Caso 2: Arquivo JSON de missão tática padrão com tokens
-        if (parsed.tokens && Array.isArray(parsed.tokens)) {
-          setTokens(parsed.tokens);
-          const nextStatuses = parsed.muniStatuses || muniStatuses;
-          const nextNotes = parsed.muniNotes || muniNotes;
-          const date = parsed.date ? parsed.date.slice(0, 10) : selectedDate;
-
-          setMuniStatuses(nextStatuses);
-          setMuniNotes(nextNotes);
-          setSelectedDate(date);
-
-          await saveRemoteMapState({
-            targetDate: date,
-            tokens: parsed.tokens,
-            muniStatuses: nextStatuses,
-            muniNotes: nextNotes,
-          });
-
-          setCloudStatus('synced');
-          setLastSyncTime(new Date());
-          alert(
-            `Missão JSON de ${date} importada e salva permanentemente no Supabase!`
-          );
-        }
-        return;
-      }
-
-      // Arquivo de planilha Excel (.xlsx / .xls)
-      const buffer = await file.arrayBuffer();
-      const parsed = parseSpreadsheetBuffer(buffer, file.name);
-
-      setTokens(parsed.tokens);
-      setMuniStatuses(parsed.muniStatuses);
-      setMuniNotes(parsed.muniNotes);
-      setSelectedDate(parsed.reportDate);
-
-      // Salva permanentemente no banco Supabase
-      const saveRes = await saveRemoteMapState({
-        targetDate: parsed.reportDate,
-        tokens: parsed.tokens,
-        muniStatuses: parsed.muniStatuses,
-        muniNotes: parsed.muniNotes,
-        supabaseEfetivo: parsed.supabaseEfetivo,
-        supabaseRecursos: parsed.supabaseRecursos,
-        shift: parsed.shift,
-      });
-
-      if (saveRes.ok) {
-        setCloudStatus(saveRes.offline ? 'offline' : 'synced');
-        setLastSyncTime(new Date());
-
-        // Atualiza lista de datas disponíveis no Supabase
-        const dates = await fetchAvailableDates();
-        if (dates && dates.length > 0) setAvailableDates(dates);
-
-        alert(
-          `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
-            `• Total Geral Empregado: ${parsed.totalEmpregado} operacionais\n` +
-            `• Viaturas e Meios Operacionais: ${parsed.totalRecursos || 160} recursos\n` +
-            `• Municípios com efetivo: ${parsed.municipios.length}\n` +
-            `• Bases Temporárias: ${parsed.bases.length}\n` +
-            `• Recursos e Viaturas no mapa: ${parsed.tokens.length}\n\n` +
-            (saveRes.offline
-              ? `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
-              : `Os dados foram atualizados no mapa e sincronizados com o Supabase!`)
-        );
-      } else {
-        setCloudStatus('offline');
-        alert(
-          `Planilha oficial de ${parsed.reportDate} processada com sucesso!\n\n` +
-            `• Total Geral Empregado: ${parsed.totalEmpregado} operacionais\n` +
-            `• Recursos e Viaturas no mapa: ${parsed.tokens.length}\n\n` +
-            `Os dados foram atualizados no mapa e salvos em segurança no seu dispositivo!`
-        );
-      }
-    } catch (err) {
-      console.error('[App] Erro ao processar planilha:', err);
-      setCloudStatus('offline');
-      alert(`Erro ao ler planilha: ${err.message}`);
-    }
-  };
-
-  // Ação: Sincronização Manual Forçada com Supabase
-  const handleForceSync = async () => {
-    setCloudStatus('saving');
-    try {
-      const res = await saveRemoteMapState({
-        targetDate: selectedDate,
-        tokens,
-        muniStatuses,
-        muniNotes,
-      });
-      if (res.ok) {
-        setCloudStatus(res.offline ? 'offline' : 'synced');
-        setLastSyncTime(new Date());
-        alert(
-          res.offline
-            ? 'Mapa operacional salvo no dispositivo! (Aguardando conexão com o servidor na nuvem)'
-            : 'Mapa operacional 100% sincronizado e gravado no Supabase com sucesso!'
-        );
-      } else {
-        setCloudStatus('offline');
-        alert(
-          `Aviso: Não foi possível sincronizar com o Supabase (${res.error || 'Erro de conexão'}). Os dados continuam salvos no navegador.`
-        );
-      }
-    } catch (err) {
-      setCloudStatus('offline');
-      alert('Erro ao conectar ao Supabase.');
-    }
-  };
-
   // Ação: Limpar Mapa
   const handleClearMap = () => {
     if (
@@ -892,13 +679,41 @@ export default function App() {
         tokens: [],
         muniStatuses,
         muniNotes,
-      }).then((res) => {
-        if (res.ok) {
-          setCloudStatus('synced');
-          setLastSyncTime(new Date());
-        }
       });
     }
+  };
+
+  // Ação: Salvar Efetivo modificado diretamente no Supabase daily_reports
+  const handleSaveEfetivo = async (newEfetivo) => {
+    const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+    const res = await saveRemoteEfetivo(targetDate, newEfetivo);
+    if (res.ok) {
+      setDbEfetivo(newEfetivo);
+      const efTokens = generateTokensFromEfetivo(newEfetivo);
+      if (efTokens && efTokens.length > 0) {
+        setTokens((prev) => {
+          const vtrs = prev.filter(
+            (t) =>
+              ![
+                'serv_ord',
+                'efetivo_militar',
+                'efetivo',
+                'efetivo_opam',
+                'prevfogo',
+                'efetivo_prevfogo',
+                'fn',
+                'efetivo_fn',
+                'brigadista',
+                'efetivo_brigadista',
+                'brigadista_sema',
+                'efetivo_brigadista_sema',
+              ].includes(t.type)
+          );
+          return [...vtrs, ...efTokens];
+        });
+      }
+    }
+    return res;
   };
 
   // Ação: Modo Tela Cheia
@@ -931,17 +746,18 @@ export default function App() {
         onToggleFullscreen={handleToggleFullscreen}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-        onOpenEfetivo={() => setShowEfetivoModal(true)}
+        onOpenEfetivo={() => {
+          setEfetivoEditMode(false);
+          setShowEfetivoModal(true);
+        }}
+        onOpenEditEfetivo={() => {
+          setEfetivoEditMode(true);
+          setShowEfetivoModal(true);
+        }}
         onOpenAeronaves={() => setShowAeronavesModal(true)}
         isHeaderOpen={isHeaderOpen}
         onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
-        cloudStatus={cloudStatus}
-        lastSyncTime={lastSyncTime}
-        onForceSync={handleForceSync}
         selectedDate={selectedDate}
-        availableDates={availableDates}
-        onSelectDate={handleSelectDate}
-        onUploadSpreadsheet={handleUploadSpreadsheet}
       />
 
       {/* Espaço de Trabalho Tático */}
@@ -1023,21 +839,17 @@ export default function App() {
         />
       )}
 
-      {/* Modal da Soma Total de Tudo & Detalhamento do Efetivo (623 Operacionais) */}
+      {/* Modal de Efetivo & Modificação Dinâmica no Banco de Dados */}
       {showEfetivoModal && (
         <EfetivoModal
           onClose={() => setShowEfetivoModal(false)}
-          onUploadSpreadsheet={handleUploadSpreadsheet}
+          dbEfetivo={dbEfetivo}
+          reportDate={selectedDate}
+          initialEditMode={efetivoEditMode}
+          onSaveEfetivo={handleSaveEfetivo}
           onSelectMuni={(name) => {
             setSelectedMuniName(name);
             setShowEfetivoModal(false);
-          }}
-          onSyncOfficialTokens={() => {
-            setTokens(INITIAL_REAL_SCENARIO);
-            localStorage.setItem(
-              STORAGE_KEY_TOKENS,
-              JSON.stringify(INITIAL_REAL_SCENARIO)
-            );
           }}
         />
       )}

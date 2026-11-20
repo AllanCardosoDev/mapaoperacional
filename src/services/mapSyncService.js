@@ -113,7 +113,7 @@ export async function fetchAvailableDates() {
 /**
  * Converte o array de efetivo de uma data do Supabase em tokens no mapa caso a data não tenha map_state explícito
  */
-function generateTokensFromEfetivo(efetivoList) {
+export function generateTokensFromEfetivo(efetivoList) {
   if (!Array.isArray(efetivoList) || efetivoList.length === 0) return null;
 
   const tokens = [];
@@ -503,5 +503,76 @@ export async function saveRemoteMapState({
       reportDate: finalDate,
       updatedAt,
     };
+  }
+}
+
+/**
+ * Salva diretamente o array de efetivo na tabela daily_reports do Supabase
+ * Atualiza o efetivo compartilhado entre o mapa e o sistema de relatórios
+ */
+export async function saveRemoteEfetivo(reportDate, newEfetivo) {
+  const updatedAt = new Date().toISOString();
+  try {
+    let query = supabase.from('daily_reports').select('id, report_date');
+
+    if (reportDate) {
+      query = query.eq('report_date', reportDate);
+    } else {
+      query = query.order('report_date', { ascending: false });
+    }
+
+    const { data: rows, error: searchErr } = await query
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (searchErr) throw searchErr;
+
+    const existing = rows && rows.length > 0 ? rows[0] : null;
+
+    if (existing) {
+      const { error: updErr } = await supabase
+        .from('daily_reports')
+        .update({
+          efetivo: newEfetivo,
+          updated_at: updatedAt,
+        })
+        .eq('id', existing.id);
+
+      if (updErr) throw updErr;
+      return {
+        ok: true,
+        reportId: existing.id,
+        reportDate: existing.report_date,
+        updatedAt,
+      };
+    } else {
+      const finalDate = reportDate || new Date().toISOString().split('T')[0];
+      const { data: inserted, error: insErr } = await supabase
+        .from('daily_reports')
+        .insert({
+          report_date: finalDate,
+          shift: 'noturno',
+          efetivo: newEfetivo,
+          recursos: [],
+          incendios: [],
+          outras: [],
+          version: 1,
+          created_at: updatedAt,
+          updated_at: updatedAt,
+        })
+        .select('id, report_date')
+        .single();
+
+      if (insErr) throw insErr;
+      return {
+        ok: true,
+        reportId: inserted.id,
+        reportDate: inserted.report_date,
+        updatedAt,
+      };
+    }
+  } catch (err) {
+    console.error('[MapSync] Erro ao salvar efetivo no Supabase:', err);
+    return { ok: false, error: err.message };
   }
 }
