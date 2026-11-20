@@ -252,11 +252,7 @@ export async function fetchRemoteMapState(targetDate = null) {
     if (targetDate) {
       query = query.eq('report_date', targetDate);
     } else {
-      const todayIso = new Date().toISOString().split('T')[0];
-      query = query
-        .lte('report_date', todayIso)
-        .order('report_date', { ascending: false })
-        .order('shift', { ascending: false });
+      query = query.order('report_date', { ascending: false });
     }
 
     const { data: rows, error } = await query
@@ -288,21 +284,7 @@ export async function fetchRemoteMapState(targetDate = null) {
 
     let reportRows = rows;
     if (!reportRows || reportRows.length === 0) {
-      if (!targetDate) {
-        const { data: fallbackRows } = await supabase
-          .from('daily_reports')
-          .select(
-            'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
-          )
-          .order('report_date', { ascending: false })
-          .order('shift', { ascending: false })
-          .limit(1);
-        if (fallbackRows && fallbackRows.length > 0) {
-          reportRows = fallbackRows;
-        } else {
-          return { ok: false, empty: true, targetDate };
-        }
-      } else {
+      if (targetDate) {
         // Herança automática do dia anterior mais recente (carry-over)
         const { data: prevRows } = await supabase
           .from('daily_reports')
@@ -319,6 +301,8 @@ export async function fetchRemoteMapState(targetDate = null) {
         } else {
           return { ok: false, empty: true, targetDate };
         }
+      } else {
+        return { ok: false, empty: true, targetDate };
       }
     }
 

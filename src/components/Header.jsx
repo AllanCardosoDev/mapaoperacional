@@ -61,7 +61,9 @@ export function Header({
   cloudStatus = 'synced',
   lastSyncTime = null,
   onForceSync = () => {},
-  selectedDate = null,
+  selectedDate = '2026-11-03',
+  availableDates = [],
+  onSelectDate = () => {},
   onUploadSpreadsheet = () => {},
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
@@ -374,18 +376,29 @@ export function Header({
           <span>Relatório</span>
         </button>
 
-        {/* MENSAGEM DE ATUALIZAÇÃO / BANCO SUPABASE (RELATÓRIOS CBMAM) */}
+        {/* SELETOR DE DATA DA OPERAÇÃO / BANCO SUPABASE */}
         <div
-          className="header-date-badge"
-          title={`Dados integrados da Sala de Situação CBMAM (mesmo banco de dados do sistema de Relatórios). Última atualização da operação: ${formatDisplayDate(selectedDate)}`}
+          className="header-date-selector"
+          title="Selecione o dia da operação para visualizar o mapa histórico correspondente"
         >
-          <Calendar size={13} className="header-date-icon" />
-          <span className="header-date-text">
-            Atualizado até{' '}
-            <strong className="header-date-value">
-              {formatDisplayDate(selectedDate) || '...'}
-            </strong>
-          </span>
+          <Calendar size={13} color="#38bdf8" />
+          <select
+            value={selectedDate || ''}
+            onChange={(e) => onSelectDate(e.target.value)}
+            className="date-select-input"
+          >
+            {availableDates && availableDates.length > 0 ? (
+              availableDates.map((item) => (
+                <option key={item.date} value={item.date}>
+                  {formatDisplayDate(item.date)}
+                </option>
+              ))
+            ) : (
+              <option value={selectedDate || '2026-11-03'}>
+                {formatDisplayDate(selectedDate || '2026-11-03')}
+              </option>
+            )}
+          </select>
         </div>
 
         {/* BOTÃO: SUBIR PLANILHA OFICIAL (.XLSX) */}
