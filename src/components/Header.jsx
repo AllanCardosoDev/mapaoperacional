@@ -88,18 +88,17 @@ export function Header({
   }
 
   // Cálculos consolidados para os pods executivos
-  const totalEfetivo = stats.totalEfetivo || 1470;
-  const militares = stats.militares || 827;
-  const svOrd = stats.svOrd || 296;
+  const totalEfetivo = stats.totalEfetivo || 742;
+  const militares = stats.militares || 85;
   const opamExtra = stats.opamExtra || 85;
-  const brigMun = stats.brigadistas || 208;
+  const brigMun = stats.brigadistas || 222;
   const brigSema = stats.brigadistasSema || 153;
   const totalBrig = stats.totalBrigadistas || brigMun + brigSema;
   const prevfogo = stats.prevfogo || 247;
   const fn = stats.fn || 35;
   const forcasParceiras = prevfogo + fn + totalBrig;
-  const capital = stats.capital || 477;
-  const interior = stats.interior || totalEfetivo - capital;
+  const capital = stats.capital || 105;
+  const interior = stats.interior || 637;
   const totalAeronaves = (stats.asaFixa || 7) + (stats.rotativa || 3);
   const totalMeios =
     totalAeronaves + (stats.viaturas || 4) + (stats.fluvial || 1);
@@ -218,7 +217,7 @@ export function Header({
         <div
           className="exec-kpi-pod pod-gold"
           onClick={onOpenEfetivo}
-          title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (886 Operacionais: 233 Capital / 653 Interior)"
+          title="Clique para abrir o Painel Completo de Efetivo e Combates Ativos (742 Operacionais: 105 Capital / 637 Interior)"
         >
           <div className="pod-icon-wrap">
             <Users size={16} color="#facc15" />
@@ -226,13 +225,13 @@ export function Header({
           <div className="pod-body">
             <div className="pod-top-row">
               <span className="pod-label">TOTAL GERAL EMPREGADO</span>
-              <span className="pod-badge">OFICIAL 886</span>
+              <span className="pod-badge">742 EM CAMPO</span>
             </div>
             <div className="pod-value-row">
               <span className="pod-hero-number">{totalEfetivo}</span>
               <span className="pod-subdetail">
-                <b>{militares}</b> Militares ({svOrd} SV ORD • {opamExtra} OPAM)
-                • <b>{capital}</b> Cap / <b>{interior}</b> Int
+                <b>{militares}</b> Militares ({opamExtra} OPAM) •{' '}
+                <b>{capital}</b> Cap / <b>{interior}</b> Int
               </span>
             </div>
           </div>
@@ -242,7 +241,7 @@ export function Header({
         <div
           className="exec-kpi-pod pod-forest"
           onClick={onOpenEfetivo}
-          title="Clique para ver detalhes do Prevfogo IBAMA (247), Força Nacional (35) e Brigadistas (161: 78 Mun + 83 SEMA)"
+          title="Clique para ver detalhes do Prevfogo IBAMA (247), Força Nacional (35) e Brigadistas (375: 222 Mun + 153 SEMA)"
         >
           <div className="pod-icon-wrap">
             <Leaf size={16} color="#4ade80" />
@@ -250,7 +249,7 @@ export function Header({
           <div className="pod-body">
             <div className="pod-top-row">
               <span className="pod-label">PARCEIROS & BRIGADAS</span>
-              <span className="pod-badge green">443 FORÇAS</span>
+              <span className="pod-badge green">657 FORÇAS</span>
             </div>
             <div className="pod-value-row">
               <span className="pod-hero-number">{forcasParceiras}</span>

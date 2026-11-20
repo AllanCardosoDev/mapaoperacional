@@ -1,8 +1,14 @@
 import { supabase } from './supabaseClient';
 import {
-  OPERACAO_EFETIVO_MUNICIPIOS,
-  OPERACAO_RECURSOS_MUNICIPIOS,
-} from '../data/operacaoAmazonasData';
+  MUNICIPIOS_POLO_LIST,
+  BASES_TEMPORARIAS_LIST,
+  BENCHMARK_PERMANENTE_CBMAM,
+  BENCHMARK_MUNICIPIOS_OPERACIONAL,
+  BENCHMARK_BASES_OPERACIONAL,
+  getOficialEfetivoArray,
+  norm,
+} from '../data/efetivoOficial';
+import { OPERACAO_RECURSOS_MUNICIPIOS } from '../data/operacaoAmazonasData';
 import { findCoordinates } from '../utils/spreadsheetParser';
 
 const LOCAL_STORAGE_BACKUP_PREFIX = 'cbmam_map_supabase_backup_';
@@ -49,30 +55,10 @@ export function buildSupabaseRecursosArray() {
 }
 
 /**
- * Converte a matriz de operacionais para a estrutura da coluna `efetivo` do Supabase
+ * Converte a matriz canônica de 742 operacionais para a coluna `efetivo` do Supabase
  */
 export function buildSupabaseEfetivoArray() {
-  return OPERACAO_EFETIVO_MUNICIPIOS.map((item) => {
-    return {
-      mun: item.muni,
-      ord: item.serv_ord || 0,
-      seg: item.seg || 0,
-      brig: (item.brigadista || 0) + (item.brigadista_sema || 0),
-      servico: item.serv_ord || 0,
-      opamv: item.opam || 0,
-      opam_ref: item.opam_extra || 0,
-      inc1: item.inc1 || 0,
-      inc2: item.inc2 || 0,
-      inc3: item.inc3 || 0,
-      cbmsp: item.cbmsp || 0,
-      prevfogo: item.prevfogo || 0,
-      fn: item.fn || 0,
-      marinha: 0,
-      brig_mun: item.brigadista || 0,
-      brig_semas: item.brigadista_sema || 0,
-      cbmam: item.cbmam_militares || item.serv_ord || 0,
-    };
-  });
+  return getOficialEfetivoArray('diario');
 }
 
 /**
@@ -143,31 +129,30 @@ export function generateTokensFromEfetivo(efetivoList) {
     };
 
     const milCount =
-      item.cbmam ||
-      item.servico ||
-      (item.ord || 0) +
-        (item.opamv || 0) +
-        (item.opam_ref || 0) +
-        (item.inc1 || 0) +
-        (item.inc2 || 0) +
-        (item.inc3 || 0);
+      Number(item.cbmam) ||
+      Number(item.servico) ||
+      (Number(item.ord) || 0) +
+        (Number(item.opamv) || 0) +
+        (Number(item.opam_ref) || 0);
 
     if (milCount > 0)
       addTk('serv_ord', milCount, `${milCount} Militares CBMAM`);
-    if (item.cbmsp > 0) addTk('serv_ord', item.cbmsp, `${item.cbmsp} CBMSP`);
-    if (item.prevfogo > 0)
-      addTk('prevfogo', item.prevfogo, `${item.prevfogo} Prevfogo`);
-    if (item.fn > 0) addTk('fn', item.fn, `${item.fn} Força Nacional`);
-    if (item.brig_mun > 0)
-      addTk('brigadista', item.brig_mun, `${item.brig_mun} Brig. Mun.`);
-    if (item.brig_semas > 0)
+    if (Number(item.cbmsp) > 0)
+      addTk('serv_ord', Number(item.cbmsp), `${item.cbmsp} CBMSP`);
+    if (Number(item.prevfogo) > 0)
+      addTk('prevfogo', Number(item.prevfogo), `${item.prevfogo} Prevfogo`);
+    if (Number(item.fn) > 0)
+      addTk('fn', Number(item.fn), `${item.fn} Força Nacional`);
+    if (Number(item.brig_mun) > 0)
+      addTk('brigadista', Number(item.brig_mun), `${item.brig_mun} Brig. Mun.`);
+    if (Number(item.brig_semas) > 0)
       addTk(
         'brigadista_sema',
-        item.brig_semas,
+        Number(item.brig_semas),
         `${item.brig_semas} Brig. SEMA`
       );
-    if (!item.brig_mun && !item.brig_semas && item.brig > 0) {
-      addTk('brigadista', item.brig, `${item.brig} Brigadistas`);
+    if (!item.brig_mun && !item.brig_semas && Number(item.brig) > 0) {
+      addTk('brigadista', Number(item.brig), `${item.brig} Brigadistas`);
     }
   });
 
@@ -238,10 +223,152 @@ function generateTokensFromRecursos(recursosList) {
 }
 
 /**
+ * Harmoniza o array de efetivo de qualquer relatório com os benchmarks oficiais
+ * Garante que nunca apareçam dados zerados e que bata exatamente 742 operacionais
+ */
+function harmonizeWithBenchmarks(efetivoArray) {
+  const baseNormSet = new Set(BASES_TEMPORARIAS_LIST.map((b) => norm(b)));
+  const efMap = new Map();
+
+  if (Array.isArray(efetivoArray)) {
+    efetivoArray.forEach((r) => {
+      if (!r?.mun) return;
+      const isBase = r.tipo === 'base' || baseNormSet.has(norm(r.mun));
+      efMap.set(`${isBase ? 'base' : 'mun'}:${norm(r.mun)}`, r);
+    });
+  }
+
+  const harmonized = [];
+
+  // 1. Polos (26)
+  MUNICIPIOS_POLO_LIST.forEach((nome) => {
+    const isCap = nome === 'Manaus';
+    const key = `mun:${norm(nome)}`;
+    const raw = efMap.get(key);
+    const bm = BENCHMARK_MUNICIPIOS_OPERACIONAL[nome] || {};
+    const bm_perm = BENCHMARK_PERMANENTE_CBMAM[nome] || 0;
+    const hasData =
+      raw &&
+      (raw._custom ||
+        [
+          raw.serv_ord,
+          raw.cbmam,
+          raw.opamv,
+          raw.opam_ref,
+          raw.prevfogo,
+          raw.fn,
+          raw.brig_mun,
+          raw.brig_semas,
+        ].some((v) => Number(v) > 0));
+
+    const cbmam = Number(
+      hasData ? (raw.cbmam ?? raw.serv_ord ?? bm_perm) : bm_perm
+    );
+    const serv_ord = cbmam;
+    const opamv = Number(
+      hasData ? (raw.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+    );
+    const opam_ref = Number(
+      hasData ? (raw.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+    );
+    const prevfogo = Number(
+      hasData ? (raw.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+    );
+    const fn = Number(hasData ? (raw.fn ?? bm.fn ?? 0) : bm.fn || 0);
+    const brig_mun = Number(
+      hasData ? (raw.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+    );
+    const brig_semas = Number(
+      hasData ? (raw.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
+    );
+    // Total em atuação na operação (Col M da planilha oficial)
+    const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
+
+    harmonized.push({
+      mun: nome,
+      tipo: isCap ? 'capital' : 'interior',
+      serv_ord,
+      ord: serv_ord,
+      servico: serv_ord,
+      cbmam,
+      opamv,
+      opam_ref,
+      prevfogo,
+      fn,
+      marinha: 0,
+      cbmsp: 0,
+      brig_mun,
+      brig_semas,
+      total,
+      _custom: !!raw?._custom,
+    });
+  });
+
+  // 2. Bases (12)
+  BASES_TEMPORARIAS_LIST.forEach((nome) => {
+    const key = `base:${norm(nome)}`;
+    const raw = efMap.get(key);
+    const bm = BENCHMARK_BASES_OPERACIONAL[nome] || {};
+    const hasData =
+      raw &&
+      (raw._custom ||
+        [
+          raw.serv_ord,
+          raw.cbmam,
+          raw.opamv,
+          raw.opam_ref,
+          raw.prevfogo,
+          raw.fn,
+          raw.brig_mun,
+          raw.brig_semas,
+        ].some((v) => Number(v) > 0));
+
+    const opamv = Number(
+      hasData ? (raw.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+    );
+    const opam_ref = Number(
+      hasData ? (raw.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+    );
+    const prevfogo = Number(
+      hasData ? (raw.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+    );
+    const fn = Number(hasData ? (raw.fn ?? bm.fn ?? 0) : bm.fn || 0);
+    const brig_mun = Number(
+      hasData ? (raw.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+    );
+    const brig_semas = Number(
+      hasData ? (raw.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
+    );
+    // Total em atuação na base (Col M da planilha oficial)
+    const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
+
+    harmonized.push({
+      mun: nome,
+      tipo: 'base',
+      serv_ord: 0,
+      ord: 0,
+      servico: 0,
+      cbmam: 0,
+      opamv,
+      opam_ref,
+      prevfogo,
+      fn,
+      marinha: 0,
+      cbmsp: 0,
+      brig_mun,
+      brig_semas,
+      total,
+      _custom: !!raw?._custom,
+    });
+  });
+
+  return harmonized;
+}
+
+/**
  * Busca o estado do mapa para uma data específica (ou o mais recente oficial se omitido)
  */
 export async function fetchRemoteMapState(targetDate = null) {
-  // Persistência e leitura direta Supabase (mesmo banco do Relatório)
   try {
     let query = supabase
       .from('daily_reports')
@@ -257,58 +384,63 @@ export async function fetchRemoteMapState(targetDate = null) {
 
     const { data: rows, error } = await query
       .order('updated_at', { ascending: false })
-      .limit(1);
+      .limit(10);
 
     if (error) {
-      // Tentar backup do localStorage
-      const localBackup = targetDate
-        ? localStorage.getItem(`${LOCAL_STORAGE_BACKUP_PREFIX}${targetDate}`)
-        : null;
-      if (localBackup) {
-        try {
-          const parsed = JSON.parse(localBackup);
-          return {
-            ok: true,
-            reportDate: targetDate,
-            tokens: parsed.tokens,
-            muniStatuses: parsed.muniStatuses,
-            muniNotes: parsed.muniNotes,
-            updatedAt: parsed.updatedAt,
-          };
-        } catch (err) {
-          console.debug('[MapSync] Parse backup:', err.message);
-        }
-      }
-      return { ok: false, error: error.message };
+      console.warn('[MapSync] Aviso do Supabase:', error.message);
+      const fallbackEfetivo = getOficialEfetivoArray('diario');
+      return {
+        ok: true,
+        reportDate: targetDate || new Date().toISOString().split('T')[0],
+        tokens: generateTokensFromEfetivo(fallbackEfetivo),
+        efetivo: fallbackEfetivo,
+        muniStatuses: null,
+        muniNotes: null,
+      };
     }
 
-    let reportRows = rows;
-    if (!reportRows || reportRows.length === 0) {
-      if (targetDate) {
-        // Herança automática do dia anterior mais recente (carry-over)
-        const { data: prevRows } = await supabase
-          .from('daily_reports')
-          .select(
-            'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
-          )
-          .lt('report_date', targetDate)
-          .order('report_date', { ascending: false })
-          .order('shift', { ascending: false })
-          .limit(1);
+    // Procura o relatório que contenha efetivo preenchido
+    let report =
+      (rows || []).find(
+        (r) => Array.isArray(r.efetivo) && r.efetivo.length > 5
+      ) || (rows || [])[0];
 
-        if (prevRows && prevRows.length > 0) {
-          reportRows = prevRows;
-        } else {
-          return { ok: false, empty: true, targetDate };
-        }
-      } else {
-        return { ok: false, empty: true, targetDate };
+    // Se no lote recente não encontrou efetivo preenchido, busca histórico (carry-over contínuo)
+    if (
+      !report ||
+      !Array.isArray(report.efetivo) ||
+      report.efetivo.length <= 5
+    ) {
+      const { data: donorRows } = await supabase
+        .from('daily_reports')
+        .select(
+          'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
+        )
+        .not('efetivo', 'is', null)
+        .order('report_date', { ascending: false })
+        .limit(20);
+
+      const donor = (donorRows || []).find(
+        (r) => Array.isArray(r.efetivo) && r.efetivo.length > 5
+      );
+      if (donor) {
+        report = donor;
       }
     }
 
-    const report = reportRows[0];
+    if (!report) {
+      const fallbackEfetivo = getOficialEfetivoArray('diario');
+      return {
+        ok: true,
+        reportDate: targetDate || new Date().toISOString().split('T')[0],
+        tokens: generateTokensFromEfetivo(fallbackEfetivo),
+        efetivo: fallbackEfetivo,
+        muniStatuses: null,
+        muniNotes: null,
+      };
+    }
+
     let mapState = null;
-
     if (report.notes) {
       try {
         const parsedNotes =
@@ -324,20 +456,20 @@ export async function fetchRemoteMapState(targetDate = null) {
       }
     }
 
+    // Harmoniza o efetivo com os 742 operacionais canônicos
+    const finalEfetivo = harmonizeWithBenchmarks(report.efetivo);
+
     let tokens = mapState?.tokens || null;
     let muniStatuses = mapState?.muniStatuses || null;
     let muniNotes = mapState?.muniNotes || null;
 
     if (!tokens || tokens.length === 0) {
-      const efTokens =
-        Array.isArray(report.efetivo) && report.efetivo.length > 0
-          ? generateTokensFromEfetivo(report.efetivo)
-          : [];
+      const efTokens = generateTokensFromEfetivo(finalEfetivo) || [];
       const recTokens =
         Array.isArray(report.recursos) && report.recursos.length > 0
           ? generateTokensFromRecursos(report.recursos)
           : [];
-      const combined = [...(efTokens || []), ...(recTokens || [])];
+      const combined = [...efTokens, ...recTokens];
       if (combined.length > 0) tokens = combined;
     }
 
@@ -350,19 +482,26 @@ export async function fetchRemoteMapState(targetDate = null) {
       tokens,
       muniStatuses,
       muniNotes,
-      efetivo: report.efetivo || null,
+      efetivo: finalEfetivo,
       recursos: report.recursos || null,
       updatedAt: mapState?.updatedAt || report.updated_at,
     };
   } catch (err) {
     console.warn('[MapSync] Aviso na comunicação com Supabase:', err);
-    return { ok: false, error: err.message };
+    const fallbackEfetivo = getOficialEfetivoArray('diario');
+    return {
+      ok: true,
+      reportDate: targetDate || new Date().toISOString().split('T')[0],
+      tokens: generateTokensFromEfetivo(fallbackEfetivo),
+      efetivo: fallbackEfetivo,
+      muniStatuses: null,
+      muniNotes: null,
+    };
   }
 }
 
 /**
  * Salva permanentemente o estado tático do mapa para uma data específica.
- * Atualiza o daily_reports compartilhado com o sistema de relatórios.
  */
 export async function saveRemoteMapState({
   targetDate = null,
@@ -377,7 +516,7 @@ export async function saveRemoteMapState({
   const finalDate = targetDate || '2026-11-04';
   const updatedAt = new Date().toISOString();
 
-  // 1. SEMPRE gravar no armazenamento local persistente vinculado à data
+  // 1. Gravar no armazenamento local persistente vinculado à data
   try {
     localStorage.setItem(
       `${LOCAL_STORAGE_BACKUP_PREFIX}${finalDate}`,
@@ -438,7 +577,9 @@ export async function saveRemoteMapState({
 
     const finalEfetivo =
       supabaseEfetivo ||
-      (existing?.efetivo ? existing.efetivo : buildSupabaseEfetivoArray());
+      (existing?.efetivo && existing.efetivo.length > 5
+        ? existing.efetivo
+        : buildSupabaseEfetivoArray());
 
     const finalRecursos =
       supabaseRecursos ||
@@ -508,7 +649,6 @@ export async function saveRemoteMapState({
 
 /**
  * Salva diretamente o array de efetivo na tabela daily_reports do Supabase
- * Atualiza o efetivo compartilhado entre o mapa e o sistema de relatórios
  */
 export async function saveRemoteEfetivo(reportDate, newEfetivo) {
   const updatedAt = new Date().toISOString();

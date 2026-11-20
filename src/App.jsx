@@ -18,6 +18,7 @@ import {
   generateTokensFromEfetivo,
 } from './services/mapSyncService';
 import { supabase } from './services/supabaseClient';
+import { getOficialEfetivoArray } from './data/efetivoOficial';
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v9_04112026_891';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v8';
@@ -135,7 +136,9 @@ export default function App() {
   const [showAeronavesModal, setShowAeronavesModal] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(null);
-  const [dbEfetivo, setDbEfetivo] = useState(null);
+  const [dbEfetivo, setDbEfetivo] = useState(() =>
+    getOficialEfetivoArray('diario')
+  );
   const [dbRecursos, setDbRecursos] = useState(null);
   const isInitialMount = useRef(true);
 
@@ -351,20 +354,20 @@ export default function App() {
     if (Array.isArray(dbEfetivo) && dbEfetivo.length > 0) {
       dbEfetivo.forEach((r) => {
         const isCap = r.tipo === 'capital' || r.mun === 'Manaus';
-        const ord =
-          Number(r.serv_ord || r.ord || r.servico || (isCap ? 477 : 0)) || 0;
+        const cbmamVal = Number(r.cbmam || 0);
         const op1 = Number(r.opamv || 0);
         const op2 = Number(r.opam_ref || 0);
-        const mil = Number(r.cbmam) || ord + op1 + op2 || 0;
+        const opMil = op1 + op2;
         const pf = Number(r.prevfogo || 0);
         const forcaNac = Number(r.fn || 0);
         const bMun = Number(r.brig_mun || 0);
         const bSema = Number(r.brig_semas || 0);
-        const rowTot = mil + pf + forcaNac + bMun + bSema;
+        // Total em campo na operação
+        const rowTot = Number(r.total) || opMil + pf + forcaNac + bMun + bSema;
 
-        militares += mil;
-        svOrd += ord;
-        opamExtra += op1 + op2;
+        militares += opMil;
+        svOrd += cbmamVal;
+        opamExtra += opMil;
         prevfogo += pf;
         fn += forcaNac;
         brigadistas += bMun;
@@ -455,19 +458,19 @@ export default function App() {
     const totalEfetivo = militares + prevfogo + fn + totalBrigadistas;
 
     return {
-      militares: militares || 827,
-      svOrd: svOrd || 296,
+      militares: militares || 85,
+      svOrd: svOrd || 0,
       opamExtra: opamExtra || 85,
       seg,
-      brigadistas: brigadistas || 208,
+      brigadistas: brigadistas || 222,
       brigadistasGerais: brigadistas,
       prevfogo: prevfogo || 247,
       fn: fn || 35,
       brigadistasSema: brigadistasSema || 153,
-      totalBrigadistas: totalBrigadistas || 361,
-      totalEfetivo: totalEfetivo || 1470,
-      capital: capital || 477,
-      interior: interior || 993,
+      totalBrigadistas: totalBrigadistas || 375,
+      totalEfetivo: totalEfetivo || 742,
+      capital: capital || 105,
+      interior: interior || 637,
       focosCombate: 14,
       asaFixa: asaFixa || 7,
       rotativa: rotativa || 3,

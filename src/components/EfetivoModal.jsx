@@ -9,61 +9,22 @@ import {
   RotateCcw,
   Building2,
   Tent,
+  Layers,
+  Shield,
+  PieChart,
+  Users,
 } from 'lucide-react';
-
-// Lista canônica oficial dos 26 Municípios Polo
-export const MUNICIPIOS_POLO_LIST = [
-  'Manaus',
-  'Apuí',
-  'Atalaia do Norte',
-  'Autazes',
-  'Barcelos',
-  'Coari',
-  'Envira',
-  'Humaitá',
-  'Iranduba',
-  'Itacoatiara',
-  'Itapiranga',
-  'Jutaí',
-  'Lábrea',
-  'Manaquiri',
-  'Manacapuru',
-  'Manicoré',
-  'Maués',
-  'Nhamundá',
-  'Novo Airão',
-  'Novo Aripuanã',
-  'Parintins',
-  'Presidente Figueiredo',
-  'Rio Preto da Eva',
-  'Tabatinga',
-  'Tapauá',
-  'Tefé',
-];
-
-// Lista canônica oficial das 12 Bases Temporárias de Combate
-export const BASES_TEMPORARIAS_LIST = [
-  'Autazes Posto Km 53',
-  'Anamã',
-  'Barreirinha',
-  'Boa Vista do Ramos',
-  'Boca do Acre',
-  'Borba',
-  'Caapiranga',
-  'Canutama',
-  'Careiro Castanho',
-  'Careiro da Várzea',
-  'São Sebastião do Uatumã',
-  'Urucurituba',
-];
-
-function norm(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
+import {
+  MUNICIPIOS_POLO_LIST,
+  BASES_TEMPORARIAS_LIST,
+  BENCHMARK_PERMANENTE_CBMAM,
+  BENCHMARK_MUNICIPIOS_OPERACIONAL,
+  BENCHMARK_BASES_OPERACIONAL,
+  EFETIVO_GERAL_INSTITUICOES,
+  CRBM_DETALHAMENTO,
+  CRBM_SUBTOTAIS,
+  norm,
+} from '../data/efetivoOficial';
 
 export function EfetivoModal({
   onClose,
@@ -73,17 +34,18 @@ export function EfetivoModal({
   onSaveEfetivo = async () => {},
   onSelectMuni = () => {},
 }) {
-  const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'municipios' | 'bases' | 'resumo'
+  const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'municipios' | 'bases' | 'geral' | 'crbm' | 'resumo'
   const [search, setSearch] = useState('');
   const [isEditing, setIsEditing] = useState(initialEditMode);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Inicializa mapa de edições a partir de dbEfetivo ou benchmarks
+  // Inicializa mapa de edições com fallback inteligente para os benchmarks oficiais
   const [editedData, setEditedData] = useState(() => {
     const map = {};
-    // Carrega municípios polo
+
+    // 1. Municípios Polo (26)
     MUNICIPIOS_POLO_LIST.forEach((nome) => {
       const isCap = nome === 'Manaus';
       const found = (dbEfetivo || []).find(
@@ -91,54 +53,104 @@ export function EfetivoModal({
           norm(r.mun) === norm(nome) &&
           (r.tipo === 'capital' || r.tipo === 'interior' || !r.tipo)
       );
+      const bm = BENCHMARK_MUNICIPIOS_OPERACIONAL[nome] || {};
+      const bm_perm = BENCHMARK_PERMANENTE_CBMAM[nome] || 0;
+      const hasFoundData =
+        found &&
+        (found._custom ||
+          [
+            found.cbmam,
+            found.serv_ord,
+            found.opamv,
+            found.opam_ref,
+            found.prevfogo,
+            found.fn,
+            found.brig_mun,
+            found.brig_semas,
+          ].some((v) => Number(v) > 0));
+
       map[`mun:${norm(nome)}`] = {
         nome,
         tipo: isCap ? 'capital' : 'interior',
+        cbmam: Number(
+          hasFoundData ? (found.cbmam ?? found.serv_ord ?? bm_perm) : bm_perm
+        ),
         serv_ord: Number(
-          found?.cbmam ||
-            found?.serv_ord ||
-            found?.ord ||
-            found?.servico ||
-            (isCap ? 477 : 0)
+          hasFoundData ? (found.serv_ord ?? found.cbmam ?? bm_perm) : bm_perm
         ),
-        opamv: Number(found?.opamv || 0),
-        opam_ref: Number(found?.opam_ref || 0),
-        prevfogo: Number(found?.prevfogo || 0),
-        fn: Number(found?.fn || 0),
+        opamv: Number(
+          hasFoundData ? (found.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+        ),
+        opam_ref: Number(
+          hasFoundData ? (found.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+        ),
+        prevfogo: Number(
+          hasFoundData ? (found.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+        ),
+        fn: Number(hasFoundData ? (found.fn ?? bm.fn ?? 0) : bm.fn || 0),
         brig_mun: Number(
-          found?.brig_mun ||
-            (found?.brig && !found?.brig_semas ? found.brig : 0)
+          hasFoundData ? (found.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
         ),
-        brig_semas: Number(found?.brig_semas || 0),
+        brig_semas: Number(
+          hasFoundData
+            ? (found.brig_semas ?? bm.brig_semas ?? 0)
+            : bm.brig_semas || 0
+        ),
       };
     });
 
-    // Carrega bases temporárias
+    // 2. Bases Temporárias (12)
     BASES_TEMPORARIAS_LIST.forEach((nome) => {
       const found = (dbEfetivo || []).find(
         (r) =>
           norm(r.mun) === norm(nome) ||
           (r.tipo === 'base' && norm(r.mun) === norm(nome))
       );
+      const bm = BENCHMARK_BASES_OPERACIONAL[nome] || {};
+      const hasFoundData =
+        found &&
+        (found._custom ||
+          [
+            found.cbmam,
+            found.serv_ord,
+            found.opamv,
+            found.opam_ref,
+            found.prevfogo,
+            found.fn,
+            found.brig_mun,
+            found.brig_semas,
+          ].some((v) => Number(v) > 0));
+
       map[`base:${norm(nome)}`] = {
         nome,
         tipo: 'base',
-        serv_ord: Number(
-          found?.cbmam || found?.serv_ord || found?.ord || found?.servico || 0
+        cbmam: 0,
+        serv_ord: 0,
+        opamv: Number(
+          hasFoundData ? (found.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
         ),
-        opamv: Number(found?.opamv || 0),
-        opam_ref: Number(found?.opam_ref || 0),
-        prevfogo: Number(found?.prevfogo || 0),
-        fn: Number(found?.fn || 0),
-        brig_mun: Number(found?.brig_mun || 0),
-        brig_semas: Number(found?.brig_semas || 0),
+        opam_ref: Number(
+          hasFoundData ? (found.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+        ),
+        prevfogo: Number(
+          hasFoundData ? (found.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+        ),
+        fn: Number(hasFoundData ? (found.fn ?? bm.fn ?? 0) : bm.fn || 0),
+        brig_mun: Number(
+          hasFoundData ? (found.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+        ),
+        brig_semas: Number(
+          hasFoundData
+            ? (found.brig_semas ?? bm.brig_semas ?? 0)
+            : bm.brig_semas || 0
+        ),
       };
     });
 
     return map;
   });
 
-  // Atualiza editedData quando dbEfetivo muda do banco
+  // Atualiza editedData quando dbEfetivo chega do Supabase
   useEffect(() => {
     if (!dbEfetivo || dbEfetivo.length === 0) return;
     setEditedData((prev) => {
@@ -153,16 +165,47 @@ export function EfetivoModal({
           ? BASES_TEMPORARIAS_LIST.find((b) => norm(b) === norm(r.mun)) || r.mun
           : MUNICIPIOS_POLO_LIST.find((m) => norm(m) === norm(r.mun)) || r.mun;
 
+        const bm = isBase
+          ? BENCHMARK_BASES_OPERACIONAL[nomeOriginal] || {}
+          : BENCHMARK_MUNICIPIOS_OPERACIONAL[nomeOriginal] || {};
+        const bm_perm = isBase
+          ? 0
+          : BENCHMARK_PERMANENTE_CBMAM[nomeOriginal] || 0;
+
+        const hasData =
+          r._custom ||
+          [
+            r.cbmam,
+            r.serv_ord,
+            r.opamv,
+            r.opam_ref,
+            r.prevfogo,
+            r.fn,
+            r.brig_mun,
+            r.brig_semas,
+          ].some((v) => Number(v) > 0);
+
         next[key] = {
           nome: nomeOriginal,
           tipo: isBase ? 'base' : r.mun === 'Manaus' ? 'capital' : 'interior',
-          serv_ord: Number(r.cbmam || r.serv_ord || r.ord || r.servico || 0),
-          opamv: Number(r.opamv || 0),
-          opam_ref: Number(r.opam_ref || 0),
-          prevfogo: Number(r.prevfogo || 0),
-          fn: Number(r.fn || 0),
-          brig_mun: Number(r.brig_mun || 0),
-          brig_semas: Number(r.brig_semas || 0),
+          cbmam: Number(hasData ? (r.cbmam ?? r.serv_ord ?? bm_perm) : bm_perm),
+          serv_ord: Number(
+            hasData ? (r.serv_ord ?? r.cbmam ?? bm_perm) : bm_perm
+          ),
+          opamv: Number(hasData ? (r.opamv ?? bm.opamv ?? 0) : bm.opamv || 0),
+          opam_ref: Number(
+            hasData ? (r.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+          ),
+          prevfogo: Number(
+            hasData ? (r.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+          ),
+          fn: Number(hasData ? (r.fn ?? bm.fn ?? 0) : bm.fn || 0),
+          brig_mun: Number(
+            hasData ? (r.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+          ),
+          brig_semas: Number(
+            hasData ? (r.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
+          ),
         };
       });
       return next;
@@ -171,14 +214,14 @@ export function EfetivoModal({
 
   // Manipulador de alteração de campo em modo de edição
   const handleCellChange = (key, field, val) => {
-    const num = Math.max(0, parseInt(val, 10) || 0);
+    const numVal = Math.max(0, parseInt(val, 10) || 0);
     setEditedData((prev) => {
       const current = prev[key] || {};
       return {
         ...prev,
         [key]: {
           ...current,
-          [field]: num,
+          [field]: numVal,
         },
       };
     });
@@ -187,27 +230,39 @@ export function EfetivoModal({
   // Listas processadas
   const municipiosList = useMemo(() => {
     return MUNICIPIOS_POLO_LIST.map((nome) => {
-      const data = editedData[`mun:${norm(nome)}`] || {
-        nome,
-        tipo: nome === 'Manaus' ? 'capital' : 'interior',
-      };
-      const serv_ord = data.serv_ord || 0;
-      const opamv = data.opamv || 0;
-      const opam_ref = data.opam_ref || 0;
-      const cbmam = serv_ord + opamv + opam_ref;
-      const prevfogo = data.prevfogo || 0;
-      const fn = data.fn || 0;
-      const brig_mun = data.brig_mun || 0;
-      const brig_semas = data.brig_semas || 0;
-      const total = cbmam + prevfogo + fn + brig_mun + brig_semas;
+      const data = editedData[`mun:${norm(nome)}`] || {};
+      const cbmam = Number(data.cbmam ?? BENCHMARK_PERMANENTE_CBMAM[nome] ?? 0);
+      const serv_ord = data.serv_ord ?? cbmam;
+      const opamv = Number(
+        data.opamv ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opamv ?? 0
+      );
+      const opam_ref = Number(
+        data.opam_ref ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opam_ref ?? 0
+      );
+      const prevfogo = Number(
+        data.prevfogo ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.prevfogo ?? 0
+      );
+      const fn = Number(
+        data.fn ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.fn ?? 0
+      );
+      const brig_mun = Number(
+        data.brig_mun ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_mun ?? 0
+      );
+      const brig_semas = Number(
+        data.brig_semas ??
+          BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_semas ??
+          0
+      );
+      // Total em atuação na operação (Col M da planilha)
+      const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
       return {
         key: `mun:${norm(nome)}`,
         nome,
-        tipo: data.tipo,
+        tipo: nome === 'Manaus' ? 'capital' : 'interior',
+        cbmam,
         serv_ord,
         opamv,
         opam_ref,
-        cbmam,
         prevfogo,
         fn,
         brig_mun,
@@ -219,24 +274,35 @@ export function EfetivoModal({
 
   const basesList = useMemo(() => {
     return BASES_TEMPORARIAS_LIST.map((nome) => {
-      const data = editedData[`base:${norm(nome)}`] || { nome, tipo: 'base' };
-      const serv_ord = data.serv_ord || 0;
-      const opamv = data.opamv || 0;
-      const opam_ref = data.opam_ref || 0;
-      const cbmam = serv_ord + opamv + opam_ref;
-      const prevfogo = data.prevfogo || 0;
-      const fn = data.fn || 0;
-      const brig_mun = data.brig_mun || 0;
-      const brig_semas = data.brig_semas || 0;
-      const total = cbmam + prevfogo + fn + brig_mun + brig_semas;
+      const data = editedData[`base:${norm(nome)}`] || {};
+      const cbmam = 0;
+      const serv_ord = 0;
+      const opamv = Number(
+        data.opamv ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opamv ?? 0
+      );
+      const opam_ref = Number(
+        data.opam_ref ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opam_ref ?? 0
+      );
+      const prevfogo = Number(
+        data.prevfogo ?? BENCHMARK_BASES_OPERACIONAL[nome]?.prevfogo ?? 0
+      );
+      const fn = Number(data.fn ?? BENCHMARK_BASES_OPERACIONAL[nome]?.fn ?? 0);
+      const brig_mun = Number(
+        data.brig_mun ?? BENCHMARK_BASES_OPERACIONAL[nome]?.brig_mun ?? 0
+      );
+      const brig_semas = Number(
+        data.brig_semas ?? BENCHMARK_BASES_OPERACIONAL[nome]?.brig_semas ?? 0
+      );
+      // Total em atuação na base (Col M da planilha)
+      const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
       return {
         key: `base:${norm(nome)}`,
         nome,
         tipo: 'base',
+        cbmam,
         serv_ord,
         opamv,
         opam_ref,
-        cbmam,
         prevfogo,
         fn,
         brig_mun,
@@ -256,15 +322,72 @@ export function EfetivoModal({
   const filteredMunis = filterRows(municipiosList);
   const filteredBases = filterRows(basesList);
 
+  // Subtotais específicos de Municípios Polo e Bases
+  const subtotalMunis = useMemo(() => {
+    return municipiosList.reduce(
+      (acc, r) => {
+        acc.cbmam += r.cbmam || 0;
+        acc.serv_ord += r.serv_ord || 0;
+        acc.opamv += r.opamv || 0;
+        acc.opam_ref += r.opam_ref || 0;
+        acc.prevfogo += r.prevfogo || 0;
+        acc.fn += r.fn || 0;
+        acc.brig_mun += r.brig_mun || 0;
+        acc.brig_semas += r.brig_semas || 0;
+        acc.total += r.total || 0;
+        return acc;
+      },
+      {
+        cbmam: 0,
+        serv_ord: 0,
+        opamv: 0,
+        opam_ref: 0,
+        prevfogo: 0,
+        fn: 0,
+        brig_mun: 0,
+        brig_semas: 0,
+        total: 0,
+      }
+    );
+  }, [municipiosList]);
+
+  const subtotalBases = useMemo(() => {
+    return basesList.reduce(
+      (acc, r) => {
+        acc.cbmam += r.cbmam || 0;
+        acc.serv_ord += r.serv_ord || 0;
+        acc.opamv += r.opamv || 0;
+        acc.opam_ref += r.opam_ref || 0;
+        acc.prevfogo += r.prevfogo || 0;
+        acc.fn += r.fn || 0;
+        acc.brig_mun += r.brig_mun || 0;
+        acc.brig_semas += r.brig_semas || 0;
+        acc.total += r.total || 0;
+        return acc;
+      },
+      {
+        cbmam: 0,
+        serv_ord: 0,
+        opamv: 0,
+        opam_ref: 0,
+        prevfogo: 0,
+        fn: 0,
+        brig_mun: 0,
+        brig_semas: 0,
+        total: 0,
+      }
+    );
+  }, [basesList]);
+
   // Totais consolidados
   const totals = useMemo(() => {
     const all = [...municipiosList, ...basesList];
     return all.reduce(
       (acc, r) => {
+        acc.cbmam += r.cbmam || 0;
         acc.serv_ord += r.serv_ord || 0;
         acc.opamv += r.opamv || 0;
         acc.opam_ref += r.opam_ref || 0;
-        acc.cbmam += r.cbmam || 0;
         acc.prevfogo += r.prevfogo || 0;
         acc.fn += r.fn || 0;
         acc.brig_mun += r.brig_mun || 0;
@@ -272,16 +395,20 @@ export function EfetivoModal({
         acc.total += r.total || 0;
         if (r.tipo === 'capital' || r.nome === 'Manaus') {
           acc.capital += r.total || 0;
+        } else if (r.tipo === 'base') {
+          acc.bases += r.total || 0;
+          acc.interior += r.total || 0;
         } else {
+          acc.interiorPolos += r.total || 0;
           acc.interior += r.total || 0;
         }
         return acc;
       },
       {
+        cbmam: 0,
         serv_ord: 0,
         opamv: 0,
         opam_ref: 0,
-        cbmam: 0,
         prevfogo: 0,
         fn: 0,
         brig_mun: 0,
@@ -289,9 +416,52 @@ export function EfetivoModal({
         total: 0,
         capital: 0,
         interior: 0,
+        interiorPolos: 0,
+        bases: 0,
       }
     );
   }, [municipiosList, basesList]);
+
+  // Resumo por Missão (Capital x Interior x Total x %)
+  const resumoMissoes = useMemo(() => {
+    const missoes = [
+      { key: 'cbmam', label: 'CBMAM (Efetivo nos Municípios Polo)' },
+      { key: 'opamv', label: '6ª Fase OPAMV (26/10 a 25/11)' },
+      { key: 'opam_ref', label: '7ª Fase OPAMV (13/11 a 12/12)' },
+      { key: 'prevfogo', label: 'PREVFOGO / IBAMA' },
+      { key: 'fn', label: 'Força Nacional de Segurança Pública' },
+      { key: 'brig_mun', label: 'Brigadistas Municipais' },
+      { key: 'brig_semas', label: 'Brigadistas SEMA' },
+    ];
+
+    const grandTotal = totals.total || 1;
+
+    return missoes.map((m) => {
+      let cap = 0;
+      let inte = 0;
+
+      municipiosList.forEach((r) => {
+        const val = r[m.key] || 0;
+        if (r.tipo === 'capital' || r.nome === 'Manaus') cap += val;
+        else inte += val;
+      });
+
+      basesList.forEach((r) => {
+        inte += r[m.key] || 0;
+      });
+
+      const tot = cap + inte;
+      const perc = ((tot / grandTotal) * 100).toFixed(1) + '%';
+
+      return {
+        ...m,
+        capital: cap,
+        interior: inte,
+        total: tot,
+        perc,
+      };
+    });
+  }, [municipiosList, basesList, totals]);
 
   // Salvar edições no banco de dados Supabase
   const handleSave = async () => {
@@ -299,14 +469,13 @@ export function EfetivoModal({
       setIsSaving(true);
       setErrorMessage(null);
 
-      // Constrói array no formato oficial para tabela daily_reports.efetivo
       const payload = [...municipiosList, ...basesList].map((r) => ({
         mun: r.nome,
         tipo: r.tipo,
         cbmam: r.cbmam,
-        serv_ord: r.serv_ord,
-        ord: r.serv_ord,
-        servico: r.serv_ord,
+        serv_ord: r.cbmam,
+        ord: r.cbmam,
+        servico: r.cbmam,
         opamv: r.opamv,
         opam_ref: r.opam_ref,
         prevfogo: r.prevfogo,
@@ -339,7 +508,7 @@ export function EfetivoModal({
         className="modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: 1220,
+          maxWidth: 1280,
           width: '96vw',
           maxHeight: '94vh',
           display: 'flex',
@@ -362,7 +531,7 @@ export function EfetivoModal({
               : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
             borderBottom: isEditing
               ? '2px solid #10b981'
-              : '1.5px solid #ef4444',
+              : '1.5px solid #dc2626',
             padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
@@ -407,7 +576,19 @@ export function EfetivoModal({
                 </h2>
                 <span
                   style={{
-                    background: isEditing ? '#059669' : '#dc2626',
+                    background: '#eab308',
+                    color: '#0f172a',
+                    fontSize: 11,
+                    fontWeight: 900,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                  }}
+                >
+                  {totals.cbmam} CBMAM
+                </span>
+                <span
+                  style={{
+                    background: isEditing ? '#059669' : '#16a34a',
                     color: '#ffffff',
                     fontSize: 11,
                     fontWeight: 900,
@@ -415,7 +596,7 @@ export function EfetivoModal({
                     borderRadius: 12,
                   }}
                 >
-                  {totals.total} OPERACIONAIS
+                  {totals.total} EM ATUAÇÃO
                 </span>
                 {isEditing && (
                   <span
@@ -433,13 +614,14 @@ export function EfetivoModal({
                 )}
               </div>
               <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                Dados integrados com o Banco de Dados do Relatório Diário CBMAM
-                {reportDate ? ` • Data: ${reportDate}` : ''}
+                Dados integrados com a Sala de Situação CBMAM (Relatório Diário
+                Oficial)
+                {reportDate ? ` • Referência: ${reportDate}` : ''}
               </p>
             </div>
           </div>
 
-          {/* BOTÕES DE AÇÃO: EDITAR, SALVAR, FECHAR */}
+          {/* BOTÕES DE AÇÃO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {isEditing ? (
               <>
@@ -574,10 +756,10 @@ export function EfetivoModal({
           </div>
         )}
 
-        {/* CARDS DE KPIS CONSOLIDADOS */}
+        {/* 4 CARDS EXECUTIVOS PRINCIPAIS */}
         <div
           style={{
-            padding: '10px 18px',
+            padding: '12px 18px 8px',
             background: '#090d16',
             borderBottom: '1px solid #1e293b',
           }}
@@ -585,222 +767,286 @@ export function EfetivoModal({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-              gap: 8,
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 10,
             }}
           >
-            {/* TOTAL GERAL */}
+            {/* CARD 1: CBMAM */}
             <div
               style={{
                 background:
                   'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.05) 100%)',
                 border: '1.5px solid #eab308',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
+                borderRadius: 10,
+                padding: '10px 14px',
               }}
             >
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#fef08a',
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                TOTAL EMPREGADO
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#fef08a',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  CBMAM
+                </span>
+                <span
+                  style={{
+                    background: '#854d0e',
+                    color: '#fef9c3',
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: 8,
+                  }}
+                >
+                  26 POLOS
+                </span>
               </div>
               <div
                 style={{
-                  fontSize: 22,
+                  fontSize: 26,
                   fontWeight: 900,
                   color: '#facc15',
                   margin: '2px 0',
                 }}
               >
-                {totals.total}
+                {totals.cbmam}
               </div>
-              <div style={{ fontSize: 10, color: '#ca8a04', fontWeight: 700 }}>
-                {totals.capital} Cap • {totals.interior} Int
+              <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                477 Capital (Manaus) • 341 Interior • *ADM 2º CRBM: 9
               </div>
             </div>
 
-            {/* CBMAM PERMANENTE / ORD */}
+            {/* CARD 2: TOTAL EM ATUAÇÃO NA OPERAÇÃO */}
             <div
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.05) 100%)',
-                border: '1px solid #ef4444',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
+                  'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%)',
+                border: '1.5px solid #10b981',
+                borderRadius: 10,
+                padding: '10px 14px',
               }}
             >
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#fca5a5',
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                CBMAM PERMANENTE
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#6ee7b7',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  TOTAL EM ATUAÇÃO NA OPERAÇÃO
+                </span>
+                <span
+                  style={{
+                    background: '#065f46',
+                    color: '#a7f3d0',
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: 8,
+                  }}
+                >
+                  100% COBERTURA
+                </span>
               </div>
               <div
                 style={{
-                  fontSize: 20,
-                  fontWeight: 900,
-                  color: '#f87171',
-                  margin: '2px 0',
-                }}
-              >
-                {totals.serv_ord}
-              </div>
-              <div style={{ fontSize: 10, color: '#fca5a5' }}>
-                Serviço Diário Ordinário
-              </div>
-            </div>
-
-            {/* CBMAM OPAM (REFORÇO) */}
-            <div
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(3, 105, 161, 0.05) 100%)',
-                border: '1px solid #0284c7',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#7dd3fc',
-                  textTransform: 'uppercase',
-                }}
-              >
-                CBMAM OPAM (6ª+7ª)
-              </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 900,
-                  color: '#38bdf8',
-                  margin: '2px 0',
-                }}
-              >
-                {totals.opamv + totals.opam_ref}
-              </div>
-              <div style={{ fontSize: 10, color: '#7dd3fc' }}>
-                {totals.opamv} (6ª) • {totals.opam_ref} (7ª)
-              </div>
-            </div>
-
-            {/* PREVFOGO IBAMA */}
-            <div
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.05) 100%)',
-                border: '1px solid #10b981',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#6ee7b7',
-                  textTransform: 'uppercase',
-                }}
-              >
-                PREVFOGO IBAMA
-              </div>
-              <div
-                style={{
-                  fontSize: 20,
+                  fontSize: 26,
                   fontWeight: 900,
                   color: '#34d399',
                   margin: '2px 0',
                 }}
               >
-                {totals.prevfogo}
+                {totals.total}
               </div>
-              <div style={{ fontSize: 10, color: '#6ee7b7' }}>
-                Brigadistas Federais
+              <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                {totals.capital} Capital • {totals.interiorPolos} Polos •{' '}
+                {totals.bases} Bases
               </div>
             </div>
 
-            {/* FORÇA NACIONAL */}
+            {/* CARD 3: 01 | EFETIVO GERAL (TODAS AS INSTITUIÇÕES) */}
             <div
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(8, 145, 178, 0.05) 100%)',
-                border: '1px solid #06b6d4',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
+                  'linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(3, 105, 161, 0.04) 100%)',
+                border: '1.5px solid #38bdf8',
+                borderRadius: 10,
+                padding: '10px 14px',
+                cursor: 'pointer',
               }}
+              onClick={() => setActiveTab('geral')}
+              title="Clique para ver o quadro geral consolidado de todas as instituições (1.470)"
             >
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#67e8f9',
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                FORÇA NACIONAL
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#7dd3fc',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  EFETIVO GERAL (TODAS AS INSTITUIÇÕES)
+                </span>
+                <span
+                  style={{
+                    background: '#0369a1',
+                    color: '#e0f2fe',
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: 8,
+                  }}
+                >
+                  QUADRO 01
+                </span>
               </div>
               <div
                 style={{
-                  fontSize: 20,
+                  fontSize: 26,
                   fontWeight: 900,
-                  color: '#22d3ee',
+                  color: '#38bdf8',
                   margin: '2px 0',
                 }}
               >
-                {totals.fn}
+                1.470
               </div>
-              <div style={{ fontSize: 10, color: '#67e8f9' }}>Apoio FNSP</div>
+              <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                827 CBMAM (477 Cap + 350 Int) • 643 Parceiros e Brigadas
+              </div>
             </div>
 
-            {/* BRIGADISTAS (MUN + SEMA) */}
+            {/* CARD 4: CRBM INTERIOR */}
             <div
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(194, 65, 12, 0.05) 100%)',
-                border: '1px solid #f97316',
-                borderRadius: 8,
-                padding: '8px 10px',
-                textAlign: 'center',
+                  'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(194, 65, 12, 0.04) 100%)',
+                border: '1.5px solid #f97316',
+                borderRadius: 10,
+                padding: '10px 14px',
+                cursor: 'pointer',
               }}
+              onClick={() => setActiveTab('crbm')}
+              title="Clique para ver o detalhamento do efetivo dos Comandos Regionais (CRBM)"
             >
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  color: '#fdba74',
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                BRIGADISTAS
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#fdba74',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  COMANDOS CRBM (INTERIOR)
+                </span>
+                <span
+                  style={{
+                    background: '#9a3412',
+                    color: '#ffedd5',
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: 8,
+                  }}
+                >
+                  4 COMANDOS
+                </span>
               </div>
               <div
                 style={{
-                  fontSize: 20,
+                  fontSize: 26,
                   fontWeight: 900,
                   color: '#fb923c',
                   margin: '2px 0',
                 }}
               >
+                350
+              </div>
+              <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                296 Combatentes • 54 Saúde (1º, 2º, 3º e 4º CRBM)
+              </div>
+            </div>
+          </div>
+
+          {/* BARRA DE DETALHAMENTO DAS FORÇAS (PILLS COMPACTAS) */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              marginTop: 8,
+              padding: '6px 10px',
+              background: '#0d1322',
+              borderRadius: 8,
+              fontSize: 11,
+              alignItems: 'center',
+              justifyContent: 'space-around',
+              flexWrap: 'wrap',
+              border: '1px solid #1e293b',
+            }}
+          >
+            <div>
+              <span style={{ color: '#94a3b8' }}>OPAM EM CAMPO: </span>
+              <b style={{ color: '#38bdf8' }}>
+                {totals.opamv + totals.opam_ref}
+              </b>
+              <span style={{ color: '#64748b', fontSize: 10 }}>
+                {' '}
+                ({totals.opamv} 6ª • {totals.opam_ref} 7ª)
+              </span>
+            </div>
+            <span style={{ color: '#334155' }}>|</span>
+            <div>
+              <span style={{ color: '#94a3b8' }}>PREVFOGO IBAMA: </span>
+              <b style={{ color: '#34d399' }}>{totals.prevfogo}</b>
+            </div>
+            <span style={{ color: '#334155' }}>|</span>
+            <div>
+              <span style={{ color: '#94a3b8' }}>FORÇA NACIONAL: </span>
+              <b style={{ color: '#22d3ee' }}>{totals.fn}</b>
+            </div>
+            <span style={{ color: '#334155' }}>|</span>
+            <div>
+              <span style={{ color: '#94a3b8' }}>
+                BRIGADISTAS (MUN + SEMA):{' '}
+              </span>
+              <b style={{ color: '#fb923c' }}>
                 {totals.brig_mun + totals.brig_semas}
-              </div>
-              <div style={{ fontSize: 10, color: '#fdba74' }}>
-                {totals.brig_mun} Mun • {totals.brig_semas} SEMA
-              </div>
+              </b>
+              <span style={{ color: '#64748b', fontSize: 10 }}>
+                {' '}
+                ({totals.brig_mun} Mun • {totals.brig_semas} SEMA)
+              </span>
             </div>
           </div>
         </div>
@@ -819,7 +1065,7 @@ export function EfetivoModal({
           }}
         >
           {/* ABAS */}
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
               onClick={() => setActiveTab('todos')}
               style={{
@@ -848,10 +1094,10 @@ export function EfetivoModal({
                 cursor: 'pointer',
                 border:
                   activeTab === 'municipios'
-                    ? '1.5px solid #38bdf8'
+                    ? '1.5px solid #eab308'
                     : '1px solid #334155',
-                background: activeTab === 'municipios' ? '#0369a1' : '#1e293b',
-                color: activeTab === 'municipios' ? '#ffffff' : '#94a3b8',
+                background: activeTab === 'municipios' ? '#854d0e' : '#1e293b',
+                color: activeTab === 'municipios' ? '#fef08a' : '#94a3b8',
               }}
             >
               Municípios Polo ({municipiosList.length})
@@ -866,13 +1112,67 @@ export function EfetivoModal({
                 cursor: 'pointer',
                 border:
                   activeTab === 'bases'
-                    ? '1.5px solid #38bdf8'
+                    ? '1.5px solid #f97316'
                     : '1px solid #334155',
-                background: activeTab === 'bases' ? '#0369a1' : '#1e293b',
-                color: activeTab === 'bases' ? '#ffffff' : '#94a3b8',
+                background: activeTab === 'bases' ? '#9a3412' : '#1e293b',
+                color: activeTab === 'bases' ? '#ffedd5' : '#94a3b8',
               }}
             >
               Bases Temporárias ({basesList.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('geral')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+                border:
+                  activeTab === 'geral'
+                    ? '1.5px solid #38bdf8'
+                    : '1px solid #334155',
+                background: activeTab === 'geral' ? '#0284c7' : '#1e293b',
+                color: activeTab === 'geral' ? '#ffffff' : '#94a3b8',
+              }}
+            >
+              01 | Efetivo Geral (1.470)
+            </button>
+            <button
+              onClick={() => setActiveTab('crbm')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+                border:
+                  activeTab === 'crbm'
+                    ? '1.5px solid #10b981'
+                    : '1px solid #334155',
+                background: activeTab === 'crbm' ? '#065f46' : '#1e293b',
+                color: activeTab === 'crbm' ? '#ffffff' : '#94a3b8',
+              }}
+            >
+              Comandos CRBM (350)
+            </button>
+            <button
+              onClick={() => setActiveTab('resumo')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+                border:
+                  activeTab === 'resumo'
+                    ? '1.5px solid #a855f7'
+                    : '1px solid #334155',
+                background: activeTab === 'resumo' ? '#7e22ce' : '#1e293b',
+                color: activeTab === 'resumo' ? '#ffffff' : '#94a3b8',
+              }}
+            >
+              Resumo por Missão
             </button>
           </div>
 
@@ -921,29 +1221,47 @@ export function EfetivoModal({
           </div>
         </div>
 
-        {/* CORPO DO MODAL: TABELA COM SCROLL */}
+        {/* CORPO DO MODAL: TABELAS COM SCROLL */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
           {/* TABELA: MUNICÍPIOS POLO */}
           {(activeTab === 'todos' || activeTab === 'municipios') && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 24 }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  justifyContent: 'space-between',
                   marginBottom: 8,
                   fontSize: 13,
                   fontWeight: 900,
-                  color: '#38bdf8',
+                  color: '#facc15',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}
               >
-                <Building2 size={16} />
-                <span>
-                  1. Municípios Polo Operacionais ({filteredMunis.length} de{' '}
-                  {municipiosList.length})
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Building2 size={16} />
+                  <span>
+                    1. Municípios Polo Operacionais ({filteredMunis.length} de{' '}
+                    {municipiosList.length})
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'center',
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span style={{ color: '#facc15' }}>
+                    CBMAM: {subtotalMunis.cbmam} militares
+                  </span>
+                  <span style={{ color: '#34d399' }}>
+                    Total em Atuação: {subtotalMunis.total} operacionais
+                  </span>
+                </div>
               </div>
 
               <div
@@ -970,8 +1288,16 @@ export function EfetivoModal({
                       }}
                     >
                       <th style={{ padding: '8px 12px' }}>Município</th>
-                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
-                        CBMAM Perm.
+                      <th
+                        style={{
+                          padding: '8px 8px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          background: 'rgba(234, 179, 8, 0.1)',
+                          fontWeight: 900,
+                        }}
+                      >
+                        CBMAM
                       </th>
                       <th style={{ padding: '8px 8px', textAlign: 'right' }}>
                         6ª Fase OPAM
@@ -995,7 +1321,8 @@ export function EfetivoModal({
                         style={{
                           padding: '8px 12px',
                           textAlign: 'right',
-                          color: '#facc15',
+                          color: '#34d399',
+                          fontWeight: 900,
                         }}
                       >
                         Total
@@ -1036,30 +1363,38 @@ export function EfetivoModal({
                           )}
                         </td>
 
-                        {/* CBMAM Permanente */}
-                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                        {/* CBMAM */}
+                        <td
+                          style={{
+                            padding: '6px 8px',
+                            textAlign: 'right',
+                            background: 'rgba(234, 179, 8, 0.04)',
+                          }}
+                        >
                           {isEditing ? (
                             <input
                               type="number"
                               min={0}
-                              value={r.serv_ord}
+                              value={r.cbmam}
                               onChange={(e) =>
-                                handleCellChange(
-                                  r.key,
-                                  'serv_ord',
-                                  e.target.value
-                                )
+                                handleCellChange(r.key, 'cbmam', e.target.value)
                               }
-                              style={inputStyle}
+                              style={{
+                                ...inputStyle,
+                                borderColor: '#facc15',
+                                background: '#3a2e05',
+                                color: '#fef08a',
+                              }}
                             />
                           ) : (
                             <span
                               style={{
-                                color: r.serv_ord ? '#f87171' : '#475569',
-                                fontWeight: 700,
+                                color: r.cbmam ? '#facc15' : '#475569',
+                                fontWeight: 800,
+                                fontFamily: 'monospace',
                               }}
                             >
-                              {r.serv_ord || '-'}
+                              {r.cbmam || '-'}
                             </span>
                           )}
                         </td>
@@ -1230,7 +1565,7 @@ export function EfetivoModal({
                             padding: '8px 12px',
                             textAlign: 'right',
                             fontWeight: 900,
-                            color: '#facc15',
+                            color: '#34d399',
                           }}
                         >
                           {r.total}
@@ -1257,6 +1592,61 @@ export function EfetivoModal({
                       </tr>
                     ))}
                   </tbody>
+                  {/* FOOTER TOTAL MUNICÍPIOS POLO */}
+                  <tfoot>
+                    <tr
+                      style={{
+                        background: '#1e293b',
+                        color: '#f8fafc',
+                        fontWeight: 900,
+                        borderTop: '2px solid #eab308',
+                      }}
+                    >
+                      <td style={{ padding: '10px 12px' }}>
+                        TOTAL MUNICÍPIOS POLO
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          fontSize: 13,
+                          background: 'rgba(234, 179, 8, 0.15)',
+                        }}
+                      >
+                        {subtotalMunis.cbmam}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.opamv}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.opam_ref}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.prevfogo}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.fn}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.brig_mun}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalMunis.brig_semas}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'right',
+                          color: '#34d399',
+                          fontSize: 13,
+                        }}
+                      >
+                        {subtotalMunis.total}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>-</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -1264,12 +1654,12 @@ export function EfetivoModal({
 
           {/* TABELA: BASES TEMPORÁRIAS DE COMBATE */}
           {(activeTab === 'todos' || activeTab === 'bases') && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 24 }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  justifyContent: 'space-between',
                   marginBottom: 8,
                   fontSize: 13,
                   fontWeight: 900,
@@ -1278,11 +1668,29 @@ export function EfetivoModal({
                   letterSpacing: '0.5px',
                 }}
               >
-                <Tent size={16} />
-                <span>
-                  2. Bases Temporárias de Combate ({filteredBases.length} de{' '}
-                  {basesList.length})
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tent size={16} />
+                  <span>
+                    2. Bases Temporárias de Combate ({filteredBases.length} de{' '}
+                    {basesList.length})
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'center',
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span style={{ color: '#facc15' }}>
+                    CBMAM: {subtotalBases.cbmam}
+                  </span>
+                  <span style={{ color: '#fb923c' }}>
+                    Total em Atuação: {subtotalBases.total} operacionais
+                  </span>
+                </div>
               </div>
 
               <div
@@ -1309,8 +1717,16 @@ export function EfetivoModal({
                       }}
                     >
                       <th style={{ padding: '8px 12px' }}>Base Temporária</th>
-                      <th style={{ padding: '8px 8px', textAlign: 'right' }}>
-                        CBMAM Perm.
+                      <th
+                        style={{
+                          padding: '8px 8px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          background: 'rgba(234, 179, 8, 0.1)',
+                          fontWeight: 900,
+                        }}
+                      >
+                        CBMAM
                       </th>
                       <th style={{ padding: '8px 8px', textAlign: 'right' }}>
                         6ª Fase OPAM
@@ -1334,7 +1750,8 @@ export function EfetivoModal({
                         style={{
                           padding: '8px 12px',
                           textAlign: 'right',
-                          color: '#facc15',
+                          color: '#fb923c',
+                          fontWeight: 900,
                         }}
                       >
                         Total
@@ -1363,30 +1780,37 @@ export function EfetivoModal({
                           {r.nome}
                         </td>
 
-                        {/* CBMAM Perm */}
-                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                        {/* CBMAM */}
+                        <td
+                          style={{
+                            padding: '6px 8px',
+                            textAlign: 'right',
+                            background: 'rgba(234, 179, 8, 0.04)',
+                          }}
+                        >
                           {isEditing ? (
                             <input
                               type="number"
                               min={0}
-                              value={r.serv_ord}
+                              value={r.cbmam}
                               onChange={(e) =>
-                                handleCellChange(
-                                  r.key,
-                                  'serv_ord',
-                                  e.target.value
-                                )
+                                handleCellChange(r.key, 'cbmam', e.target.value)
                               }
-                              style={inputStyle}
+                              style={{
+                                ...inputStyle,
+                                borderColor: '#facc15',
+                                background: '#3a2e05',
+                                color: '#fef08a',
+                              }}
                             />
                           ) : (
                             <span
                               style={{
-                                color: r.serv_ord ? '#f87171' : '#475569',
+                                color: r.cbmam ? '#facc15' : '#475569',
                                 fontWeight: 700,
                               }}
                             >
-                              {r.serv_ord || '-'}
+                              {r.cbmam || '-'}
                             </span>
                           )}
                         </td>
@@ -1557,7 +1981,7 @@ export function EfetivoModal({
                             padding: '8px 12px',
                             textAlign: 'right',
                             fontWeight: 900,
-                            color: '#facc15',
+                            color: '#fb923c',
                           }}
                         >
                           {r.total}
@@ -1584,6 +2008,886 @@ export function EfetivoModal({
                       </tr>
                     ))}
                   </tbody>
+                  {/* FOOTER TOTAL BASES */}
+                  <tfoot>
+                    <tr
+                      style={{
+                        background: '#7c2d12',
+                        color: '#ffedd5',
+                        fontWeight: 900,
+                        borderTop: '2px solid #f97316',
+                      }}
+                    >
+                      <td style={{ padding: '10px 12px' }}>
+                        TOTAL BASES TEMPORÁRIAS
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 8px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          fontSize: 13,
+                          background: 'rgba(234, 179, 8, 0.15)',
+                        }}
+                      >
+                        {subtotalBases.cbmam}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.opamv}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.opam_ref}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.prevfogo}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.fn}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.brig_mun}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        {subtotalBases.brig_semas}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'right',
+                          color: '#fb923c',
+                          fontSize: 13,
+                        }}
+                      >
+                        {subtotalBases.total}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>-</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* RODAPÉ GERAL CONSOLIDADO (SOMA POLOS + BASES) */}
+          {(activeTab === 'todos' ||
+            activeTab === 'municipios' ||
+            activeTab === 'bases') && (
+            <div
+              style={{
+                marginTop: 14,
+                marginBottom: 20,
+                padding: '12px 16px',
+                background: 'linear-gradient(135deg, #0b1329 0%, #172554 100%)',
+                borderRadius: 8,
+                border: '1.5px solid #3b82f6',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <div>
+                <div
+                  style={{ fontSize: 13, fontWeight: 900, color: '#93c5fd' }}
+                >
+                  TOTAL GERAL (SOMA MUNICÍPIOS + BASES TEMPORÁRIAS):{' '}
+                  <span style={{ color: '#facc15', fontSize: 16 }}>
+                    {totals.cbmam} CBMAM
+                  </span>{' '}
+                  •{' '}
+                  <span style={{ color: '#34d399', fontSize: 16 }}>
+                    {totals.total} EM ATUAÇÃO
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
+                  27 Militares (6ª Fase) + 58 Militares (7ª Fase) + 247 Prevfogo
+                  + 35 Força Nacional + 222 Brig. Municipais + 153 Brig. SEMA
+                </div>
+              </div>
+              <div
+                style={{
+                  background: 'rgba(234, 179, 8, 0.15)',
+                  border: '1px solid #eab308',
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: '#fef08a',
+                }}
+              >
+                *ADM 2º CRBM (MANAUS): 9 militares | Total Geral CBMAM Estado:{' '}
+                {totals.cbmam + 9}
+              </div>
+            </div>
+          )}
+
+          {/* TABELA: 01 | EFETIVO GERAL — TODAS AS INSTITUIÇÕES */}
+          {activeTab === 'geral' && (
+            <div style={{ marginBottom: 24 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                  fontSize: 14,
+                  fontWeight: 900,
+                  color: '#38bdf8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <PieChart size={18} />
+                  <span>01 | EFETIVO GERAL — TODAS AS INSTITUIÇÕES</span>
+                </div>
+                <span
+                  style={{
+                    background: '#0369a1',
+                    color: '#ffffff',
+                    padding: '3px 10px',
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  TOTAL GERAL: 1.470
+                </span>
+              </div>
+
+              <div
+                style={{
+                  overflowX: 'auto',
+                  borderRadius: 8,
+                  border: '1px solid #1e293b',
+                  background: '#0c121e',
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        background: '#0f172a',
+                        color: '#94a3b8',
+                        borderBottom: '2px solid #38bdf8',
+                      }}
+                    >
+                      <th style={{ padding: '12px 16px' }}>
+                        INSTITUIÇÃO / ORIGEM
+                      </th>
+                      <th
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                        }}
+                      >
+                        QUANTITATIVO
+                      </th>
+                      <th
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'right',
+                          color: '#38bdf8',
+                        }}
+                      >
+                        PARTICIPAÇÃO %
+                      </th>
+                      <th style={{ padding: '12px 20px', width: '35%' }}>
+                        DISTRIBUIÇÃO GRÁFICA
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {EFETIVO_GERAL_INSTITUICOES.map((item, idx) => (
+                      <tr
+                        key={item.instituicao}
+                        style={{
+                          background: idx % 2 === 0 ? '#090d16' : '#0e1626',
+                          borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: '10px 16px',
+                            fontWeight: 800,
+                            color: '#f8fafc',
+                          }}
+                        >
+                          {item.instituicao}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 16px',
+                            textAlign: 'right',
+                            fontWeight: 900,
+                            fontSize: 13,
+                            color:
+                              item.quantitativo > 0 ? '#facc15' : '#64748b',
+                            fontFamily: 'monospace',
+                          }}
+                        >
+                          {item.quantitativo}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 16px',
+                            textAlign: 'right',
+                            fontWeight: 800,
+                            color:
+                              item.quantitativo > 0 ? '#38bdf8' : '#64748b',
+                          }}
+                        >
+                          {item.participacao}
+                        </td>
+                        <td style={{ padding: '10px 20px' }}>
+                          <div
+                            style={{
+                              background: '#1e293b',
+                              borderRadius: 6,
+                              height: 10,
+                              overflow: 'hidden',
+                              display: 'flex',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: item.participacao.replace(',', '.'),
+                                background: item.cor,
+                                height: '100%',
+                                borderRadius: 6,
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr
+                      style={{
+                        background:
+                          'linear-gradient(135deg, #0369a1 0%, #075985 100%)',
+                        color: '#ffffff',
+                        fontWeight: 900,
+                        borderTop: '2px solid #38bdf8',
+                      }}
+                    >
+                      <td style={{ padding: '12px 16px', fontSize: 13 }}>
+                        TOTAL GERAL
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'right',
+                          fontSize: 16,
+                          color: '#facc15',
+                        }}
+                      >
+                        1470
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'right',
+                          fontSize: 13,
+                        }}
+                      >
+                        100,0%
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 20px',
+                          fontSize: 11,
+                          color: '#e0f2fe',
+                        }}
+                      >
+                        100% das forças de proteção e combate integradas
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* NOTA DE RODAPÉ OFICIAL */}
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '8px 14px',
+                  background: 'rgba(234, 179, 8, 0.12)',
+                  border: '1px solid #eab308',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: '#fef08a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span>*ADM 2º CRBM (MANAUS) : 9</span>
+                <span
+                  style={{ color: '#cbd5e1', fontWeight: 500, fontSize: 11 }}
+                >
+                  • (Comando e Administração Regional sediado na Capital)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* TABELA: COMANDOS CRBM (350 MILITARES NO INTERIOR) */}
+          {activeTab === 'crbm' && (
+            <div style={{ marginBottom: 24 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                  fontSize: 14,
+                  fontWeight: 900,
+                  color: '#10b981',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Shield size={18} />
+                  <span>
+                    DETALHAMENTO DO EFETIVO POR CRBM — INTERIOR DO ESTADO
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span style={{ color: '#38bdf8' }}>Combatentes: 296</span>
+                  <span style={{ color: '#a3e635' }}>Saúde: 54</span>
+                  <span
+                    style={{
+                      background: '#065f46',
+                      color: '#a7f3d0',
+                      padding: '2px 8px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    Total: 350
+                  </span>
+                </div>
+              </div>
+
+              {/* TABELA PRINCIPAL DE CRBM */}
+              <div
+                style={{
+                  overflowX: 'auto',
+                  borderRadius: 8,
+                  border: '1px solid #1e293b',
+                  background: '#0c121e',
+                  marginBottom: 16,
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        background: '#0f172a',
+                        color: '#94a3b8',
+                        borderBottom: '2px solid #10b981',
+                      }}
+                    >
+                      <th style={{ padding: '10px 14px', width: '15%' }}>
+                        CRBM
+                      </th>
+                      <th style={{ padding: '10px 14px' }}>
+                        GRUPAMENTO / MUNICÍPIO
+                      </th>
+                      <th
+                        style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          color: '#38bdf8',
+                        }}
+                      >
+                        COMBATENTE
+                      </th>
+                      <th
+                        style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          color: '#a3e635',
+                        }}
+                      >
+                        SAÚDE
+                      </th>
+                      <th
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                        }}
+                      >
+                        TOTAL
+                      </th>
+                      <th style={{ padding: '10px 10px', textAlign: 'center' }}>
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CRBM_DETALHAMENTO.map((r, idx) => {
+                      const isFirstOfCRBM =
+                        idx === 0 || CRBM_DETALHAMENTO[idx - 1].crbm !== r.crbm;
+                      return (
+                        <tr
+                          key={`${r.crbm}-${r.grupamento}`}
+                          style={{
+                            background: idx % 2 === 0 ? '#090d16' : '#0e1626',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                          }}
+                        >
+                          <td
+                            style={{
+                              padding: '8px 14px',
+                              fontWeight: 900,
+                              color: isFirstOfCRBM ? '#38bdf8' : '#64748b',
+                            }}
+                          >
+                            {r.crbm}
+                          </td>
+                          <td
+                            style={{
+                              padding: '8px 14px',
+                              fontWeight: 700,
+                              color: '#f8fafc',
+                            }}
+                          >
+                            {r.grupamento}
+                          </td>
+                          <td
+                            style={{
+                              padding: '8px 14px',
+                              textAlign: 'right',
+                              fontWeight: 800,
+                              color: '#38bdf8',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {r.combatente}
+                          </td>
+                          <td
+                            style={{
+                              padding: '8px 14px',
+                              textAlign: 'right',
+                              fontWeight: 800,
+                              color: r.saude > 0 ? '#a3e635' : '#64748b',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {r.saude}
+                          </td>
+                          <td
+                            style={{
+                              padding: '8px 16px',
+                              textAlign: 'right',
+                              fontWeight: 900,
+                              fontSize: 13,
+                              color: '#facc15',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {r.total}
+                          </td>
+                          <td
+                            style={{ padding: '6px 10px', textAlign: 'center' }}
+                          >
+                            <button
+                              onClick={() => onSelectMuni(r.municipio)}
+                              style={{
+                                background: '#0369a1',
+                                border: 'none',
+                                color: '#ffffff',
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Ver Mapa
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* QUADRO CONSOLIDADO DE SUBTOTAIS POR CRBM */}
+              <div
+                style={{
+                  overflowX: 'auto',
+                  borderRadius: 8,
+                  border: '1.5px solid #059669',
+                  background: '#064e3b',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 14px',
+                    background: '#047857',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Users size={15} />
+                  <span>
+                    RESUMO DE SUBTOTAIS POR CRBM (COMANDOS DO INTERIOR)
+                  </span>
+                </div>
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: '#065f46', color: '#a7f3d0' }}>
+                      <th style={{ padding: '8px 14px' }}>COMANDO REGIONAL</th>
+                      <th style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        COMBATENTES
+                      </th>
+                      <th style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        SAÚDE
+                      </th>
+                      <th
+                        style={{
+                          padding: '8px 16px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                        }}
+                      >
+                        TOTAL
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CRBM_SUBTOTAIS.map((st) => (
+                      <tr
+                        key={st.crbm}
+                        style={{
+                          borderBottom: '1px solid rgba(255,255,255,0.1)',
+                          background: 'rgba(0,0,0,0.15)',
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: '8px 14px',
+                            fontWeight: 800,
+                            color: '#f8fafc',
+                          }}
+                        >
+                          {st.crbm}
+                        </td>
+                        <td
+                          style={{
+                            padding: '8px 14px',
+                            textAlign: 'right',
+                            fontWeight: 800,
+                            color: '#7dd3fc',
+                          }}
+                        >
+                          {st.combatente}
+                        </td>
+                        <td
+                          style={{
+                            padding: '8px 14px',
+                            textAlign: 'right',
+                            fontWeight: 800,
+                            color: '#bef264',
+                          }}
+                        >
+                          {st.saude}
+                        </td>
+                        <td
+                          style={{
+                            padding: '8px 16px',
+                            textAlign: 'right',
+                            fontWeight: 900,
+                            fontSize: 13,
+                            color: '#facc15',
+                          }}
+                        >
+                          {st.total}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr
+                      style={{
+                        background: '#022c22',
+                        color: '#a7f3d0',
+                        fontWeight: 900,
+                        borderTop: '2px solid #10b981',
+                      }}
+                    >
+                      <td style={{ padding: '10px 14px', fontSize: 13 }}>
+                        TOTAL GERAL CRBM (INTERIOR)
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          color: '#38bdf8',
+                          fontSize: 14,
+                        }}
+                      >
+                        296
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          color: '#a3e635',
+                          fontSize: 14,
+                        }}
+                      >
+                        54
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          fontSize: 16,
+                        }}
+                      >
+                        350
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TABELA: RESUMO POR MISSÃO */}
+          {activeTab === 'resumo' && (
+            <div style={{ marginBottom: 24 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 8,
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: '#38bdf8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                <Layers size={16} />
+                <span>
+                  3. Resumo Consolidado por Missão (Capital x Interior x Total)
+                </span>
+              </div>
+
+              <div
+                style={{
+                  overflowX: 'auto',
+                  borderRadius: 8,
+                  border: '1px solid #1e293b',
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        background: '#0f172a',
+                        color: '#94a3b8',
+                        borderBottom: '1px solid #334155',
+                      }}
+                    >
+                      <th style={{ padding: '10px 14px' }}>
+                        Força / Missão Operacional
+                      </th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        Capital (Manaus)
+                      </th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        Comando Interior + Bases
+                      </th>
+                      <th
+                        style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                        }}
+                      >
+                        Efetivo Total
+                      </th>
+                      <th
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'right',
+                          color: '#38bdf8',
+                        }}
+                      >
+                        % do Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resumoMissoes.map((m, idx) => (
+                      <tr
+                        key={m.key}
+                        style={{
+                          background: idx % 2 === 0 ? '#090d16' : '#0c121e',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: '10px 14px',
+                            fontWeight: 700,
+                            color: '#f8fafc',
+                          }}
+                        >
+                          {m.label}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 12px',
+                            textAlign: 'right',
+                            color: m.capital ? '#38bdf8' : '#475569',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {m.capital || '-'}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 12px',
+                            textAlign: 'right',
+                            color: m.interior ? '#fb923c' : '#475569',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {m.interior || '-'}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 14px',
+                            textAlign: 'right',
+                            color: '#facc15',
+                            fontWeight: 900,
+                            fontSize: 13,
+                          }}
+                        >
+                          {m.total}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 12px',
+                            textAlign: 'right',
+                            color: '#94a3b8',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {m.perc}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr
+                      style={{
+                        background:
+                          'linear-gradient(135deg, #064e3b 0%, #022c22 100%)',
+                        color: '#a7f3d0',
+                        fontWeight: 900,
+                        borderTop: '2px solid #10b981',
+                      }}
+                    >
+                      <td style={{ padding: '12px 14px' }}>
+                        TOTAL EFETIVO INTEGRADO
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 12px',
+                          textAlign: 'right',
+                          color: '#38bdf8',
+                          fontSize: 13,
+                        }}
+                      >
+                        {totals.capital}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 12px',
+                          textAlign: 'right',
+                          color: '#fb923c',
+                          fontSize: 13,
+                        }}
+                      >
+                        {totals.interior}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 14px',
+                          textAlign: 'right',
+                          color: '#facc15',
+                          fontSize: 15,
+                        }}
+                      >
+                        {totals.total}
+                      </td>
+                      <td
+                        style={{
+                          padding: '12px 12px',
+                          textAlign: 'right',
+                          color: '#a7f3d0',
+                        }}
+                      >
+                        100.0%
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -1595,7 +2899,7 @@ export function EfetivoModal({
 }
 
 const inputStyle = {
-  width: 50,
+  width: 52,
   height: 26,
   textAlign: 'right',
   fontFamily: 'monospace',
