@@ -1,4 +1,3 @@
-import { supabase } from './supabaseClient';
 import {
   MUNICIPIOS_POLO_LIST,
   BASES_TEMPORARIAS_LIST,
@@ -61,35 +60,24 @@ export function buildSupabaseEfetivoArray() {
   return getOficialEfetivoArray('diario');
 }
 
+const MAP_SYNC_API = '/api/map-sync';
+
 /**
  * Lista todas as datas disponíveis no banco de dados Supabase (ordenadas da mais recente para a mais antiga)
  */
 export async function fetchAvailableDates() {
   try {
-    const { data: rows, error } = await supabase
-      .from('daily_reports')
-      .select('report_date, shift, updated_at')
-      .order('report_date', { ascending: false })
-      .order('shift', { ascending: false });
-
-    if (error) {
-      console.warn('[MapSync] Erro ao listar datas:', error.message);
-      return [];
-    }
-
-    const dateMap = new Map();
-    (rows || []).forEach((r) => {
-      if (!r.report_date) return;
-      if (!dateMap.has(r.report_date)) {
-        dateMap.set(r.report_date, {
-          date: r.report_date,
-          shift: r.shift,
-          updatedAt: r.updated_at,
-        });
-      }
+    const resp = await fetch(`${MAP_SYNC_API}?action=dates`, {
+      cache: 'no-store',
     });
-
-    return Array.from(dateMap.values());
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+    const json = await resp.json();
+    if (!json.ok) {
+      throw new Error(json.error || 'Erro ao listar datas');
+    }
+    return Array.isArray(json.dates) ? json.dates : [];
   } catch (err) {
     console.warn('[MapSync] Aviso ao obter datas:', err);
     return [];
@@ -372,63 +360,21 @@ function harmonizeWithBenchmarks(efetivoArray) {
  */
 export async function fetchRemoteMapState(targetDate = null) {
   try {
-    let query = supabase
-      .from('daily_reports')
-      .select(
-        'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
-      );
+    const url = targetDate
+      ? `${MAP_SYNC_API}?action=state&date=${encodeURIComponent(targetDate)}`
+      : `${MAP_SYNC_API}?action=state`;
 
-    if (targetDate) {
-      query = query.eq('report_date', targetDate);
-    } else {
-      query = query.order('report_date', { ascending: false });
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
     }
 
-    const { data: rows, error } = await query
-      .order('updated_at', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.warn('[MapSync] Aviso do Supabase:', error.message);
-      const fallbackEfetivo = getOficialEfetivoArray('diario');
-      return {
-        ok: true,
-        reportDate: targetDate || new Date().toISOString().split('T')[0],
-        tokens: generateTokensFromEfetivo(fallbackEfetivo),
-        efetivo: fallbackEfetivo,
-        muniStatuses: null,
-        muniNotes: null,
-      };
+    const json = await resp.json();
+    if (!json.ok) {
+      throw new Error(json.error || 'Erro ao carregar estado do banco');
     }
 
-    // Procura o relatório que contenha efetivo preenchido
-    let report =
-      (rows || []).find(
-        (r) => Array.isArray(r.efetivo) && r.efetivo.length > 5
-      ) || (rows || [])[0];
-
-    // Se no lote recente não encontrou efetivo preenchido, busca histórico (carry-over contínuo)
-    if (
-      !report ||
-      !Array.isArray(report.efetivo) ||
-      report.efetivo.length <= 5
-    ) {
-      const { data: donorRows } = await supabase
-        .from('daily_reports')
-        .select(
-          'id, report_date, shift, notes, efetivo, recursos, version, updated_at'
-        )
-        .not('efetivo', 'is', null)
-        .order('report_date', { ascending: false })
-        .limit(20);
-
-      const donor = (donorRows || []).find(
-        (r) => Array.isArray(r.efetivo) && r.efetivo.length > 5
-      );
-      if (donor) {
-        report = donor;
-      }
-    }
+    const report = json.report;
 
     if (!report) {
       const fallbackEfetivo = getOficialEfetivoArray('diario');
@@ -477,7 +423,7 @@ export async function fetchRemoteMapState(targetDate = null) {
 
     return {
       ok: true,
-      source: 'supabase-local',
+      source: 'api-map-sync',
       reportId: report.id,
       reportDate: report.report_date,
       shift: report.shift,
@@ -490,7 +436,7 @@ export async function fetchRemoteMapState(targetDate = null) {
       updatedAt: mapState?.updatedAt || report.updated_at,
     };
   } catch (err) {
-    console.warn('[MapSync] Aviso na comunicação com Supabase:', err);
+    console.warn('[MapSync] Aviso na comunicação com o banco:', err);
     const fallbackEfetivo = getOficialEfetivoArray('diario');
     return {
       ok: true,
@@ -516,7 +462,7 @@ export async function saveRemoteMapState({
   supabaseRecursos,
   shift = 'noturno',
 }) {
-  const finalDate = targetDate || '2026-11-04';
+  const finalDate = targetDate || new Date().toISOString().split('T')[0];
   const updatedAt = new Date().toISOString();
 
   // 1. Gravar no armazenamento local persistente vinculado à data
@@ -534,113 +480,43 @@ export async function saveRemoteMapState({
     // ignore local storage backup failure
   }
 
-  // 2. Persistência direta no Supabase (mesmo banco do Relatório)
+  // 2. Persistência no Supabase via rota segura server-side (/api/map-sync)
   try {
-    const { data: existingRows, error: searchErr } = await supabase
-      .from('daily_reports')
-      .select('id, notes, efetivo, recursos, version')
-      .eq('report_date', finalDate)
-      .order('updated_at', { ascending: false })
-      .limit(1);
+    const resp = await fetch(MAP_SYNC_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'saveMapState',
+        targetDate: finalDate,
+        shift,
+        mapState: {
+          version: '2.0',
+          updatedAt,
+          reportDate: finalDate,
+          tokens: Array.isArray(tokens) ? tokens : [],
+          muniStatuses: muniStatuses || {},
+          muniNotes: muniNotes || {},
+          efetivoMatriz: efetivoMatriz || null,
+        },
+        efetivo: supabaseEfetivo || null,
+        recursos: supabaseRecursos || null,
+      }),
+    });
 
-    if (searchErr) {
-      console.warn('[MapSync] Aviso do Supabase direto:', searchErr.message);
-      return {
-        ok: true,
-        offline: true,
-        reportDate: finalDate,
-        updatedAt,
-      };
-    }
-
-    const existing =
-      existingRows && existingRows.length > 0 ? existingRows[0] : null;
-
-    let notesObj = {};
-    if (existing && existing.notes) {
-      try {
-        notesObj =
-          typeof existing.notes === 'string'
-            ? JSON.parse(existing.notes)
-            : existing.notes;
-      } catch (err) {
-        notesObj = {};
-      }
-    }
-
-    notesObj.map_state = {
-      version: '2.0',
-      updatedAt,
-      reportDate: finalDate,
-      tokens: Array.isArray(tokens) ? tokens : [],
-      muniStatuses: muniStatuses || {},
-      muniNotes: muniNotes || {},
-      efetivoMatriz: efetivoMatriz || null,
-    };
-
-    const finalEfetivo =
-      supabaseEfetivo ||
-      (existing?.efetivo && existing.efetivo.length > 5
-        ? existing.efetivo
-        : buildSupabaseEfetivoArray());
-
-    const finalRecursos =
-      supabaseRecursos ||
-      (existing?.recursos && existing.recursos.length > 0
-        ? existing.recursos
-        : buildSupabaseRecursosArray());
-
-    let reportId = null;
-
-    if (existing) {
-      const { error: updErr } = await supabase
-        .from('daily_reports')
-        .update({
-          notes: JSON.stringify(notesObj),
-          efetivo: finalEfetivo,
-          recursos: finalRecursos,
-          updated_at: updatedAt,
-        })
-        .eq('id', existing.id);
-
-      if (updErr) {
-        console.warn('[MapSync] Erro no update Supabase direto:', updErr);
-        return { ok: true, offline: true, reportDate: finalDate, updatedAt };
-      }
-      reportId = existing.id;
-    } else {
-      const { data: inserted, error: insErr } = await supabase
-        .from('daily_reports')
-        .insert({
-          report_date: finalDate,
-          shift,
-          notes: JSON.stringify(notesObj),
-          efetivo: finalEfetivo,
-          recursos: finalRecursos,
-          incendios: [],
-          outras: [],
-          version: 1,
-          created_at: updatedAt,
-          updated_at: updatedAt,
-        })
-        .select('id')
-        .single();
-
-      if (insErr) {
-        console.warn('[MapSync] Erro no insert Supabase direto:', insErr);
-        return { ok: true, offline: true, reportDate: finalDate, updatedAt };
-      }
-      reportId = inserted?.id;
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.ok) {
+      console.warn('[MapSync] Erro ao salvar estado no banco:', json.error);
+      return { ok: true, offline: true, reportDate: finalDate, updatedAt };
     }
 
     return {
       ok: true,
-      reportId,
-      reportDate: finalDate,
-      updatedAt,
+      reportId: json.reportId,
+      reportDate: json.reportDate || finalDate,
+      updatedAt: json.updatedAt || updatedAt,
     };
   } catch (err) {
-    console.warn('[MapSync] Exceção na sincronização direta:', err);
+    console.warn('[MapSync] Exceção ao salvar estado no banco:', err);
     return {
       ok: true,
       offline: true,
@@ -651,71 +527,36 @@ export async function saveRemoteMapState({
 }
 
 /**
- * Salva diretamente o array de efetivo na tabela daily_reports do Supabase
+ * Salva diretamente o array de efetivo na tabela daily_reports do Supabase via /api/map-sync
  */
 export async function saveRemoteEfetivo(reportDate, newEfetivo) {
-  const updatedAt = new Date().toISOString();
   try {
-    let query = supabase.from('daily_reports').select('id, report_date');
+    const resp = await fetch(MAP_SYNC_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'saveEfetivo',
+        reportDate: reportDate || new Date().toISOString().split('T')[0],
+        efetivo: newEfetivo,
+      }),
+    });
 
-    if (reportDate) {
-      query = query.eq('report_date', reportDate);
-    } else {
-      query = query.order('report_date', { ascending: false });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.ok) {
+      const errMsg =
+        json.error || `Falha HTTP ${resp.status} ao gravar no banco.`;
+      console.error('[MapSync] Erro ao salvar efetivo no Supabase:', errMsg);
+      return { ok: false, error: errMsg };
     }
 
-    const { data: rows, error: searchErr } = await query
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (searchErr) throw searchErr;
-
-    const existing = rows && rows.length > 0 ? rows[0] : null;
-
-    if (existing) {
-      const { error: updErr } = await supabase
-        .from('daily_reports')
-        .update({
-          efetivo: newEfetivo,
-          updated_at: updatedAt,
-        })
-        .eq('id', existing.id);
-
-      if (updErr) throw updErr;
-      return {
-        ok: true,
-        reportId: existing.id,
-        reportDate: existing.report_date,
-        updatedAt,
-      };
-    } else {
-      const finalDate = reportDate || new Date().toISOString().split('T')[0];
-      const { data: inserted, error: insErr } = await supabase
-        .from('daily_reports')
-        .insert({
-          report_date: finalDate,
-          shift: 'noturno',
-          efetivo: newEfetivo,
-          recursos: [],
-          incendios: [],
-          outras: [],
-          version: 1,
-          created_at: updatedAt,
-          updated_at: updatedAt,
-        })
-        .select('id, report_date')
-        .single();
-
-      if (insErr) throw insErr;
-      return {
-        ok: true,
-        reportId: inserted.id,
-        reportDate: inserted.report_date,
-        updatedAt,
-      };
-    }
+    return {
+      ok: true,
+      reportId: json.reportId,
+      reportDate: json.reportDate,
+      updatedAt: json.updatedAt,
+    };
   } catch (err) {
     console.error('[MapSync] Erro ao salvar efetivo no Supabase:', err);
-    return { ok: false, error: err.message };
+    return { ok: false, error: err?.message || String(err) };
   }
 }

@@ -543,7 +543,13 @@ export function EfetivoModal({
         _custom: true,
       }));
 
-      await onSaveEfetivo(payload);
+      const res = await onSaveEfetivo(payload);
+      if (!res || !res.ok) {
+        throw new Error(
+          res?.error ||
+            'Não foi possível gravar as alterações no banco de dados.'
+        );
+      }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4000);
       setIsEditing(false);
