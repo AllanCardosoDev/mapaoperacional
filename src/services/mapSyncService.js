@@ -12,6 +12,7 @@ import { OPERACAO_RECURSOS_MUNICIPIOS } from '../data/operacaoAmazonasData';
 import { findCoordinates } from '../utils/spreadsheetParser';
 
 const LOCAL_STORAGE_BACKUP_PREFIX = 'cbmam_map_supabase_backup_';
+const RELATORIO_API_URL = 'http://localhost:8083/api/public/efetivo';
 
 /**
  * Converte a matriz de 160 meios materiais para a estrutura da coluna `recursos` do Supabase
@@ -59,6 +60,76 @@ export function buildSupabaseRecursosArray() {
  */
 export function buildSupabaseEfetivoArray() {
   return getOficialEfetivoArray('diario');
+}
+
+/**
+ * Busca efetivo da API pública do projeto Relatório
+ * Retorna array no formato {municipios, bases} compatível com efetivoDB
+ */
+export async function fetchEfetivoFromRelatorioApi(date = null) {
+  try {
+    const url = new URL(RELATORIO_API_URL);
+    if (date) url.searchParams.set('date', date);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('mode', 'diario');
+
+    const res = await fetch(url.toString(), {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+    const data = await res.json();
+
+    // Converte formato {municipios, bases} do relatório para formato plano do mapa
+    const efetivoArray = [];
+
+    if (Array.isArray(data.municipios)) {
+      data.municipios.forEach((m) => {
+        efetivoArray.push({
+          mun: m.muni || m.nome,
+          tipo: m.tipo || 'interior',
+          cbmam: Number(m.cbmam ?? m.serv_ord ?? 0),
+          serv_ord: Number(m.serv_ord ?? 0),
+          opamv: Number(m.opamv ?? 0),
+          opam_ref: Number(m.opam_ref ?? 0),
+          prevfogo: Number(m.prevfogo ?? 0),
+          fn: Number(m.fn ?? 0),
+          brig_mun: Number(m.brig_mun ?? 0),
+          brig_semas: Number(m.brig_sema ?? m.brig_semas ?? 0),
+          total: Number(m.total ?? 0),
+        });
+      });
+    }
+
+    if (Array.isArray(data.bases)) {
+      data.bases.forEach((b) => {
+        efetivoArray.push({
+          mun: b.base || b.nome,
+          tipo: 'base',
+          cbmam: Number(b.cbmam ?? b.serv_ord ?? 0),
+          serv_ord: Number(b.serv_ord ?? 0),
+          opamv: Number(b.opamv ?? 0),
+          opam_ref: Number(b.opam_ref ?? 0),
+          prevfogo: Number(b.prevfogo ?? 0),
+          fn: Number(b.fn ?? 0),
+          brig_mun: Number(b.brig_mun ?? 0),
+          brig_semas: Number(b.brig_sema ?? b.brig_semas ?? 0),
+          total: Number(b.total ?? 0),
+        });
+      });
+    }
+
+    return {
+      ok: true,
+      efetivo: efetivoArray,
+      reportDate:
+        data.reportDate || data.date || new Date().toISOString().split('T')[0],
+    };
+  } catch (err) {
+    console.warn('[MapSync] Erro ao buscar da API do Relatório:', err);
+    return { ok: false, error: err.message, efetivo: [] };
+  }
 }
 
 /**
@@ -368,8 +439,38 @@ function harmonizeWithBenchmarks(efetivoArray) {
 
 /**
  * Busca o estado do mapa para uma data específica (ou o mais recente oficial se omitido)
+ * Fonte primária: API do projeto Relatório. Fallback: Supabase local.
  */
 export async function fetchRemoteMapState(targetDate = null) {
+  // 1. Tenta buscar da API do projeto Relatório primeiro
+  try {
+    const apiResult = await fetchEfetivoFromRelatorioApi(targetDate);
+
+    if (apiResult.ok && apiResult.efetivo.length > 0) {
+      // Harmoniza o efetivo com os benchmarks oficiais
+      const finalEfetivo = harmonizeWithBenchmarks(apiResult.efetivo);
+
+      // Gera tokens a partir do efetivo
+      const tokens = generateTokensFromEfetivo(finalEfetivo);
+
+      return {
+        ok: true,
+        source: 'relatorio-api',
+        reportDate: apiResult.reportDate,
+        tokens,
+        efetivo: finalEfetivo,
+        muniStatuses: null,
+        muniNotes: null,
+      };
+    }
+  } catch (err) {
+    console.warn(
+      '[MapSync] Falha na API do Relatório, usando fallback Supabase:',
+      err
+    );
+  }
+
+  // 2. Fallback: busca no Supabase local
   try {
     let query = supabase
       .from('daily_reports')
@@ -476,6 +577,7 @@ export async function fetchRemoteMapState(targetDate = null) {
 
     return {
       ok: true,
+      source: 'supabase-local',
       reportId: report.id,
       reportDate: report.report_date,
       shift: report.shift,
