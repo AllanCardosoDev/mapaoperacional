@@ -978,6 +978,10 @@ export default function App() {
         {showRelatorioModal && (
           <RelatorioOficialModal
             tokens={tokens}
+            dbEfetivo={dbEfetivo}
+            dbRecursos={dbRecursos}
+            reportDate={selectedDate}
+            stats={stats}
             muniStatuses={muniStatuses}
             muniNotes={muniNotes}
             onClose={() => setShowRelatorioModal(false)}

@@ -674,6 +674,8 @@ export const CRBM_DETALHAMENTO = [
   },
 ];
 
+export const ADM_2_CRBM_MANAUS = 9;
+
 export const CRBM_SUBTOTAIS = [
   { crbm: 'SUBTOTAL 1º CRBM', combatente: 48, saude: 4, total: 52 },
   { crbm: 'SUBTOTAL 2º CRBM', combatente: 170, saude: 43, total: 213 },

@@ -10,138 +10,657 @@ import {
   Plane,
   Building2,
   TreePine,
-  Compass,
   Truck,
+  BarChart3,
+  FileSpreadsheet,
+  Copy,
+  Check,
+  MapPin,
+  Tent,
+  Award,
 } from 'lucide-react';
 import {
-  OPERACAO_EFETIVO_MUNICIPIOS,
-  RESUMO_EXECUTIVO_OFICIAL,
+  MUNICIPIOS_POLO_LIST,
+  BASES_TEMPORARIAS_LIST,
+  BENCHMARK_PERMANENTE_CBMAM,
+  BENCHMARK_MUNICIPIOS_OPERACIONAL,
+  BENCHMARK_BASES_OPERACIONAL,
+  CRBM_DETALHAMENTO,
+  CRBM_SUBTOTAIS,
+  ADM_2_CRBM_MANAUS,
+  getCrbmByMunicipio,
+  norm,
+} from '../data/efetivoOficial';
+import {
   PREVFOGO_RECURSOS_DISPONIVEIS,
   OPERACAO_RECURSOS_MUNICIPIOS,
   RESUMO_RECURSOS_OFICIAL,
 } from '../data/operacaoAmazonasData';
+import { AMAZONAS_DATA } from '../data/amazonasData';
 
-export function RelatorioOficialModal({ onClose, onSelectMuni }) {
-  const [activeTab, setActiveTab] = useState('documento'); // 'documento' | 'dashboard' | 'tabelas' | 'prevfogo'
+const ARCO_FOGO_SET = new Set(
+  AMAZONAS_DATA.municipalities
+    .filter((m) => m.in_arco_fogo)
+    .map((m) => norm(m.name))
+);
+
+function formatDateBR(iso) {
+  if (!iso) {
+    return new Date().toLocaleDateString('pt-BR', {
+      timeZone: 'America/Manaus',
+    });
+  }
+  const parts = String(iso).split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return iso;
+}
+
+function fmtNum(val) {
+  return Number(val || 0).toLocaleString('pt-BR');
+}
+
+export function RelatorioOficialModal({
+  dbEfetivo = [],
+  dbRecursos = null,
+  reportDate = null,
+  onClose,
+  onSelectMuni,
+}) {
+  const [activeTab, setActiveTab] = useState('documento'); // 'documento' | 'dashboard' | 'tabelas' | 'crbm' | 'recursos' | 'prevfogo'
   const [searchTerm, setSearchTerm] = useState('');
+  const [crbmFilter, setCrbmFilter] = useState('todos');
+  const [copiedSummary, setCopiedSummary] = useState(false);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
-  // Data e hora de emissão do relatório
-  const emissionTimestamp = useMemo(() => {
+  const emissionInfo = useMemo(() => {
     const now = new Date();
-    const dateFormatted = now.toLocaleDateString('pt-BR', {
+    let dateLong = now.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
     });
-    const timeFormatted = now.toLocaleTimeString('pt-BR', {
+    let timeStr = now.toLocaleTimeString('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
     });
+    try {
+      dateLong = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Manaus',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(now);
+      timeStr = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Manaus',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(now);
+    } catch {
+      // fallback
+    }
     return {
-      date: dateFormatted,
-      time: timeFormatted,
-      raw: now.toLocaleDateString('pt-BR'),
+      dateLong,
+      time: timeStr,
+      refBR: formatDateBR(reportDate),
+      refIso: reportDate || now.toISOString().slice(0, 10),
     };
-  }, []);
+  }, [reportDate]);
 
-  // Separação em Tabela 1 (Municípios com Efetivo Permanente) e Tabela 2 (Bases Temporárias)
-  const tabela1Municipios = useMemo(() => {
-    return OPERACAO_EFETIVO_MUNICIPIOS.filter(
-      (m) => m.tipo === 'capital' || m.tipo === 'interior'
-    );
-  }, []);
+  // 1. Consolida os 26 Municípios Polo em tempo real a partir de dbEfetivo (com fallback canônico)
+  const polosList = useMemo(() => {
+    return MUNICIPIOS_POLO_LIST.map((nome, idx) => {
+      const found = (dbEfetivo || []).find(
+        (r) =>
+          norm(r.mun) === norm(nome) &&
+          (r.tipo === 'capital' || r.tipo === 'interior' || !r.tipo)
+      );
+      const bm = BENCHMARK_MUNICIPIOS_OPERACIONAL[nome] || {};
+      const bmPerm = BENCHMARK_PERMANENTE_CBMAM[nome] || 0;
+      const isCustom = !!found?._custom;
 
-  const tabela2Bases = useMemo(() => {
-    return OPERACAO_EFETIVO_MUNICIPIOS.filter(
-      (m) => m.tipo === 'base_temporaria'
-    );
-  }, []);
+      const cbmam = Number(
+        isCustom ? (found.cbmam ?? bmPerm) : found?.cbmam || bmPerm
+      );
+      const opamv = Number(
+        isCustom
+          ? (found.opamv ?? bm.opamv ?? 0)
+          : found?.opamv || bm.opamv || 0
+      );
+      const opam_ref = Number(
+        isCustom
+          ? (found.opam_ref ?? bm.opam_ref ?? 0)
+          : found?.opam_ref || bm.opam_ref || 0
+      );
+      const prevfogo = Number(
+        isCustom
+          ? (found.prevfogo ?? bm.prevfogo ?? 0)
+          : found?.prevfogo || bm.prevfogo || 0
+      );
+      const fn = Number(
+        isCustom ? (found.fn ?? bm.fn ?? 0) : found?.fn || bm.fn || 0
+      );
+      const brig_mun = Number(
+        isCustom
+          ? (found.brig_mun ?? bm.brig_mun ?? 0)
+          : found?.brig_mun || bm.brig_mun || 0
+      );
+      const brig_semas = Number(
+        isCustom
+          ? (found.brig_semas ?? bm.brig_semas ?? 0)
+          : found?.brig_semas || bm.brig_semas || 0
+      );
+      const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
 
-  // Filtro de busca aplicado
-  const filteredTabela1 = useMemo(() => {
-    if (!searchTerm.trim()) return tabela1Municipios;
-    const q = searchTerm.toLowerCase();
-    return tabela1Municipios.filter((m) => m.muni.toLowerCase().includes(q));
-  }, [searchTerm, tabela1Municipios]);
+      return {
+        ordem: idx + 1,
+        nome,
+        tipo: nome === 'Manaus' ? 'capital' : 'interior',
+        crbm: getCrbmByMunicipio(nome) || 'Interior',
+        inArco: ARCO_FOGO_SET.has(norm(nome)),
+        cbmam,
+        opamv,
+        opam_ref,
+        prevfogo,
+        fn,
+        brig_mun,
+        brig_semas,
+        total,
+      };
+    });
+  }, [dbEfetivo]);
 
-  const filteredTabela2 = useMemo(() => {
-    if (!searchTerm.trim()) return tabela2Bases;
-    const q = searchTerm.toLowerCase();
-    return tabela2Bases.filter((m) => m.muni.toLowerCase().includes(q));
-  }, [searchTerm, tabela2Bases]);
+  // 2. Consolida as 12 Bases Temporárias em tempo real a partir de dbEfetivo
+  const basesList = useMemo(() => {
+    return BASES_TEMPORARIAS_LIST.map((nome, idx) => {
+      const found = (dbEfetivo || []).find(
+        (r) =>
+          (r.tipo === 'base' || norm(r.mun).includes('km 53')) &&
+          (norm(r.mun) === norm(nome) ||
+            (norm(nome).includes('km 53') && norm(r.mun).includes('km 53')))
+      );
+      const bm = BENCHMARK_BASES_OPERACIONAL[nome] || {};
+      const isCustom = !!found?._custom;
 
-  // Totais calculados da Tabela 1
-  const totTabela1 = useMemo(() => {
-    return tabela1Municipios.reduce(
-      (acc, item) => {
-        acc.ef_permanente += item.ef_permanente || 0;
-        acc.serv_ord += item.serv_ord || 0;
-        acc.opam += item.opam || 0;
-        acc.opam_extra += item.opam_extra || 0;
-        acc.inc2 += item.inc2 || 0;
-        acc.cbmam += item.cbmam_militares || 0;
-        acc.prevfogo += item.prevfogo || 0;
-        acc.fn += item.fn || 0;
-        acc.brig_mun += item.brigadista || 0;
-        acc.brig_sema += item.brigadista_sema || 0;
-        acc.total += item.total || 0;
+      const opamv = Number(
+        isCustom
+          ? (found.opamv ?? bm.opamv ?? 0)
+          : found?.opamv || bm.opamv || 0
+      );
+      const opam_ref = Number(
+        isCustom
+          ? (found.opam_ref ?? bm.opam_ref ?? 0)
+          : found?.opam_ref || bm.opam_ref || 0
+      );
+      const prevfogo = Number(
+        isCustom
+          ? (found.prevfogo ?? bm.prevfogo ?? 0)
+          : found?.prevfogo || bm.prevfogo || 0
+      );
+      const fn = Number(
+        isCustom ? (found.fn ?? bm.fn ?? 0) : found?.fn || bm.fn || 0
+      );
+      const brig_mun = Number(
+        isCustom
+          ? (found.brig_mun ?? bm.brig_mun ?? 0)
+          : found?.brig_mun || bm.brig_mun || 0
+      );
+      const brig_semas = Number(
+        isCustom
+          ? (found.brig_semas ?? bm.brig_semas ?? 0)
+          : found?.brig_semas || bm.brig_semas || 0
+      );
+      const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
+
+      return {
+        ordem: idx + 1,
+        nome,
+        tipo: 'base',
+        crbm: getCrbmByMunicipio(nome) || '2º CRBM',
+        inArco: ARCO_FOGO_SET.has(norm(nome)),
+        cbmam: 0,
+        opamv,
+        opam_ref,
+        prevfogo,
+        fn,
+        brig_mun,
+        brig_semas,
+        total,
+      };
+    });
+  }, [dbEfetivo]);
+
+  // 3. Subtotais e Total Geral dinâmicos
+  const sumList = (list) =>
+    list.reduce(
+      (acc, r) => {
+        acc.cbmam += r.cbmam;
+        acc.opamv += r.opamv;
+        acc.opam_ref += r.opam_ref;
+        acc.prevfogo += r.prevfogo;
+        acc.fn += r.fn;
+        acc.brig_mun += r.brig_mun;
+        acc.brig_semas += r.brig_semas;
+        acc.total += r.total;
         return acc;
       },
       {
-        ef_permanente: 0,
-        serv_ord: 0,
-        opam: 0,
-        opam_extra: 0,
-        inc2: 0,
         cbmam: 0,
+        opamv: 0,
+        opam_ref: 0,
         prevfogo: 0,
         fn: 0,
         brig_mun: 0,
-        brig_sema: 0,
+        brig_semas: 0,
         total: 0,
       }
     );
-  }, [tabela1Municipios]);
 
-  // Totais calculados da Tabela 2
-  const totTabela2 = useMemo(() => {
-    return tabela2Bases.reduce(
-      (acc, item) => {
-        acc.opam += item.opam || 0;
-        acc.opam_extra += item.opam_extra || 0;
-        acc.inc2 += item.inc2 || 0;
-        acc.cbmam += item.cbmam_militares || 0;
-        acc.prevfogo += item.prevfogo || 0;
-        acc.fn += item.fn || 0;
-        acc.brig_mun += item.brigadista || 0;
-        acc.brig_sema += item.brigadista_sema || 0;
-        acc.total += item.total || 0;
+  const totPolos = useMemo(() => sumList(polosList), [polosList]);
+  const totBases = useMemo(() => sumList(basesList), [basesList]);
+
+  const totGeral = useMemo(() => {
+    const cbmamCap = polosList.find((p) => p.nome === 'Manaus')?.cbmam ?? 477;
+    const cbmamIntPolos = totPolos.cbmam - cbmamCap;
+    const cbmamIntComAdm = cbmamIntPolos + ADM_2_CRBM_MANAUS;
+    const opamv = totPolos.opamv + totBases.opamv;
+    const opam_ref = totPolos.opam_ref + totBases.opam_ref;
+    const prevfogo = totPolos.prevfogo + totBases.prevfogo;
+    const fn = totPolos.fn + totBases.fn;
+    const brig_mun = totPolos.brig_mun + totBases.brig_mun;
+    const brig_semas = totPolos.brig_semas + totBases.brig_semas;
+    const totalAtuacao = totPolos.total + totBases.total;
+    const capitalAtuacao =
+      polosList.find((p) => p.nome === 'Manaus')?.total ?? 0;
+    const interiorAtuacao = totalAtuacao - capitalAtuacao;
+    const efetivoGeralInstituicoes =
+      cbmamCap + cbmamIntComAdm + brig_mun + brig_semas + fn + prevfogo;
+
+    return {
+      cbmam: totPolos.cbmam,
+      cbmamCap,
+      cbmamIntPolos,
+      cbmamIntComAdm,
+      opamv,
+      opam_ref,
+      opamTotal: opamv + opam_ref,
+      prevfogo,
+      fn,
+      brig_mun,
+      brig_semas,
+      brigTotal: brig_mun + brig_semas,
+      totalAtuacao,
+      capitalAtuacao,
+      interiorAtuacao,
+      efetivoGeralInstituicoes,
+    };
+  }, [polosList, totPolos, totBases]);
+
+  // 4. Quadro 01 — Efetivo Geral Dinâmico por Instituição
+  const quadro01Instituicoes = useMemo(() => {
+    const items = [
+      {
+        label: 'CBMAM Capital',
+        valor: totGeral.cbmamCap,
+        color: '#ef4444',
+      },
+      {
+        label: 'CBMAM Interior (Polos + ADM 2º CRBM)',
+        valor: totGeral.cbmamIntComAdm,
+        color: '#f97316',
+      },
+      {
+        label: 'Prevfogo / IBAMA',
+        valor: totGeral.prevfogo,
+        color: '#22c55e',
+      },
+      {
+        label: 'Brigadistas Municipais',
+        valor: totGeral.brig_mun,
+        color: '#eab308',
+      },
+      {
+        label: 'Brigadistas SEMA',
+        valor: totGeral.brig_semas,
+        color: '#10b981',
+      },
+      {
+        label: 'Força Nacional (FNSP)',
+        valor: totGeral.fn,
+        color: '#38bdf8',
+      },
+      {
+        label: 'CBMESP',
+        valor: 0,
+        color: '#8b5cf6',
+      },
+      {
+        label: 'Marinha / Fuzileiros',
+        valor: 0,
+        color: '#64748b',
+      },
+    ];
+    const total = Math.max(
+      1,
+      items.reduce((s, it) => s + it.valor, 0)
+    );
+    return items.map((it) => ({
+      ...it,
+      pct: ((it.valor / total) * 100).toFixed(1),
+    }));
+  }, [totGeral]);
+
+  // 5. Top 10 Municípios em Atuação
+  const top10Atuacao = useMemo(() => {
+    return [...polosList, ...basesList]
+      .filter((r) => r.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }, [polosList, basesList]);
+
+  // 6. Recursos / Meios (160) — usa dbRecursos se vier preenchido, senão oficial
+  const recursosList = useMemo(() => {
+    const source =
+      Array.isArray(dbRecursos) && dbRecursos.length > 5
+        ? dbRecursos
+        : OPERACAO_RECURSOS_MUNICIPIOS;
+    return source.map((r) => {
+      const combate =
+        (Number(r.abt) || 0) +
+        (Number(r.at) || 0) +
+        (Number(r.ata) || 0) +
+        (Number(r.abf) || 0) +
+        (Number(r.atf) || 0) +
+        (Number(r.abs) || 0) +
+        (Number(r.abtf) || 0);
+      const apoio =
+        (Number(r.ar) || 0) +
+        (Number(r.ur) || 0) +
+        (Number(r.mt) || 0) +
+        (Number(r.dosa) || 0) +
+        (Number(r.gse) || 0) +
+        (Number(r.crs) || 0) +
+        (Number(r.autoarp) || 0) +
+        (Number(r.picape_esfron) || 0) +
+        (Number(r.picape_fn) || 0) +
+        (Number(r.picape_muni) || 0) +
+        (Number(r.quadriciclo) || 0);
+      const fluvial = (Number(r.embarcacao) || 0) + (Number(r.jetski) || 0);
+      const aereo = (Number(r.helicoptero) || 0) + (Number(r.aviao) || 0);
+      const total = combate + apoio + fluvial + aereo;
+      return {
+        mun: r.mun || r.muni || '—',
+        abt: Number(r.abt) || 0,
+        atf: Number(r.atf) || 0,
+        combate,
+        ar: Number(r.ar) || 0,
+        ur: Number(r.ur) || 0,
+        apoio,
+        fluvial,
+        aereo,
+        total,
+      };
+    });
+  }, [dbRecursos]);
+
+  const totRecursos = useMemo(() => {
+    return recursosList.reduce(
+      (acc, r) => {
+        acc.abt += r.abt;
+        acc.atf += r.atf;
+        acc.combate += r.combate;
+        acc.ar += r.ar;
+        acc.ur += r.ur;
+        acc.apoio += r.apoio;
+        acc.fluvial += r.fluvial;
+        acc.aereo += r.aereo;
+        acc.total += r.total;
         return acc;
       },
       {
-        opam: 0,
-        opam_extra: 0,
-        inc2: 0,
-        cbmam: 0,
-        prevfogo: 0,
-        fn: 0,
-        brig_mun: 0,
-        brig_sema: 0,
+        abt: 0,
+        atf: 0,
+        combate: 0,
+        ar: 0,
+        ur: 0,
+        apoio: 0,
+        fluvial: 0,
+        aereo: 0,
         total: 0,
       }
     );
-  }, [tabela2Bases]);
+  }, [recursosList]);
 
-  const handlePrint = () => {
-    window.print();
+  // Filtros aplicados na aba de Tabelas e Recursos
+  const applyFilter = (list) => {
+    const q = norm(searchTerm);
+    return list.filter((r) => {
+      const nameMatch = !q || norm(r.nome || r.mun).includes(q);
+      if (!nameMatch) return false;
+      if (crbmFilter === 'todos') return true;
+      if (crbmFilter === 'arco_fogo') return !!r.inArco;
+      return r.crbm === crbmFilter;
+    });
+  };
+
+  const filteredPolos = useMemo(
+    () => applyFilter(polosList),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [polosList, searchTerm, crbmFilter]
+  );
+  const filteredBases = useMemo(
+    () => applyFilter(basesList),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [basesList, searchTerm, crbmFilter]
+  );
+  const filteredRecursos = useMemo(() => {
+    const q = norm(searchTerm);
+    if (!q) return recursosList;
+    return recursosList.filter((r) => norm(r.mun).includes(q));
+  }, [recursosList, searchTerm]);
+
+  // Impressão limpa A4 (sempre ativa aba documento antes de chamar print)
+  const handlePrintA4 = () => {
+    if (activeTab !== 'documento') {
+      setActiveTab('documento');
+      setTimeout(() => window.print(), 180);
+    } else {
+      window.print();
+    }
+  };
+
+  // Copiar Resumo Executivo formatado para WhatsApp / Briefing
+  const handleCopyBriefing = () => {
+    const lines = [
+      `*RELATÓRIO OPERACIONAL — OPERAÇÃO AMAZONAS (CBMAM/CBI)*`,
+      `Referência: ${emissionInfo.refBR} | Emitido às ${emissionInfo.time} (AMT)`,
+      ``,
+      `*SÍNTESE DE EFETIVO*`,
+      `• Efetivo Geral (Todas Instituições): *${fmtNum(totGeral.efetivoGeralInstituicoes)}*`,
+      `• CBMAM Polos: *${fmtNum(totGeral.cbmam)}* (${totGeral.cbmamCap} Cap + ${totGeral.cbmamIntPolos} Int + ${ADM_2_CRBM_MANAUS} ADM 2º CRBM)`,
+      `• Total em Atuação na Operação: *${fmtNum(totGeral.totalAtuacao)}* (${totPolos.total} Polos + ${totBases.total} Bases)`,
+      `  - OPAM (6ª + 7ª Fase): ${totGeral.opamTotal} (${totGeral.opamv} + ${totGeral.opam_ref})`,
+      `  - Prevfogo / IBAMA: ${totGeral.prevfogo}`,
+      `  - Força Nacional: ${totGeral.fn}`,
+      `  - Brigadistas: ${totGeral.brigTotal} (${totGeral.brig_mun} Mun + ${totGeral.brig_semas} SEMA)`,
+      ``,
+      `*MEIOS EMPREGADOS:* ${totRecursos.total || RESUMO_RECURSOS_OFICIAL.total_geral} (${totRecursos.combate} Combate, ${totRecursos.apoio} Apoio/Resgate, ${totRecursos.fluvial} Fluviais, ${totRecursos.aereo} Aeronaves)`,
+    ];
+    const text = lines.join('\n');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedSummary(true);
+        setTimeout(() => setCopiedSummary(false), 3000);
+      });
+    }
+  };
+
+  // Exportar Excel (.xlsx) multi-abas com carregamento dinâmico (mantém bundle inicial leve)
+  const handleExportExcel = async () => {
+    try {
+      setExportingXlsx(true);
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+
+      // Aba 1: Efetivo Geral
+      const wsGeral = XLSX.utils.json_to_sheet([
+        ...quadro01Instituicoes.map((it) => ({
+          'Instituição / Origem': it.label,
+          Quantitativo: it.valor,
+          'Participação (%)': `${it.pct}%`,
+        })),
+        {
+          'Instituição / Origem': 'TOTAL GERAL',
+          Quantitativo: totGeral.efetivoGeralInstituicoes,
+          'Participação (%)': '100.0%',
+        },
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsGeral, '01_Efetivo_Geral');
+
+      // Aba 2: 26 Municípios Polo
+      const wsPolos = XLSX.utils.json_to_sheet([
+        ...polosList.map((r) => ({
+          Ordem: r.ordem,
+          Município: r.nome,
+          CRBM: r.crbm,
+          CBMAM: r.cbmam,
+          '6ª Fase OPAM': r.opamv,
+          '7ª Fase OPAM': r.opam_ref,
+          Prevfogo: r.prevfogo,
+          'Força Nacional': r.fn,
+          'Brig. Municipal': r.brig_mun,
+          'Brig. SEMA': r.brig_semas,
+          'Total Atuação': r.total,
+        })),
+        {
+          Ordem: '',
+          Município: 'SUBTOTAL POLOS (26)',
+          CRBM: '',
+          CBMAM: totPolos.cbmam,
+          '6ª Fase OPAM': totPolos.opamv,
+          '7ª Fase OPAM': totPolos.opam_ref,
+          Prevfogo: totPolos.prevfogo,
+          'Força Nacional': totPolos.fn,
+          'Brig. Municipal': totPolos.brig_mun,
+          'Brig. SEMA': totPolos.brig_semas,
+          'Total Atuação': totPolos.total,
+        },
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsPolos, '02_Polos_26');
+
+      // Aba 3: 12 Bases Temporárias
+      const wsBases = XLSX.utils.json_to_sheet([
+        ...basesList.map((r) => ({
+          Ordem: r.ordem,
+          'Base Temporária': r.nome,
+          CRBM: r.crbm,
+          CBMAM: 0,
+          '6ª Fase OPAM': r.opamv,
+          '7ª Fase OPAM': r.opam_ref,
+          Prevfogo: r.prevfogo,
+          'Força Nacional': r.fn,
+          'Brig. Municipal': r.brig_mun,
+          'Brig. SEMA': r.brig_semas,
+          'Total Atuação': r.total,
+        })),
+        {
+          Ordem: '',
+          'Base Temporária': 'SUBTOTAL BASES (12)',
+          CRBM: '',
+          CBMAM: 0,
+          '6ª Fase OPAM': totBases.opamv,
+          '7ª Fase OPAM': totBases.opam_ref,
+          Prevfogo: totBases.prevfogo,
+          'Força Nacional': totBases.fn,
+          'Brig. Municipal': totBases.brig_mun,
+          'Brig. SEMA': totBases.brig_semas,
+          'Total Atuação': totBases.total,
+        },
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsBases, '03_Bases_12');
+
+      // Aba 4: CRBM Detalhamento
+      const wsCrbm = XLSX.utils.json_to_sheet([
+        ...CRBM_DETALHAMENTO.map((c) => ({
+          CRBM: c.crbm,
+          Grupamento: c.grupamento,
+          Combatente: c.combatente,
+          Saúde: c.saude,
+          Total: c.total,
+        })),
+        ...CRBM_SUBTOTAIS.map((s) => ({
+          CRBM: s.crbm,
+          Grupamento: '',
+          Combatente: s.combatente,
+          Saúde: s.saude,
+          Total: s.total,
+        })),
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsCrbm, '04_CRBM_Interior');
+
+      // Aba 5: Meios & Viaturas
+      const wsMeios = XLSX.utils.json_to_sheet([
+        ...recursosList.map((r) => ({
+          Município: r.mun,
+          ABT: r.abt,
+          ATF: r.atf,
+          'Combate Incêndio': r.combate,
+          AR: r.ar,
+          UR: r.ur,
+          'Apoio / Resgate': r.apoio,
+          Fluvial: r.fluvial,
+          Aeronaves: r.aereo,
+          'Total Meios': r.total,
+        })),
+        {
+          Município: 'TOTAL GERAL MEIOS',
+          ABT: totRecursos.abt,
+          ATF: totRecursos.atf,
+          'Combate Incêndio': totRecursos.combate,
+          AR: totRecursos.ar,
+          UR: totRecursos.ur,
+          'Apoio / Resgate': totRecursos.apoio,
+          Fluvial: totRecursos.fluvial,
+          Aeronaves: totRecursos.aereo,
+          'Total Meios': totRecursos.total,
+        },
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsMeios, '05_Meios_160');
+
+      XLSX.writeFile(
+        wb,
+        `CBMAM_Relatorio_Oficial_Operacao_Amazonas_${emissionInfo.refIso}.xlsx`
+      );
+    } catch (err) {
+      console.error('Erro ao exportar Excel:', err);
+      alert('Falha ao gerar arquivo Excel.');
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
+  // Helper de célula numérica: sempre mostra 0 (nunca tracinho!)
+  const renderZeroAware = (val, activeColor = '#f8fafc', bold = true) => {
+    const n = Number(val || 0);
+    return (
+      <span
+        style={{
+          color: n > 0 ? activeColor : '#475569',
+          fontWeight: n > 0 && bold ? 800 : 500,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {n}
+      </span>
+    );
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop relatorio-backdrop" onClick={onClose}>
       <div
         className="modal-container relatorio-modal-container"
         style={{
-          maxWidth: 1240,
+          maxWidth: 1280,
           width: '97%',
           maxHeight: '94vh',
           display: 'flex',
@@ -154,33 +673,33 @@ export function RelatorioOficialModal({ onClose, onSelectMuni }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ===================================================================
-            CABEÇALHO MILITAR INSTITUCIONAL
-            =================================================================== */}
+        {/* CABEÇALHO DO MODAL (OCULTO NA IMPRESSÃO A4) */}
         <div
+          className="no-print"
           style={{
-            padding: '14px 20px',
+            padding: '13px 20px',
             background:
               'linear-gradient(90deg, #0b1329 0%, #172554 50%, #0f172a 100%)',
-            borderBottom: '1px solid rgba(56, 189, 248, 0.25)',
+            borderBottom: '1.5px solid rgba(56, 189, 248, 0.3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {/* Brasão Oficial do CBMAM */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
-                width: 50,
-                height: 50,
+                width: 46,
+                height: 46,
                 borderRadius: '50%',
                 background: '#ffffff',
-                border: '2.5px solid #dc2626',
+                border: '2px solid #facc15',
+                boxShadow: '0 0 0 2px rgba(220,38,38,0.8)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(220, 38, 38, 0.5)',
                 overflow: 'hidden',
                 flexShrink: 0,
               }}
@@ -188,4748 +707,602 @@ export function RelatorioOficialModal({ onClose, onSelectMuni }) {
               <img
                 src="/brasao-cbmam.png"
                 alt="Brasão CBMAM"
-                style={{ width: 42, height: 42, objectFit: 'contain' }}
+                style={{ width: 38, height: 38, objectFit: 'contain' }}
               />
             </div>
-
             <div>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 900,
-                  color: '#ffffff',
-                  letterSpacing: '0.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-              >
-                <span>OPERAÇÃO AMAZONAS + VERDE</span>
-                <span
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2
                   style={{
-                    background: '#dc2626',
-                    color: '#ffffff',
-                    fontSize: 10.5,
+                    margin: 0,
+                    fontSize: 17,
                     fontWeight: 900,
-                    padding: '2px 9px',
-                    borderRadius: 12,
+                    color: '#ffffff',
                     letterSpacing: '0.5px',
                   }}
                 >
-                  886 OPERACIONAIS
-                </span>
+                  RELATÓRIO OPERACIONAL EXECUTIVO • CBMAM
+                </h2>
                 <span
                   style={{
-                    background: 'rgba(56, 189, 248, 0.2)',
-                    color: '#38bdf8',
-                    border: '1px solid #38bdf8',
                     fontSize: 10,
                     fontWeight: 800,
                     padding: '2px 8px',
-                    borderRadius: 12,
+                    borderRadius: 999,
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    border: '1px solid rgba(16, 185, 129, 0.5)',
+                    color: '#4ade80',
+                    fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
-                  24 HORAS
+                  BANCO AO VIVO • {emissionInfo.refBR}
                 </span>
               </div>
-              <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 3 }}>
-                SALA DE SITUAÇÃO CBMAM • Coordenador:{' '}
-                <strong>{RESUMO_EXECUTIVO_OFICIAL.coordenador}</strong> •
-                Briefing:{' '}
-                <strong>{RESUMO_EXECUTIVO_OFICIAL.data_briefing}</strong>
-              </div>
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: 11.5,
+                  color: '#94a3b8',
+                }}
+              >
+                Operação Amazonas • {fmtNum(totGeral.efetivoGeralInstituicoes)}{' '}
+                Efetivo Geral | {fmtNum(totGeral.cbmam)} CBMAM Polos |{' '}
+                {fmtNum(totGeral.totalAtuacao)} em Atuação na Operação
+              </p>
             </div>
           </div>
 
-          {/* Botões de Ação do Topo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              className="btn-tactical btn-primary"
-              onClick={handlePrint}
-              style={{
-                padding: '8px 16px',
-                fontSize: 12,
-                borderRadius: 20,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontWeight: 800,
-              }}
-              title="Gerar PDF oficial ou imprimir relatório em folha A4"
+              type="button"
+              onClick={handleCopyBriefing}
+              className="btn-command btn-command-outline"
+              title="Copiar resumo formatado para WhatsApp / Briefing"
             >
-              <Printer size={15} />
-              <span>Imprimir / Gerar PDF</span>
+              {copiedSummary ? (
+                <Check size={14} color="#4ade80" />
+              ) : (
+                <Copy size={14} color="#38bdf8" />
+              )}
+              <span>{copiedSummary ? 'Copiado!' : 'Briefing'}</span>
             </button>
+
             <button
-              className="btn-tactical"
+              type="button"
+              onClick={handleExportExcel}
+              disabled={exportingXlsx}
+              className="btn-command btn-command-emerald"
+              title="Baixar planilha Excel (.xlsx) completa com 5 abas"
+            >
+              <FileSpreadsheet size={14} />
+              <span>{exportingXlsx ? 'Gerando...' : 'Excel (.xlsx)'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintA4}
+              className="btn-command btn-command-gold"
+              title="Imprimir ou Salvar como PDF em formato folha A4 oficial"
+            >
+              <Printer size={14} />
+              <span>Imprimir / PDF A4</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
               style={{
-                width: 36,
-                height: 36,
-                padding: 0,
-                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8,
+                color: '#cbd5e1',
+                cursor: 'pointer',
+                padding: 7,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
               }}
-              title="Fechar"
+              title="Fechar Relatório"
             >
-              <X size={17} />
+              <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* ===================================================================
-            BARRA DE ABAS
-            =================================================================== */}
+        {/* BARRA DE ABAS LIMPA (6 ABAS SEM DUPLICAÇÃO) */}
         <div
+          className="no-print"
           style={{
-            padding: '8px 18px',
-            background: 'rgba(15, 23, 42, 0.95)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '8px 20px',
+            background: '#0d1424',
+            borderBottom: '1px solid #1e293b',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 10,
+            gap: 8,
           }}
         >
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'documento' ? 'active' : ''}`}
-              onClick={() => setActiveTab('documento')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'documento'
-                    ? '1.5px solid #facc15'
-                    : '1px solid transparent',
-                color: activeTab === 'documento' ? '#fde047' : undefined,
-                fontWeight: 800,
-              }}
-            >
-              <FileText
-                size={14}
-                style={{ display: 'inline', marginRight: 6 }}
-              />
-              Prancha Documental A4 (Oficial)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'dashboard'
-                    ? '1.5px solid #38bdf8'
-                    : '1px solid transparent',
-                fontWeight: 800,
-              }}
-            >
-              <Users size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Painel Executivo Visual (886)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'tabelas' ? 'active' : ''}`}
-              onClick={() => setActiveTab('tabelas')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'tabelas'
-                    ? '1.5px solid #38bdf8'
-                    : '1px solid transparent',
-                fontWeight: 800,
-              }}
-            >
-              <Building2
-                size={14}
-                style={{ display: 'inline', marginRight: 6 }}
-              />
-              Tabelas do Briefing (26 Mun + 11 Bases)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'prevfogo' ? 'active' : ''}`}
-              onClick={() => setActiveTab('prevfogo')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'prevfogo'
-                    ? '1.5px solid #22c55e'
-                    : '1px solid transparent',
-                color: activeTab === 'prevfogo' ? '#4ade80' : undefined,
-                fontWeight: 800,
-              }}
-            >
-              <TreePine
-                size={14}
-                style={{ display: 'inline', marginRight: 6 }}
-              />
-              Prevfogo IBAMA (247 Brigadistas)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'recursos' ? 'active' : ''}`}
-              onClick={() => setActiveTab('recursos')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'recursos'
-                    ? '1.5px solid #3b82f6'
-                    : '1px solid transparent',
-                color: activeTab === 'recursos' ? '#60a5fa' : undefined,
-                fontWeight: 800,
-              }}
-            >
-              <Truck size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Viaturas & Meios Operacionais (160)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'recursos' ? 'active' : ''}`}
-              onClick={() => setActiveTab('recursos')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'recursos'
-                    ? '1.5px solid #3b82f6'
-                    : '1px solid transparent',
-                color: activeTab === 'recursos' ? '#60a5fa' : undefined,
-                fontWeight: 800,
-              }}
-            >
-              <Truck size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Viaturas & Meios Operacionais (160)
-            </button>
-
-            <button
-              className={`sidebar-tab-btn ${activeTab === 'recursos' ? 'active' : ''}`}
-              onClick={() => setActiveTab('recursos')}
-              style={{
-                padding: '6px 14px',
-                fontSize: 11.5,
-                borderRadius: 20,
-                border:
-                  activeTab === 'recursos'
-                    ? '1.5px solid #3b82f6'
-                    : '1px solid transparent',
-                color: activeTab === 'recursos' ? '#60a5fa' : undefined,
-                fontWeight: 800,
-              }}
-            >
-              <Truck size={14} style={{ display: 'inline', marginRight: 6 }} />
-              Viaturas & Meios Operacionais (160)
-            </button>
+            {[
+              { id: 'documento', label: 'Documento A4 (PDF)', Icon: FileText },
+              {
+                id: 'dashboard',
+                label: 'Dashboard Executivo',
+                Icon: BarChart3,
+              },
+              {
+                id: 'tabelas',
+                label: 'Tabelas Polos & Bases (38)',
+                Icon: Users,
+              },
+              { id: 'crbm', label: 'Comandos CRBM (350)', Icon: Shield },
+              {
+                id: 'recursos',
+                label: `Meios & Viaturas (${totRecursos.total})`,
+                Icon: Truck,
+              },
+              {
+                id: 'prevfogo',
+                label: `Prevfogo / IBAMA (${totGeral.prevfogo})`,
+                Icon: TreePine,
+              },
+            ].map(({ id, label, Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: active
+                      ? '1.5px solid #38bdf8'
+                      : '1px solid rgba(148,163,184,0.2)',
+                    background: active
+                      ? 'rgba(2, 132, 199, 0.25)'
+                      : 'rgba(15, 23, 42, 0.7)',
+                    color: active ? '#ffffff' : '#94a3b8',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Icon size={13} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {(activeTab === 'tabelas' || activeTab === 'recursos') && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                borderRadius: 20,
-                padding: '4px 12px',
-                gap: 6,
-              }}
-            >
-              <Search size={14} color="#38bdf8" />
-              <input
-                type="text"
-                placeholder="Filtrar município ou base..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: 11.5,
-                  outline: 'none',
-                  width: 170,
-                }}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {activeTab === 'tabelas' && (
+                <select
+                  value={crbmFilter}
+                  onChange={(e) => setCrbmFilter(e.target.value)}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#94a3b8',
-                    cursor: 'pointer',
+                    background: '#0f172a',
+                    color: '#e2e8f0',
+                    border: '1px solid #334155',
+                    borderRadius: 7,
+                    padding: '5px 8px',
+                    fontSize: 11,
+                    fontWeight: 700,
                   }}
                 >
-                  <X size={12} />
-                </button>
+                  <option value="todos">Todos os CRBMs</option>
+                  <option value="Capital">Capital</option>
+                  <option value="1º CRBM">1º CRBM</option>
+                  <option value="2º CRBM">2º CRBM</option>
+                  <option value="3º CRBM">3º CRBM</option>
+                  <option value="4º CRBM">4º CRBM</option>
+                  <option value="arco_fogo">Arco do Fogo</option>
+                </select>
               )}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#0f172a',
+                  border: '1px solid #334155',
+                  borderRadius: 7,
+                  padding: '4px 9px',
+                }}
+              >
+                <Search size={13} color="#38bdf8" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Filtrar município..."
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#f8fafc',
+                    fontSize: 11.5,
+                    outline: 'none',
+                    width: 150,
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
 
-        {/* ===================================================================
-            CORPO DO RELATÓRIO
-            =================================================================== */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
-          {/* =================================================================
-              ABA 1: PRANCHA DOCUMENTAL A4 (OFICIAL DE IMPRESSÃO / PDF)
-              ================================================================= */}
+        {/* CORPO DO RELATÓRIO */}
+        <div
+          className="relatorio-scroll-body"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: activeTab === 'documento' ? '22px' : '18px 22px',
+            background: activeTab === 'documento' ? '#111827' : '#090d16',
+          }}
+        >
+          {/* ==============================================================
+              ABA 1: DOCUMENTO OFICIAL A4 (PRONTO PARA IMPRESSÃO / PDF)
+              ============================================================== */}
           {activeTab === 'documento' && (
-            <div
-              className="printable-a4-sheet"
-              style={{
-                background: '#ffffff',
-                color: '#0f172a',
-                borderRadius: 8,
-                padding: '30px 36px',
-                maxWidth: 1040,
-                margin: '0 auto',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-                fontFamily:
-                  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              }}
-            >
-              {/* CABEÇALHO DO DOCUMENTO A4 */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderBottom: '2.5px solid #dc2626',
-                  paddingBottom: 14,
-                  marginBottom: 16,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <img
-                    src="/brasao-cbmam.png"
-                    alt="Brasão CBMAM"
-                    style={{ width: 56, height: 56, objectFit: 'contain' }}
-                  />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 900,
-                        color: '#991b1b',
-                        letterSpacing: '0.6px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      GOVERNO DO ESTADO DO AMAZONAS
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#1e293b',
-                      }}
-                    >
-                      SECRETARIA DE ESTADO DE SEGURANÇA PÚBLICA — SSP-AM
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 900,
-                        color: '#0f172a',
-                      }}
-                    >
-                      CORPO DE BOMBEIROS MILITAR DO AMAZONAS — CBMAM
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: '#475569',
-                      }}
-                    >
-                      COMANDO DE BOMBEIROS DO INTERIOR (CBI) • SALA DE SITUAÇÃO
-                    </div>
+            <div className="printable-a4-sheet">
+              {/* Cabeçalho Institucional A4 */}
+              <div className="a4-header">
+                <img
+                  src="/brasao-cbmam.png"
+                  alt="Brasão CBMAM"
+                  className="a4-emblem"
+                />
+                <div className="a4-header-center">
+                  <div className="a4-gov">GOVERNO DO ESTADO DO AMAZONAS</div>
+                  <div className="a4-org">
+                    CORPO DE BOMBEIROS MILITAR DO AMAZONAS — CBMAM
+                  </div>
+                  <div className="a4-sub">
+                    COMANDO DE BOMBEIROS DO INTERIOR (CBI) • SALA DE SITUAÇÃO
+                  </div>
+                  <div className="a4-doc-title">
+                    RELATÓRIO EXECUTIVO DE EFETIVO E MEIOS — OPERAÇÃO AMAZONAS
                   </div>
                 </div>
-
-                <div
-                  style={{
-                    textAlign: 'right',
-                    fontSize: 10.5,
-                    color: '#334155',
-                    borderLeft: '2px solid #e2e8f0',
-                    paddingLeft: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 900,
-                      color: '#0f172a',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    OPERAÇÃO AMAZONAS + VERDE
+                <div className="a4-meta-box">
+                  <div>
+                    <b>REFERÊNCIA:</b> {emissionInfo.refBR}
                   </div>
                   <div>
-                    <strong>Data / Hora Briefing:</strong>{' '}
-                    {RESUMO_EXECUTIVO_OFICIAL.data_briefing}
+                    <b>EMISSÃO:</b> {emissionInfo.time} (AMT)
                   </div>
                   <div>
-                    <strong>Coordenador:</strong>{' '}
-                    <span style={{ color: '#991b1b', fontWeight: 800 }}>
-                      {RESUMO_EXECUTIVO_OFICIAL.coordenador}
-                    </span>
-                  </div>
-                  <div>
-                    <strong>Emissão do Sistema:</strong>{' '}
-                    {emissionTimestamp.date} às {emissionTimestamp.time}
+                    <b>FONTE:</b> Banco Oficial CBMAM
                   </div>
                 </div>
               </div>
 
-              {/* TÍTULO PRINCIPAL DO RELATÓRIO */}
-              <div
-                style={{
-                  background:
-                    'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%)',
-                  padding: '8px 14px',
-                  borderRadius: 6,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 16,
-                  border: '1px solid #cbd5e1',
-                }}
-              >
-                <div>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 900,
-                      color: '#0f172a',
-                      letterSpacing: '0.4px',
-                    }}
-                  >
-                    RELATÓRIO DIÁRIO AMAZONAS + VERDE - 24 HORAS
+              {/* Faixa de KPIs Executivos A4 */}
+              <div className="a4-kpi-strip">
+                <div className="a4-kpi-card">
+                  <span className="a4-kpi-lbl">EFETIVO GERAL INTEGRADO</span>
+                  <span className="a4-kpi-num">
+                    {fmtNum(totGeral.efetivoGeralInstituicoes)}
                   </span>
-                  <span
-                    style={{ fontSize: 11, color: '#475569', marginLeft: 8 }}
-                  >
-                    • Consolidação Geral de Efetivo e Meios Operacionais
+                  <span className="a4-kpi-sub">Todas as Instituições</span>
+                </div>
+                <div className="a4-kpi-card accent-red">
+                  <span className="a4-kpi-lbl">CBMAM (POLOS + ADM)</span>
+                  <span className="a4-kpi-num">
+                    {fmtNum(totGeral.cbmam + ADM_2_CRBM_MANAUS)}
+                  </span>
+                  <span className="a4-kpi-sub">
+                    {totGeral.cbmamCap} Cap • {totGeral.cbmamIntPolos} Int •{' '}
+                    {ADM_2_CRBM_MANAUS} ADM
                   </span>
                 </div>
-                <div
-                  style={{
-                    background: '#dc2626',
-                    color: '#ffffff',
-                    fontSize: 11,
-                    fontWeight: 900,
-                    padding: '3px 10px',
-                    borderRadius: 4,
-                  }}
-                >
-                  TOTAL: 886 OPERACIONAIS
+                <div className="a4-kpi-card accent-amber">
+                  <span className="a4-kpi-lbl">EM ATUAÇÃO NA OPERAÇÃO</span>
+                  <span className="a4-kpi-num">
+                    {fmtNum(totGeral.totalAtuacao)}
+                  </span>
+                  <span className="a4-kpi-sub">
+                    {totPolos.total} Polos • {totBases.total} Bases
+                  </span>
+                </div>
+                <div className="a4-kpi-card accent-blue">
+                  <span className="a4-kpi-lbl">MEIOS & VIATURAS</span>
+                  <span className="a4-kpi-num">{totRecursos.total}</span>
+                  <span className="a4-kpi-sub">
+                    {totRecursos.combate} Combate • {totRecursos.aereo} Aéreo
+                  </span>
                 </div>
               </div>
 
-              {/* TABELA 3 EM DESTAQUE NO TOPO DO DOCUMENTO: RESUMO GERAL CONSOLIDADO (CAPITAL X INTERIOR) */}
-              <div style={{ marginBottom: 18 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    color: '#0f172a',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <span>
-                    3. QUADRO RESUMO GERAL CONSOLIDADO (CAPITAL X INTERIOR)
-                  </span>
-                  <span style={{ fontSize: 10, color: '#64748b' }}>
-                    Fonte: Briefing Oficial CBMAM 03/11/2026
-                  </span>
-                </div>
-
-                <table
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 10.5,
-                    border: '1.5px solid #0f172a',
-                  }}
-                >
+              {/* Quadro 01 — Resumo Geral por Instituição */}
+              <div className="a4-section">
+                <h3 className="a4-section-title">
+                  1. QUADRO GERAL POR INSTITUIÇÃO / ORIGEM
+                </h3>
+                <table className="a4-table">
                   <thead>
-                    <tr style={{ background: '#0f172a', color: '#ffffff' }}>
-                      <th
-                        style={{
-                          padding: '6px 10px',
-                          textAlign: 'left',
-                          fontWeight: 800,
-                        }}
-                      >
-                        FORÇA / CONTINGENTE OPERACIONAL
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>
+                        Instituição / Origem
                       </th>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          width: '18%',
-                        }}
-                      >
-                        CAPITAL (MANAUS)
-                      </th>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          width: '18%',
-                        }}
-                      >
-                        INTERIOR (36 POLOS)
-                      </th>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          width: '18%',
-                          background: '#991b1b',
-                        }}
-                      >
-                        TOTAL GERAL
-                      </th>
+                      <th style={{ textAlign: 'right' }}>Quantitativo</th>
+                      <th style={{ textAlign: 'right' }}>Participação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Militares CBMAM — Serviço Ordinário (SV ORD)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        122
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        89
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        211
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Militares CBMAM — 6ª Fase OPAMV (25/1)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          color: '#64748b',
-                        }}
-                      >
-                        0
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        27
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        27
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Militares CBMAM — OPAMV Fase Extra / Reforço (07/11)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          color: '#64748b',
-                        }}
-                      >
-                        0
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        165
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        165
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Militares CBMAM — INC 2 (17/11)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          color: '#64748b',
-                        }}
-                      >
-                        0
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        40
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        40
-                      </td>
-                    </tr>
-                    <tr
-                      style={{
-                        borderBottom: '1.5px solid #94a3b8',
-                        background: '#eff6ff',
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: '5px 10px',
-                          fontWeight: 900,
-                          color: '#1e3a8a',
-                        }}
-                      >
-                        SUBTOTAL MILITARES CBMAM
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#1e3a8a',
-                        }}
-                      >
-                        122
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#1e3a8a',
-                        }}
-                      >
-                        321
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#1e3a8a',
-                          background: '#dbeafe',
-                        }}
-                      >
-                        443
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Brigadistas Federais — Prevfogo / IBAMA
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        94
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        153
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        247
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Força Nacional de Segurança Pública (FN)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        17
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        18
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        35
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Brigadistas Municipais (Prefeituras)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          color: '#64748b',
-                        }}
-                      >
-                        0
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        78
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        78
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '5px 10px', fontWeight: 700 }}>
-                        Brigadistas SEMA-AM (Estadual / Unidades de Conservação)
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          color: '#64748b',
-                        }}
-                      >
-                        0
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 600,
-                        }}
-                      >
-                        83
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          background: '#f8fafc',
-                        }}
-                      >
-                        83
-                      </td>
-                    </tr>
-                    <tr
-                      style={{
-                        borderBottom: '1.5px solid #94a3b8',
-                        background: '#f0fdf4',
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: '5px 10px',
-                          fontWeight: 900,
-                          color: '#166534',
-                        }}
-                      >
-                        SUBTOTAL FORÇAS PARCEIRAS & BRIGADAS
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#166534',
-                        }}
-                      >
-                        111
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#166534',
-                        }}
-                      >
-                        332
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          color: '#166534',
-                          background: '#dcfce7',
-                        }}
-                      >
-                        443
-                      </td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr
-                      style={{
-                        background: '#fef2f2',
-                        borderTop: '2px solid #991b1b',
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: '7px 10px',
-                          fontWeight: 900,
-                          fontSize: 11.5,
-                          color: '#991b1b',
-                        }}
-                      >
-                        TOTAL GERAL EMPREGADO NA OPERAÇÃO
-                      </td>
-                      <td
-                        style={{
-                          padding: '7px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          fontSize: 12,
-                          color: '#0f172a',
-                        }}
-                      >
-                        233
-                      </td>
-                      <td
-                        style={{
-                          padding: '7px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          fontSize: 12,
-                          color: '#0f172a',
-                        }}
-                      >
-                        653
-                      </td>
-                      <td
-                        style={{
-                          padding: '7px 8px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          fontSize: 13,
-                          background: '#fee2e2',
-                          color: '#991b1b',
-                        }}
-                      >
-                        886
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* TABELA 1: MUNICÍPIOS COM EFETIVO PERMANENTE (26 MUNICÍPIOS) */}
-              <div style={{ marginBottom: 18 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    color: '#0f172a',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span>
-                    1. QUADRO DE MUNICÍPIOS COM EFETIVO PERMANENTE (26 POLOS)
-                  </span>
-                  <span style={{ fontSize: 10, color: '#64748b' }}>
-                    Efetivo Permanente Cadastrado: <strong>818</strong> | Total
-                    Ativo: <strong>682</strong>
-                  </span>
-                </div>
-
-                <table
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 9.5,
-                    border: '1px solid #cbd5e1',
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: '#1e293b', color: '#ffffff' }}>
-                      <th
-                        style={{
-                          padding: '5px 6px',
-                          textAlign: 'left',
-                          fontWeight: 800,
-                        }}
-                      >
-                        MUNICÍPIO
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                        }}
-                      >
-                        EF. PERM.
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                        }}
-                      >
-                        SV ORD
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                        }}
-                      >
-                        6ª OPAM
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                        }}
-                      >
-                        OPAM EXT
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '6%',
-                        }}
-                      >
-                        INC 2
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          width: '8%',
-                          background: '#1e3a8a',
-                        }}
-                      >
-                        MIL. CBM
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                          color: '#86efac',
-                        }}
-                      >
-                        PREVFOGO
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '5%',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        FN
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                          color: '#fdba74',
-                        }}
-                      >
-                        BRIG MUN
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '8%',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        BRIG SEMA
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 5px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          width: '8%',
-                          background: '#b91c1c',
-                        }}
-                      >
-                        TOTAL
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tabela1Municipios.map((m, idx) => (
-                      <tr
-                        key={m.muni}
-                        style={{
-                          background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                          borderBottom: '1px solid #e2e8f0',
-                        }}
-                      >
-                        <td style={{ padding: '4px 6px', fontWeight: 700 }}>
-                          {m.muni}
-                          {m.tipo === 'capital' && (
-                            <span
-                              style={{
-                                fontSize: 8.5,
-                                color: '#dc2626',
-                                marginLeft: 4,
-                                fontWeight: 900,
-                              }}
-                            >
-                              (CAPITAL)
-                            </span>
-                          )}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: '#64748b',
-                          }}
-                        >
-                          {m.ef_permanente}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: m.serv_ord ? 800 : 400,
-                          }}
-                        >
-                          {m.serv_ord || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: m.opam ? '#1d4ed8' : '#94a3b8',
-                          }}
-                        >
-                          {m.opam || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: m.opam_extra ? '#1d4ed8' : '#94a3b8',
-                          }}
-                        >
-                          {m.opam_extra || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: m.inc2 ? '#b91c1c' : '#94a3b8',
-                          }}
-                        >
-                          {m.inc2 || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: 800,
-                            background: '#eff6ff',
-                          }}
-                        >
-                          {m.cbmam_militares || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: m.prevfogo ? 800 : 400,
-                            color: m.prevfogo ? '#15803d' : '#94a3b8',
-                          }}
-                        >
-                          {m.prevfogo || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: m.fn ? 800 : 400,
-                            color: m.fn ? '#0369a1' : '#94a3b8',
-                          }}
-                        >
-                          {m.fn || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: m.brigadista ? '#c2410c' : '#94a3b8',
-                          }}
-                        >
-                          {m.brigadista || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: m.brigadista_sema ? '#047857' : '#94a3b8',
-                          }}
-                        >
-                          {m.brigadista_sema || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 5px',
-                            textAlign: 'center',
-                            fontWeight: 900,
-                            background: '#fee2e2',
-                            color: '#991b1b',
-                          }}
-                        >
-                          {m.total}
-                        </td>
+                    {quadro01Instituicoes.map((it) => (
+                      <tr key={it.label}>
+                        <td style={{ fontWeight: 600 }}>{it.label}</td>
+                        <td className="a4-num">{fmtNum(it.valor)}</td>
+                        <td className="a4-num">{it.pct}%</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr
-                      style={{
-                        background: '#0f172a',
-                        color: '#ffffff',
-                        fontWeight: 900,
-                      }}
-                    >
-                      <td style={{ padding: '6px 6px' }}>
-                        TOTAL MUNICÍPIOS (26)
+                    <tr>
+                      <td>TOTAL GERAL INTEGRADO</td>
+                      <td className="a4-num">
+                        {fmtNum(totGeral.efetivoGeralInstituicoes)}
                       </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela1.ef_permanente}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela1.serv_ord}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela1.opam}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela1.opam_extra}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela1.inc2}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          background: '#1e3a8a',
-                        }}
-                      >
-                        {totTabela1.cbmam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#86efac',
-                        }}
-                      >
-                        {totTabela1.prevfogo}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        {totTabela1.fn}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#fdba74',
-                        }}
-                      >
-                        {totTabela1.brig_mun}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        {totTabela1.brig_sema}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 5px',
-                          textAlign: 'center',
-                          background: '#dc2626',
-                          color: '#ffffff',
-                        }}
-                      >
-                        {totTabela1.total}
-                      </td>
+                      <td className="a4-num">100,0%</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
-              {/* TABELA 2: BASES TEMPORÁRIAS DA OPERAÇÃO (11 BASES) */}
-              <div style={{ marginBottom: 20 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    color: '#0f172a',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span>
-                    2. QUADRO DE BASES TEMPORÁRIAS AVANÇADAS (11 BASES)
-                  </span>
-                  <span style={{ fontSize: 10, color: '#64748b' }}>
-                    Total Empregado em Bases Temporárias: <strong>204</strong>
-                  </span>
-                </div>
-
-                <table
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 9.5,
-                    border: '1px solid #cbd5e1',
-                  }}
-                >
+              {/* Tabela 2 — 26 Municípios Polo */}
+              <div className="a4-section">
+                <h3 className="a4-section-title">
+                  2. DISTRIBUIÇÃO POR MUNICÍPIO POLO (26 POLOS OPERACIONAIS)
+                </h3>
+                <table className="a4-table a4-table-compact">
                   <thead>
-                    <tr style={{ background: '#1e293b', color: '#ffffff' }}>
-                      <th
-                        style={{
-                          padding: '5px 6px',
-                          textAlign: 'left',
-                          fontWeight: 800,
-                        }}
-                      >
-                        BASE TEMPORÁRIA
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '8%',
-                        }}
-                      >
-                        6ª OPAM
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '8%',
-                        }}
-                      >
-                        OPAM EXT
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '7%',
-                        }}
-                      >
-                        INC 2
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          width: '9%',
-                          background: '#1e3a8a',
-                        }}
-                      >
-                        MIL. CBM
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '8%',
-                          color: '#86efac',
-                        }}
-                      >
-                        PREVFOGO
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '6%',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        FN
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '8%',
-                          color: '#fdba74',
-                        }}
-                      >
-                        BRIG MUN
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 4px',
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          width: '9%',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        BRIG SEMA
-                      </th>
-                      <th
-                        style={{
-                          padding: '5px 5px',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          width: '9%',
-                          background: '#b91c1c',
-                        }}
-                      >
-                        TOTAL
-                      </th>
+                    <tr>
+                      <th style={{ textAlign: 'center', width: 28 }}>#</th>
+                      <th style={{ textAlign: 'left' }}>Município</th>
+                      <th style={{ textAlign: 'right' }}>CBMAM</th>
+                      <th style={{ textAlign: 'right' }}>6ª OPAM</th>
+                      <th style={{ textAlign: 'right' }}>7ª OPAM</th>
+                      <th style={{ textAlign: 'right' }}>Prevfogo</th>
+                      <th style={{ textAlign: 'right' }}>Força Nac.</th>
+                      <th style={{ textAlign: 'right' }}>Brig. Mun.</th>
+                      <th style={{ textAlign: 'right' }}>Brig. SEMA</th>
+                      <th style={{ textAlign: 'right' }}>Atuação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tabela2Bases.map((b, idx) => (
-                      <tr
-                        key={b.muni}
-                        style={{
-                          background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                          borderBottom: '1px solid #e2e8f0',
-                        }}
-                      >
-                        <td style={{ padding: '4px 6px', fontWeight: 700 }}>
-                          {b.muni}
+                    {polosList.map((r) => (
+                      <tr key={r.nome}>
+                        <td style={{ textAlign: 'center', color: '#64748b' }}>
+                          {r.ordem}
                         </td>
                         <td
                           style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: b.opam ? '#1d4ed8' : '#94a3b8',
+                            fontWeight: r.nome === 'Manaus' ? 800 : 600,
                           }}
                         >
-                          {b.opam || '-'}
+                          {r.nome}
+                        </td>
+                        <td className="a4-num a4-cbmam">{r.cbmam}</td>
+                        <td
+                          className={`a4-num ${r.opamv === 0 ? 'a4-zero' : ''}`}
+                        >
+                          {r.opamv}
                         </td>
                         <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: b.opam_extra ? '#1d4ed8' : '#94a3b8',
-                          }}
+                          className={`a4-num ${r.opam_ref === 0 ? 'a4-zero' : ''}`}
                         >
-                          {b.opam_extra || '-'}
+                          {r.opam_ref}
                         </td>
                         <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: b.inc2 ? '#b91c1c' : '#94a3b8',
-                          }}
+                          className={`a4-num ${r.prevfogo === 0 ? 'a4-zero' : ''}`}
                         >
-                          {b.inc2 || '-'}
+                          {r.prevfogo}
+                        </td>
+                        <td className={`a4-num ${r.fn === 0 ? 'a4-zero' : ''}`}>
+                          {r.fn}
                         </td>
                         <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: 800,
-                            background: '#eff6ff',
-                          }}
+                          className={`a4-num ${r.brig_mun === 0 ? 'a4-zero' : ''}`}
                         >
-                          {b.cbmam_militares || '-'}
+                          {r.brig_mun}
                         </td>
                         <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: b.prevfogo ? 800 : 400,
-                            color: b.prevfogo ? '#15803d' : '#94a3b8',
-                          }}
+                          className={`a4-num ${r.brig_semas === 0 ? 'a4-zero' : ''}`}
                         >
-                          {b.prevfogo || '-'}
+                          {r.brig_semas}
                         </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            fontWeight: b.fn ? 800 : 400,
-                            color: b.fn ? '#0369a1' : '#94a3b8',
-                          }}
-                        >
-                          {b.fn || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: b.brigadista ? '#c2410c' : '#94a3b8',
-                          }}
-                        >
-                          {b.brigadista || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 4px',
-                            textAlign: 'center',
-                            color: b.brigadista_sema ? '#047857' : '#94a3b8',
-                          }}
-                        >
-                          {b.brigadista_sema || '-'}
-                        </td>
-                        <td
-                          style={{
-                            padding: '4px 5px',
-                            textAlign: 'center',
-                            fontWeight: 900,
-                            background: '#fee2e2',
-                            color: '#991b1b',
-                          }}
-                        >
-                          {b.total}
-                        </td>
+                        <td className="a4-num a4-total">{r.total}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr
-                      style={{
-                        background: '#0f172a',
-                        color: '#ffffff',
-                        fontWeight: 900,
-                      }}
-                    >
-                      <td style={{ padding: '6px 6px' }}>
-                        TOTAL BASES TEMPORÁRIAS (11)
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela2.opam}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela2.opam_extra}
-                      </td>
-                      <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                        {totTabela2.inc2}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          background: '#1e3a8a',
-                        }}
-                      >
-                        {totTabela2.cbmam}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#86efac',
-                        }}
-                      >
-                        {totTabela2.prevfogo}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#93c5fd',
-                        }}
-                      >
-                        {totTabela2.fn}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#fdba74',
-                        }}
-                      >
-                        {totTabela2.brig_mun}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 4px',
-                          textAlign: 'center',
-                          color: '#a7f3d0',
-                        }}
-                      >
-                        {totTabela2.brig_sema}
-                      </td>
-                      <td
-                        style={{
-                          padding: '6px 5px',
-                          textAlign: 'center',
-                          background: '#dc2626',
-                          color: '#ffffff',
-                        }}
-                      >
-                        {totTabela2.total}
-                      </td>
+                    <tr>
+                      <td colSpan={2}>SUBTOTAL POLOS (26)</td>
+                      <td className="a4-num">{totPolos.cbmam}</td>
+                      <td className="a4-num">{totPolos.opamv}</td>
+                      <td className="a4-num">{totPolos.opam_ref}</td>
+                      <td className="a4-num">{totPolos.prevfogo}</td>
+                      <td className="a4-num">{totPolos.fn}</td>
+                      <td className="a4-num">{totPolos.brig_mun}</td>
+                      <td className="a4-num">{totPolos.brig_semas}</td>
+                      <td className="a4-num">{totPolos.total}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
-              {/* MEIOS OPERACIONAIS & COMBATE AÉREO */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 14,
-                  marginBottom: 24,
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  padding: '12px 14px',
-                  background: '#f8fafc',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 900,
-                      color: '#0f172a',
-                      marginBottom: 4,
-                    }}
-                  >
-                    MEIOS OPERACIONAIS EMPREGADOS (AÉREO / TERRESTRE / FLUVIAL)
-                  </div>
-                  <div
-                    style={{ fontSize: 10, color: '#334155', lineHeight: 1.5 }}
-                  >
-                    • <strong>10 Aeronaves:</strong> 7 Aviões Air Tractor
-                    AT-802F (combate a incêndio) + 3 Helicópteros Harpia
-                    (resgate/comando).
-                    <br />• <strong>4 Viaturas Operacionais:</strong> Caminhões
-                    Auto Bomba Tanque (ABT) e Pick-ups 4x4 de Ataque Rápido.
-                    <br />• <strong>1 Embarcação Fluvial:</strong> Lancha de
-                    resgate rápido e transporte fluvial de combate.
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 900,
-                      color: '#0f172a',
-                      marginBottom: 4,
-                    }}
-                  >
-                    EQUILÍBRIO OPERACIONAL DAS FORÇAS
-                  </div>
-                  <div
-                    style={{ fontSize: 10, color: '#334155', lineHeight: 1.5 }}
-                  >
-                    • <strong>Militares CBMAM:</strong> 443 homens e mulheres
-                    (50,0% do efetivo mobilizado).
-                    <br />• <strong>Forças Parceiras & Brigadistas:</strong> 443
-                    combatentes (Prevfogo 247 + FN 35 + Brig. 161).
-                    <br />• <strong>Concentração Estratégica:</strong> 73,7% no
-                    Interior (653) e 26,3% na Capital (233).
-                  </div>
-                </div>
-              </div>
-
-              {/* ASSINATURA OFICIAL DO COORDENADOR */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-end',
-                  borderTop: '1px solid #cbd5e1',
-                  paddingTop: 16,
-                  marginTop: 10,
-                }}
-              >
-                <div style={{ fontSize: 9.5, color: '#64748b' }}>
-                  Autenticação Digital: CBMAM-CBI-OPAMV-2026-0311-886
-                  <br />
-                  Sistema Integrado de Gestão e Monitoramento de Efetivo
-                </div>
-
-                <div style={{ textAlign: 'center', width: 280 }}>
-                  <div
-                    style={{
-                      borderBottom: '1.5px solid #0f172a',
-                      marginBottom: 4,
-                      width: '100%',
-                    }}
-                  />
-                  <div
-                    style={{ fontSize: 11, fontWeight: 900, color: '#0f172a' }}
-                  >
-                    {RESUMO_EXECUTIVO_OFICIAL.coordenador}
-                  </div>
-                  <div style={{ fontSize: 9.5, color: '#475569' }}>
-                    Coordenador da Sala de Situação — CBMAM
-                    <br />
-                    Operação Amazonas + Verde
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
-          {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <div
-                  style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
-                      }}
-                    >
-                      recursos ativos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
-                      }}
-                    >
-                      viaturas
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Recursos por Município */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
+              {/* Tabela 3 — 12 Bases Temporárias */}
+              <div className="a4-section">
+                <h3 className="a4-section-title">
+                  3. BASES TEMPORÁRIAS / PROVISÓRIAS (12 BASES AVANÇADAS)
+                </h3>
+                <table className="a4-table a4-table-compact">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'center', width: 28 }}>#</th>
+                      <th style={{ textAlign: 'left' }}>Base Temporária</th>
+                      <th style={{ textAlign: 'right' }}>CBMAM</th>
+                      <th style={{ textAlign: 'right' }}>6ª OPAM</th>
+                      <th style={{ textAlign: 'right' }}>7ª OPAM</th>
+                      <th style={{ textAlign: 'right' }}>Prevfogo</th>
+                      <th style={{ textAlign: 'right' }}>Força Nac.</th>
+                      <th style={{ textAlign: 'right' }}>Brig. Mun.</th>
+                      <th style={{ textAlign: 'right' }}>Brig. SEMA</th>
+                      <th style={{ textAlign: 'right' }}>Atuação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {basesList.map((r) => (
+                      <tr key={r.nome}>
+                        <td style={{ textAlign: 'center', color: '#64748b' }}>
+                          {r.ordem}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{r.nome}</td>
+                        <td className="a4-num a4-zero">0</td>
+                        <td
+                          className={`a4-num ${r.opamv === 0 ? 'a4-zero' : ''}`}
                         >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
+                          {r.opamv}
+                        </td>
+                        <td
+                          className={`a4-num ${r.opam_ref === 0 ? 'a4-zero' : ''}`}
                         >
-                          Ação
-                        </th>
+                          {r.opam_ref}
+                        </td>
+                        <td
+                          className={`a4-num ${r.prevfogo === 0 ? 'a4-zero' : ''}`}
+                        >
+                          {r.prevfogo}
+                        </td>
+                        <td className={`a4-num ${r.fn === 0 ? 'a4-zero' : ''}`}>
+                          {r.fn}
+                        </td>
+                        <td
+                          className={`a4-num ${r.brig_mun === 0 ? 'a4-zero' : ''}`}
+                        >
+                          {r.brig_mun}
+                        </td>
+                        <td
+                          className={`a4-num ${r.brig_semas === 0 ? 'a4-zero' : ''}`}
+                        >
+                          {r.brig_semas}
+                        </td>
+                        <td className="a4-num a4-total">{r.total}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2}>SUBTOTAL BASES (12)</td>
+                      <td className="a4-num">0</td>
+                      <td className="a4-num">{totBases.opamv}</td>
+                      <td className="a4-num">{totBases.opam_ref}</td>
+                      <td className="a4-num">{totBases.prevfogo}</td>
+                      <td className="a4-num">{totBases.fn}</td>
+                      <td className="a4-num">{totBases.brig_mun}</td>
+                      <td className="a4-num">{totBases.brig_semas}</td>
+                      <td className="a4-num">{totBases.total}</td>
+                    </tr>
+                    <tr className="a4-grand-row">
+                      <td colSpan={2}>TOTAL GERAL (POLOS + BASES)</td>
+                      <td className="a4-num">{totGeral.cbmam}</td>
+                      <td className="a4-num">{totGeral.opamv}</td>
+                      <td className="a4-num">{totGeral.opam_ref}</td>
+                      <td className="a4-num">{totGeral.prevfogo}</td>
+                      <td className="a4-num">{totGeral.fn}</td>
+                      <td className="a4-num">{totGeral.brig_mun}</td>
+                      <td className="a4-num">{totGeral.brig_semas}</td>
+                      <td className="a4-num">{totGeral.totalAtuacao}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
 
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              {/* Bloco de Assinaturas Oficiais */}
+              <div className="a4-signatures">
+                <div className="a4-sig-box">
+                  <div className="a4-sig-line" />
+                  <div className="a4-sig-name">SALA DE SITUAÇÃO / CBI</div>
+                  <div className="a4-sig-role">
+                    Consolidação de Dados Operacionais
+                  </div>
                 </div>
+                <div className="a4-sig-box">
+                  <div className="a4-sig-line" />
+                  <div className="a4-sig-name">
+                    COMANDO DE BOMBEIROS DO INTERIOR
+                  </div>
+                  <div className="a4-sig-role">
+                    Corpo de Bombeiros Militar do Amazonas
+                  </div>
+                </div>
+              </div>
+
+              <div className="a4-footer-note">
+                Documento gerado automaticamente pelo Sistema de Comando e
+                Controle — Mapa Operacional CBMAM em {emissionInfo.dateLong} às{' '}
+                {emissionInfo.time} (Horário de Manaus). *ADM 2º CRBM (Manaus):{' '}
+                {ADM_2_CRBM_MANAUS} militares.
               </div>
             </div>
           )}
 
-          {/* =================================================================
-              ABA 2: PAINEL EXECUTIVO VISUAL (DASHBOARD COM CARDS E GRÁFICOS)
-              ================================================================= */}
+          {/* ==============================================================
+              ABA 2: DASHBOARD EXECUTIVO COM GRÁFICOS VISUAIS
+              ============================================================== */}
           {activeTab === 'dashboard' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Fileira de Indicadores Principais (KPIs) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* 4 Cards Executivos */}
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                   gap: 12,
                 }}
               >
-                {/* 1. Efetivo Geral */}
-                <div
-                  style={{
-                    background:
-                      'linear-gradient(135deg, rgba(220, 38, 38, 0.25) 0%, rgba(15, 23, 42, 0.9) 100%)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.25)',
-                  }}
-                >
+                {[
+                  {
+                    label: 'EFETIVO GERAL INTEGRADO',
+                    val: fmtNum(totGeral.efetivoGeralInstituicoes),
+                    sub: 'Todas as instituições em prontidão',
+                    color: '#38bdf8',
+                    Icon: Award,
+                  },
+                  {
+                    label: 'EM ATUAÇÃO NA OPERAÇÃO',
+                    val: fmtNum(totGeral.totalAtuacao),
+                    sub: `${totGeral.capitalAtuacao} Capital • ${totGeral.interiorAtuacao} Interior`,
+                    color: '#facc15',
+                    Icon: Flame,
+                  },
+                  {
+                    label: 'CBMAM (POLOS + ADM)',
+                    val: fmtNum(totGeral.cbmam + ADM_2_CRBM_MANAUS),
+                    sub: `${totGeral.cbmamCap} Cap • ${totGeral.cbmamIntPolos} Int • ${ADM_2_CRBM_MANAUS} ADM`,
+                    color: '#ef4444',
+                    Icon: Shield,
+                  },
+                  {
+                    label: 'MEIOS & AERONAVES',
+                    val: fmtNum(totRecursos.total),
+                    sub: `${totRecursos.combate} Combate • ${totRecursos.apoio} Apoio • ${totRecursos.aereo} Aéreo`,
+                    color: '#4ade80',
+                    Icon: Plane,
+                  },
+                ].map(({ label, val, sub, color, Icon }) => (
                   <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#fca5a5',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Total Geral Empregado
-                    </span>
-                    <Shield size={16} color="#ef4444" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    886{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#fca5a5',
-                      }}
-                    >
-                      Operacionais
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    443 Militares CBMAM • 443 Parceiros/Brig.
-                  </div>
-                </div>
-
-                {/* 2. Militares CBMAM */}
-                <div
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1.5px solid rgba(56, 189, 248, 0.35)',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#7dd3fc',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Militares CBMAM
-                    </span>
-                    <Users size={16} color="#38bdf8" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#38bdf8',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    443{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#93c5fd',
-                      }}
-                    >
-                      Militares
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    211 SV ORD • 27 OPAM • 165 Ref • 40 INC2
-                  </div>
-                </div>
-
-                {/* 3. Prevfogo IBAMA */}
-                <div
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1.5px solid rgba(34, 197, 94, 0.35)',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#86efac',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Prevfogo / IBAMA
-                    </span>
-                    <TreePine size={16} color="#22c55e" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#4ade80',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    247{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#86efac',
-                      }}
-                    >
-                      Brig. Federais
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    94 Capital • 153 Interior (5 Polos)
-                  </div>
-                </div>
-
-                {/* 4. Força Nacional */}
-                <div
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1.5px solid rgba(14, 165, 233, 0.35)',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#7dd3fc',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Força Nacional (FN)
-                    </span>
-                    <Compass size={16} color="#38bdf8" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#38bdf8',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    35{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#7dd3fc',
-                      }}
-                    >
-                      Operacionais
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    17 Capital • 18 Interior (Manacapuru, Careiro)
-                  </div>
-                </div>
-
-                {/* 5. Brigadistas (Mun + SEMA) */}
-                <div
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1.5px solid rgba(249, 115, 22, 0.35)',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#fdba74',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Brigadistas Civis
-                    </span>
-                    <Flame size={16} color="#f97316" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#fb923c',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    161{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#fdba74',
-                      }}
-                    >
-                      Brigadistas
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    78 Municipais • 83 SEMA (Estadual)
-                  </div>
-                </div>
-
-                {/* 6. Meios Aéreos */}
-                <div
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1.5px solid rgba(250, 204, 21, 0.35)',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        color: '#fde047',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Meios Operacionais
-                    </span>
-                    <Plane size={16} color="#facc15" />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 900,
-                      color: '#facc15',
-                      marginTop: 4,
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    10{' '}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#fef08a',
-                      }}
-                    >
-                      Aeronaves
-                    </span>
-                  </div>
-                  <div
-                    style={{ fontSize: 10.5, color: '#cbd5e1', marginTop: 4 }}
-                  >
-                    7 Air Tractor • 3 Harpia • 4 VTRs • 1 Fluvial
-                  </div>
-                </div>
-              </div>
-
-              {/* Distribuição Territorial: Capital x Interior */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  padding: '18px 22px',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 24,
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Building2 size={18} color="#ef4444" />
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: '#ffffff',
-                      }}
-                    >
-                      CAPITAL (MANAUS) — 233 OPERACIONAIS (26,3%)
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: '#cbd5e1',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    • <strong>122 Militares CBMAM</strong> em serviço ordinário
-                    de prontidão.
-                    <br />•{' '}
-                    <strong>
-                      94 Brigadistas Federais Prevfogo / IBAMA
-                    </strong>{' '}
-                    (Sede e Base Flores).
-                    <br />• <strong>
-                      17 Homens da Força Nacional (FN)
-                    </strong>{' '}
-                    integrados.
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 10,
-                      height: 8,
-                      background: '#1e293b',
-                      borderRadius: 4,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '26.3%',
-                        height: '100%',
-                        background: '#ef4444',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <TreePine size={18} color="#38bdf8" />
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: '#ffffff',
-                      }}
-                    >
-                      INTERIOR — 653 OPERACIONAIS (73,7%)
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: '#cbd5e1',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    • <strong>321 Militares CBMAM</strong> (89 SV ORD, 27 OPAM,
-                    165 Reforço, 40 INC 2).
-                    <br />• <strong>
-                      153 Brigadistas Prevfogo / IBAMA
-                    </strong>{' '}
-                    (Parintins, Autazes, Borba, etc).
-                    <br />• <strong>18 Força Nacional</strong> +{' '}
-                    <strong>161 Brigadistas</strong> (78 Mun + 83 SEMA).
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 10,
-                      height: 8,
-                      background: '#1e293b',
-                      borderRadius: 4,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '73.7%',
-                        height: '100%',
-                        background: '#38bdf8',
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
-          {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <div
-                  style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
-                      }}
-                    >
-                      recursos ativos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
-                      }}
-                    >
-                      viaturas
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Recursos por Município */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Ação
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
-
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =================================================================
-              ABA 3: TABELAS DO BRIEFING OFICIAL
-              ================================================================= */}
-          {activeTab === 'tabelas' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Tabela 1: Municípios com Efetivo Permanente */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 10,
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: '#38bdf8',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      margin: 0,
-                    }}
-                  >
-                    1. Municípios com Efetivo Permanente (26 Polos • Subtotal:{' '}
-                    {totTabela1.total})
-                  </h3>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Efetivo Permanente:{' '}
-                    <strong>{totTabela1.ef_permanente}</strong> | Militares
-                    CBMAM: <strong>{totTabela1.cbmam}</strong>
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    overflowX: 'auto',
-                    border: '1px solid #334155',
-                    borderRadius: 8,
-                  }}
-                >
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 11.5,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          background: '#0f172a',
-                          borderBottom: '1.5px solid #334155',
-                          color: '#94a3b8',
-                        }}
-                      >
-                        <th style={{ padding: '8px 12px' }}>MUNICÍPIO</th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#cbd5e1',
-                          }}
-                        >
-                          EF. PERM.
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#fca5a5',
-                          }}
-                        >
-                          SV ORD
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#93c5fd',
-                          }}
-                        >
-                          6ª OPAM
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#93c5fd',
-                          }}
-                        >
-                          OPAM EXT
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#fca5a5',
-                          }}
-                        >
-                          INC 2
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                            fontWeight: 900,
-                          }}
-                        >
-                          MIL. CBM
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#86efac',
-                          }}
-                        >
-                          PREVFOGO
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#7dd3fc',
-                          }}
-                        >
-                          FN
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#fdba74',
-                          }}
-                        >
-                          BRIG MUN
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#a7f3d0',
-                          }}
-                        >
-                          BRIG SEMA
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#ffffff',
-                            fontWeight: 900,
-                          }}
-                        >
-                          TOTAL
-                        </th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>
-                          AÇÃO
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTabela1.map((m, idx) => (
-                        <tr
-                          key={m.muni}
-                          style={{
-                            background:
-                              idx % 2 === 0
-                                ? 'rgba(15, 23, 42, 0.6)'
-                                : '#090d16',
-                            borderBottom: '1px solid #1e293b',
-                          }}
-                        >
-                          <td
-                            style={{
-                              padding: '8px 12px',
-                              fontWeight: 700,
-                              color: '#ffffff',
-                            }}
-                          >
-                            {m.muni}
-                            {m.tipo === 'capital' && (
-                              <span
-                                style={{
-                                  fontSize: 9.5,
-                                  color: '#ef4444',
-                                  marginLeft: 6,
-                                  fontWeight: 900,
-                                }}
-                              >
-                                (CAPITAL)
-                              </span>
-                            )}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: '#94a3b8',
-                            }}
-                          >
-                            {m.ef_permanente}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.serv_ord ? '#ef4444' : '#64748b',
-                              fontWeight: m.serv_ord ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.serv_ord || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.opam ? '#38bdf8' : '#64748b',
-                              fontWeight: m.opam ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.opam || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.opam_extra ? '#38bdf8' : '#64748b',
-                              fontWeight: m.opam_extra ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.opam_extra || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.inc2 ? '#ef4444' : '#64748b',
-                              fontWeight: m.inc2 ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.inc2 || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: '#38bdf8',
-                              fontWeight: 900,
-                              fontFamily: 'monospace',
-                              background: 'rgba(56, 189, 248, 0.08)',
-                            }}
-                          >
-                            {m.cbmam_militares}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.prevfogo ? '#4ade80' : '#64748b',
-                              fontWeight: m.prevfogo ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.prevfogo || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.fn ? '#38bdf8' : '#64748b',
-                              fontWeight: m.fn ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.fn || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.brigadista ? '#f97316' : '#64748b',
-                              fontWeight: m.brigadista ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.brigadista || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: m.brigadista_sema ? '#10b981' : '#64748b',
-                              fontWeight: m.brigadista_sema ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {m.brigadista_sema || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              fontWeight: 900,
-                              color: '#ffffff',
-                              fontFamily: 'monospace',
-                              background: 'rgba(239, 68, 68, 0.15)',
-                            }}
-                          >
-                            {m.total}
-                          </td>
-                          <td
-                            style={{ padding: '8px 12px', textAlign: 'right' }}
-                          >
-                            {onSelectMuni && (
-                              <button
-                                onClick={() => {
-                                  onSelectMuni(m.muni);
-                                  onClose();
-                                }}
-                                style={{
-                                  background: 'rgba(56, 189, 248, 0.15)',
-                                  border: '1px solid #38bdf8',
-                                  color: '#38bdf8',
-                                  padding: '3px 8px',
-                                  borderRadius: 4,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Ver no Mapa
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr
-                        style={{
-                          background: '#0f172a',
-                          borderTop: '2px solid #334155',
-                          color: '#ffffff',
-                          fontWeight: 900,
-                        }}
-                      >
-                        <td style={{ padding: '10px 12px' }}>
-                          TOTAL MUNICÍPIOS (26)
-                        </td>
-                        <td
-                          style={{ padding: '10px 8px', textAlign: 'center' }}
-                        >
-                          {totTabela1.ef_permanente}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#ef4444',
-                          }}
-                        >
-                          {totTabela1.serv_ord}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela1.opam}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela1.opam_extra}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#ef4444',
-                          }}
-                        >
-                          {totTabela1.inc2}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela1.cbmam}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#4ade80',
-                          }}
-                        >
-                          {totTabela1.prevfogo}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela1.fn}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#f97316',
-                          }}
-                        >
-                          {totTabela1.brig_mun}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#10b981',
-                          }}
-                        >
-                          {totTabela1.brig_sema}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#ffffff',
-                            background: '#dc2626',
-                          }}
-                        >
-                          {totTabela1.total}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              {/* Tabela 2: Bases Temporárias */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 10,
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: '#f59e0b',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      margin: 0,
-                    }}
-                  >
-                    2. Bases Temporárias da Operação (11 Bases • Subtotal:{' '}
-                    {totTabela2.total})
-                  </h3>
-                </div>
-
-                <div
-                  style={{
-                    overflowX: 'auto',
-                    border: '1px solid #334155',
-                    borderRadius: 8,
-                  }}
-                >
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 11.5,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          background: '#0f172a',
-                          borderBottom: '1.5px solid #334155',
-                          color: '#94a3b8',
-                        }}
-                      >
-                        <th style={{ padding: '8px 12px' }}>BASE TEMPORÁRIA</th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#93c5fd',
-                          }}
-                        >
-                          6ª OPAM
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#93c5fd',
-                          }}
-                        >
-                          OPAM EXT
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#fca5a5',
-                          }}
-                        >
-                          INC 2
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                            fontWeight: 900,
-                          }}
-                        >
-                          MIL. CBM
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#86efac',
-                          }}
-                        >
-                          PREVFOGO
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#7dd3fc',
-                          }}
-                        >
-                          FN
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#fdba74',
-                          }}
-                        >
-                          BRIG MUN
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#a7f3d0',
-                          }}
-                        >
-                          BRIG SEMA
-                        </th>
-                        <th
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'center',
-                            color: '#ffffff',
-                            fontWeight: 900,
-                          }}
-                        >
-                          TOTAL
-                        </th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>
-                          AÇÃO
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTabela2.map((b, idx) => (
-                        <tr
-                          key={b.muni}
-                          style={{
-                            background:
-                              idx % 2 === 0
-                                ? 'rgba(15, 23, 42, 0.6)'
-                                : '#090d16',
-                            borderBottom: '1px solid #1e293b',
-                          }}
-                        >
-                          <td
-                            style={{
-                              padding: '8px 12px',
-                              fontWeight: 700,
-                              color: '#ffffff',
-                            }}
-                          >
-                            <span
-                              style={{
-                                background: '#1e3a8a',
-                                color: '#93c5fd',
-                                fontSize: 9.5,
-                                padding: '1px 6px',
-                                borderRadius: 4,
-                                marginRight: 6,
-                              }}
-                            >
-                              BASE
-                            </span>
-                            {b.muni}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.opam ? '#38bdf8' : '#64748b',
-                              fontWeight: b.opam ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.opam || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.opam_extra ? '#38bdf8' : '#64748b',
-                              fontWeight: b.opam_extra ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.opam_extra || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.inc2 ? '#ef4444' : '#64748b',
-                              fontWeight: b.inc2 ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.inc2 || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: '#38bdf8',
-                              fontWeight: 900,
-                              fontFamily: 'monospace',
-                              background: 'rgba(56, 189, 248, 0.08)',
-                            }}
-                          >
-                            {b.cbmam_militares}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.prevfogo ? '#4ade80' : '#64748b',
-                              fontWeight: b.prevfogo ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.prevfogo || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.fn ? '#38bdf8' : '#64748b',
-                              fontWeight: b.fn ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.fn || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.brigadista ? '#f97316' : '#64748b',
-                              fontWeight: b.brigadista ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.brigadista || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              color: b.brigadista_sema ? '#10b981' : '#64748b',
-                              fontWeight: b.brigadista_sema ? 800 : 400,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {b.brigadista_sema || '-'}
-                          </td>
-                          <td
-                            style={{
-                              padding: '8px 8px',
-                              textAlign: 'center',
-                              fontWeight: 900,
-                              color: '#ffffff',
-                              fontFamily: 'monospace',
-                              background: 'rgba(239, 68, 68, 0.15)',
-                            }}
-                          >
-                            {b.total}
-                          </td>
-                          <td
-                            style={{ padding: '8px 12px', textAlign: 'right' }}
-                          >
-                            {onSelectMuni && (
-                              <button
-                                onClick={() => {
-                                  onSelectMuni(b.muni_ref || b.muni);
-                                  onClose();
-                                }}
-                                style={{
-                                  background: 'rgba(250, 204, 21, 0.15)',
-                                  border: '1px solid #facc15',
-                                  color: '#facc15',
-                                  padding: '3px 8px',
-                                  borderRadius: 4,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Ver no Mapa
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr
-                        style={{
-                          background: '#0f172a',
-                          borderTop: '2px solid #334155',
-                          color: '#ffffff',
-                          fontWeight: 900,
-                        }}
-                      >
-                        <td style={{ padding: '10px 12px' }}>
-                          TOTAL BASES TEMPORÁRIAS (11)
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela2.opam}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela2.opam_extra}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#ef4444',
-                          }}
-                        >
-                          {totTabela2.inc2}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela2.cbmam}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#4ade80',
-                          }}
-                        >
-                          {totTabela2.prevfogo}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#38bdf8',
-                          }}
-                        >
-                          {totTabela2.fn}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#f97316',
-                          }}
-                        >
-                          {totTabela2.brig_mun}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#10b981',
-                          }}
-                        >
-                          {totTabela2.brig_sema}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 8px',
-                            textAlign: 'center',
-                            color: '#ffffff',
-                            background: '#dc2626',
-                          }}
-                        >
-                          {totTabela2.total}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
-          {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <div
-                  style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
-                      }}
-                    >
-                      recursos ativos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
-                      }}
-                    >
-                      viaturas
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Recursos por Município */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Ação
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
-
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =================================================================
-              ABA 4: PREVFOGO & FOCOS DE COMBATE
-              ================================================================= */}
-          {activeTab === 'prevfogo' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Header Prevfogo */}
-              <div
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%)',
-                  border: '1.5px solid #22c55e',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <TreePine size={20} color="#4ade80" />
-                    <span>PREVFOGO / IBAMA — 247 BRIGADISTAS EM OPERAÇÃO</span>
-                  </div>
-                  <div
-                    style={{ fontSize: 11.5, color: '#bbf7d0', marginTop: 4 }}
-                  >
-                    Recursos mobilizados em cooperação com o CBMAM em Terras
-                    Indígenas e Unidades de Conservação Federais
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: '#15803d',
-                    color: '#ffffff',
-                    fontSize: 20,
-                    fontWeight: 900,
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  247 Op.
-                </div>
-              </div>
-
-              {/* Grid das Bases do Prevfogo */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                  gap: 12,
-                }}
-              >
-                {PREVFOGO_RECURSOS_DISPONIVEIS.map((pf) => (
-                  <div
-                    key={pf.muni}
+                    key={label}
                     style={{
                       background: 'rgba(15, 23, 42, 0.85)',
-                      border: '1.5px solid rgba(34, 197, 94, 0.4)',
-                      borderRadius: 10,
+                      border: '1px solid #1e293b',
+                      borderTop: `3px solid ${color}`,
+                      borderRadius: 12,
                       padding: '14px 16px',
                     }}
                   >
@@ -4938,1678 +1311,888 @@ export function RelatorioOficialModal({ onClose, onSelectMuni }) {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: 10,
-                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
-                        paddingBottom: 6,
                       }}
                     >
                       <span
                         style={{
-                          fontSize: 14,
-                          fontWeight: 900,
-                          color: '#86efac',
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          color: '#94a3b8',
+                          letterSpacing: 0.6,
                         }}
                       >
-                        {pf.muni}
+                        {label}
                       </span>
-                      <span
-                        style={{
-                          background: '#15803d',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 900,
-                          padding: '3px 8px',
-                          borderRadius: 12,
-                        }}
-                      >
-                        {pf.total} Brigadistas
-                      </span>
+                      <Icon size={16} color={color} />
                     </div>
-
                     <div
                       style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
+                        fontSize: 30,
+                        fontWeight: 900,
+                        color: '#ffffff',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        margin: '6px 0 3px',
                       }}
                     >
-                      {pf.bases.map((b, bIdx) => (
+                      {val}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Grade de 2 colunas: Composição por Instituição + Top 10 Municípios */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+                  gap: 16,
+                }}
+              >
+                {/* Gráfico 1: Barras Horizontais por Instituição */}
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1px solid #1e293b',
+                    borderRadius: 12,
+                    padding: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#f8fafc',
+                      marginBottom: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                    }}
+                  >
+                    <BarChart3 size={15} color="#38bdf8" />
+                    PARTICIPAÇÃO POR INSTITUIÇÃO (EFETIVO GERAL)
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    {quadro01Instituicoes.map((it) => (
+                      <div key={it.label}>
                         <div
-                          key={bIdx}
                           style={{
-                            fontSize: 11,
-                            color: '#d1fae5',
-                            background: 'rgba(15, 23, 42, 0.6)',
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: '1px solid rgba(34, 197, 94, 0.15)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: 11.5,
+                            marginBottom: 4,
+                          }}
+                        >
+                          <span style={{ color: '#e2e8f0', fontWeight: 700 }}>
+                            {it.label}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              color: '#f8fafc',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {it.valor}{' '}
+                            <span style={{ color: '#94a3b8', fontSize: 10.5 }}>
+                              ({it.pct}%)
+                            </span>
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            width: '100%',
+                            height: 8,
+                            background: 'rgba(30,41,59,0.9)',
+                            borderRadius: 999,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${Math.min(100, Number(it.pct))}%`,
+                              height: '100%',
+                              background: it.color,
+                              borderRadius: 999,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gráfico 2: Top 10 Municípios em Atuação (Clicável!) */}
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1px solid #1e293b',
+                    borderRadius: 12,
+                    padding: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#f8fafc',
+                      marginBottom: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                    }}
+                  >
+                    <MapPin size={15} color="#facc15" />
+                    TOP 10 MUNICÍPIOS / BASES EM ATUAÇÃO (CLIQUE PARA FOCAR)
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    {top10Atuacao.map((m, i) => {
+                      const maxVal = top10Atuacao[0]?.total || 1;
+                      const pct = Math.round((m.total / maxVal) * 100);
+                      return (
+                        <div
+                          key={`${m.tipo}-${m.nome}`}
+                          onClick={() => onSelectMuni?.(m.nome)}
+                          style={{
+                            cursor: 'pointer',
+                            padding: '5px 8px',
+                            borderRadius: 7,
+                            background: 'rgba(30, 41, 59, 0.45)',
+                            border: '1px solid rgba(148,163,184,0.12)',
                           }}
                         >
                           <div
                             style={{
                               display: 'flex',
                               justifyContent: 'space-between',
-                              fontWeight: 700,
+                              fontSize: 11.5,
+                              marginBottom: 4,
                             }}
                           >
-                            <span>{b.local}</span>
-                            <span style={{ color: '#4ade80' }}>
-                              {b.efetivo} Op.
+                            <span style={{ color: '#f8fafc', fontWeight: 700 }}>
+                              {i + 1}. {m.nome}{' '}
+                              <span
+                                style={{
+                                  fontSize: 9.5,
+                                  color:
+                                    m.tipo === 'base' ? '#fbbf24' : '#38bdf8',
+                                  marginLeft: 4,
+                                }}
+                              >
+                                {m.tipo === 'base' ? 'BASE' : m.crbm}
+                              </span>
                             </span>
-                          </div>
-                          {b.detalhe && (
-                            <div
+                            <span
                               style={{
-                                fontSize: 10,
-                                color: '#94a3b8',
-                                marginTop: 2,
+                                fontFamily: "'JetBrains Mono', monospace",
+                                fontWeight: 900,
+                                color: '#facc15',
                               }}
                             >
-                              {b.detalhe}
-                            </div>
-                          )}
+                              {m.total} op.
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              width: '100%',
+                              height: 6,
+                              background: 'rgba(15,23,42,0.9)',
+                              borderRadius: 999,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${pct}%`,
+                                height: '100%',
+                                background: m.inArco
+                                  ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                                  : 'linear-gradient(90deg, #0284c7, #38bdf8)',
+                                borderRadius: 999,
+                              }}
+                            />
+                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==============================================================
+              ABA 3: TABELAS INTERATIVAS (POLOS + BASES, ZERO TRACINHOS)
+              ============================================================== */}
+          {activeTab === 'tabelas' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Tabela Polos */}
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: '#38bdf8',
+                      fontWeight: 900,
+                      fontSize: 13,
+                    }}
+                  >
+                    <Building2 size={15} />
+                    1. MUNICÍPIOS POLO ({filteredPolos.length} DE{' '}
+                    {polosList.length})
+                  </div>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                    CBMAM: <b style={{ color: '#facc15' }}>{totPolos.cbmam}</b>{' '}
+                    • Em Atuação:{' '}
+                    <b style={{ color: '#4ade80' }}>{totPolos.total}</b>
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    overflowX: 'auto',
+                    borderRadius: 10,
+                    border: '1px solid #1e293b',
+                  }}
+                >
+                  <table className="rel-dark-table">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Município</th>
+                        <th style={{ textAlign: 'left' }}>CRBM</th>
+                        <th style={{ textAlign: 'right', color: '#facc15' }}>
+                          CBMAM
+                        </th>
+                        <th style={{ textAlign: 'right' }}>6ª OPAM</th>
+                        <th style={{ textAlign: 'right' }}>7ª OPAM</th>
+                        <th style={{ textAlign: 'right' }}>Prevfogo</th>
+                        <th style={{ textAlign: 'right' }}>Força Nac.</th>
+                        <th style={{ textAlign: 'right' }}>Brig. Mun.</th>
+                        <th style={{ textAlign: 'right' }}>Brig. SEMA</th>
+                        <th style={{ textAlign: 'right', color: '#4ade80' }}>
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPolos.map((r) => (
+                        <tr
+                          key={r.nome}
+                          onClick={() => onSelectMuni?.(r.nome)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td style={{ fontWeight: 700, color: '#f8fafc' }}>
+                            {r.nome}
+                            {r.inArco && (
+                              <Flame
+                                size={11}
+                                color="#f97316"
+                                style={{
+                                  marginLeft: 6,
+                                  display: 'inline',
+                                  verticalAlign: 'middle',
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td style={{ color: '#94a3b8', fontSize: 11 }}>
+                            {r.crbm}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.cbmam, '#facc15')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.opamv, '#fbbf24')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.opam_ref, '#38bdf8')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.prevfogo, '#4ade80')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.fn, '#67e8f9')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.brig_mun, '#fb923c')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.brig_semas, '#34d399')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.total, '#4ade80')}
+                          </td>
+                        </tr>
                       ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2}>SUBTOTAL POLOS (26)</td>
+                        <td style={{ textAlign: 'right', color: '#facc15' }}>
+                          {totPolos.cbmam}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{totPolos.opamv}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totPolos.opam_ref}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totPolos.prevfogo}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{totPolos.fn}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totPolos.brig_mun}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totPolos.brig_semas}
+                        </td>
+                        <td style={{ textAlign: 'right', color: '#4ade80' }}>
+                          {totPolos.total}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tabela Bases */}
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: '#f59e0b',
+                      fontWeight: 900,
+                      fontSize: 13,
+                    }}
+                  >
+                    <Tent size={15} />
+                    2. BASES TEMPORÁRIAS ({filteredBases.length} DE{' '}
+                    {basesList.length})
+                  </div>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                    Em Atuação:{' '}
+                    <b style={{ color: '#fbbf24' }}>{totBases.total}</b>
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    overflowX: 'auto',
+                    borderRadius: 10,
+                    border: '1px solid #1e293b',
+                  }}
+                >
+                  <table className="rel-dark-table">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Base Temporária</th>
+                        <th style={{ textAlign: 'left' }}>CRBM</th>
+                        <th style={{ textAlign: 'right' }}>CBMAM</th>
+                        <th style={{ textAlign: 'right' }}>6ª OPAM</th>
+                        <th style={{ textAlign: 'right' }}>7ª OPAM</th>
+                        <th style={{ textAlign: 'right' }}>Prevfogo</th>
+                        <th style={{ textAlign: 'right' }}>Força Nac.</th>
+                        <th style={{ textAlign: 'right' }}>Brig. Mun.</th>
+                        <th style={{ textAlign: 'right' }}>Brig. SEMA</th>
+                        <th style={{ textAlign: 'right', color: '#fbbf24' }}>
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredBases.map((r) => (
+                        <tr
+                          key={r.nome}
+                          onClick={() => onSelectMuni?.(r.nome)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td style={{ fontWeight: 700, color: '#f8fafc' }}>
+                            {r.nome}
+                          </td>
+                          <td style={{ color: '#94a3b8', fontSize: 11 }}>
+                            {r.crbm}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(0)}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.opamv, '#fbbf24')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.opam_ref, '#38bdf8')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.prevfogo, '#4ade80')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.fn, '#67e8f9')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.brig_mun, '#fb923c')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.brig_semas, '#34d399')}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {renderZeroAware(r.total, '#fbbf24')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2}>SUBTOTAL BASES (12)</td>
+                        <td style={{ textAlign: 'right' }}>0</td>
+                        <td style={{ textAlign: 'right' }}>{totBases.opamv}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totBases.opam_ref}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totBases.prevfogo}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{totBases.fn}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totBases.brig_mun}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {totBases.brig_semas}
+                        </td>
+                        <td style={{ textAlign: 'right', color: '#fbbf24' }}>
+                          {totBases.total}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==============================================================
+              ABA 4: COMANDOS REGIONAIS CRBM (350 MILITARES INTERIOR)
+              ============================================================== */}
+          {activeTab === 'crbm' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: 10,
+                }}
+              >
+                {CRBM_SUBTOTAIS.map((s) => (
+                  <div
+                    key={s.crbm}
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      border: '1px solid #1e293b',
+                      borderLeft: '3px solid #f97316',
+                      borderRadius: 10,
+                      padding: '12px 14px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        color: '#94a3b8',
+                      }}
+                    >
+                      {s.crbm}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 26,
+                        fontWeight: 900,
+                        color: '#ffffff',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        margin: '4px 0',
+                      }}
+                    >
+                      {s.total}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#cbd5e1' }}>
+                      Combatente: <b>{s.combatente}</b> • Saúde:{' '}
+                      <b>{s.saude}</b>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
-          {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
+                  overflowX: 'auto',
+                  borderRadius: 10,
+                  border: '1px solid #1e293b',
                 }}
               >
-                <div
-                  style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
-                      }}
-                    >
-                      recursos ativos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
-                      }}
-                    >
-                      viaturas
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Recursos por Município */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
+                <table className="rel-dark-table">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>CRBM</th>
+                      <th style={{ textAlign: 'left' }}>
+                        Grupamento / Município
+                      </th>
+                      <th style={{ textAlign: 'right' }}>Combatente</th>
+                      <th style={{ textAlign: 'right' }}>Saúde</th>
+                      <th style={{ textAlign: 'right', color: '#facc15' }}>
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CRBM_DETALHAMENTO.map((c, idx) => (
                       <tr
+                        key={`${c.crbm}-${idx}`}
+                        onClick={() =>
+                          c.municipio && onSelectMuni?.(c.municipio)
+                        }
                         style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
+                          cursor: c.municipio ? 'pointer' : 'default',
                         }}
                       >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Ação
-                        </th>
+                        <td style={{ fontWeight: 800, color: '#38bdf8' }}>
+                          {c.crbm}
+                        </td>
+                        <td style={{ fontWeight: 600, color: '#f8fafc' }}>
+                          {c.grupamento}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(c.combatente, '#e2e8f0')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(c.saude, '#4ade80')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(c.total, '#facc15')}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
-
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2}>TOTAL GERAL CRBM (INTERIOR)</td>
+                      <td style={{ textAlign: 'right' }}>296</td>
+                      <td style={{ textAlign: 'right' }}>54</td>
+                      <td style={{ textAlign: 'right', color: '#facc15' }}>
+                        350
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           )}
 
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
+          {/* ==============================================================
+              ABA 5: MEIOS & VIATURAS (160 MEIOS — TABELA ÚNICA SEM DUPLICAR)
+              ============================================================== */}
           {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                  gap: 10,
                 }}
               >
-                <div
-                  style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
+                {[
+                  {
+                    label: 'TOTAL DE MEIOS',
+                    val: totRecursos.total,
+                    color: '#38bdf8',
+                  },
+                  {
+                    label: 'COMBATE A INCÊNDIO',
+                    val: totRecursos.combate,
+                    color: '#ef4444',
+                  },
+                  {
+                    label: 'APOIO & RESGATE',
+                    val: totRecursos.apoio,
+                    color: '#facc15',
+                  },
+                  {
+                    label: 'EMBARCAÇÕES / JET',
+                    val: totRecursos.fluvial,
+                    color: '#22d3ee',
+                  },
+                  {
+                    label: 'AERONAVES',
+                    val: totRecursos.aereo,
+                    color: '#60a5fa',
+                  },
+                ].map((card) => (
                   <div
+                    key={card.label}
                     style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      border: '1px solid #1e293b',
+                      borderTop: `3px solid ${card.color}`,
+                      borderRadius: 10,
+                      padding: '12px 14px',
                     }}
                   >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
-                    <span
+                    <div
                       style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: '#94a3b8',
                       }}
                     >
-                      recursos ativos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
-                    <span
+                      {card.label}
+                    </div>
+                    <div
                       style={{
-                        fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
+                        fontSize: 26,
+                        fontWeight: 900,
+                        color: '#ffffff',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        marginTop: 4,
                       }}
                     >
-                      viaturas
-                    </span>
+                      {card.val}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
+                ))}
               </div>
 
-              {/* Tabela Completa de Recursos por Município */}
               <div
                 style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
+                  overflowX: 'auto',
+                  borderRadius: 10,
+                  border: '1px solid #1e293b',
                 }}
               >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
+                <table className="rel-dark-table">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>Município / Base</th>
+                      <th style={{ textAlign: 'right' }}>ABT</th>
+                      <th style={{ textAlign: 'right' }}>ATF</th>
+                      <th style={{ textAlign: 'right', color: '#f87171' }}>
+                        Combate
+                      </th>
+                      <th style={{ textAlign: 'right' }}>AR</th>
+                      <th style={{ textAlign: 'right' }}>UR</th>
+                      <th style={{ textAlign: 'right', color: '#facc15' }}>
+                        Apoio/Resg.
+                      </th>
+                      <th style={{ textAlign: 'right', color: '#22d3ee' }}>
+                        Fluvial
+                      </th>
+                      <th style={{ textAlign: 'right', color: '#60a5fa' }}>
+                        Aéreo
+                      </th>
+                      <th style={{ textAlign: 'right', color: '#4ade80' }}>
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecursos.map((r) => (
                       <tr
-                        style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
-                        }}
+                        key={r.mun}
+                        onClick={() => onSelectMuni?.(r.mun)}
+                        style={{ cursor: 'pointer' }}
                       >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Ação
-                        </th>
+                        <td style={{ fontWeight: 700, color: '#f8fafc' }}>
+                          {r.mun}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.abt)}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.atf)}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.combate, '#f87171')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.ar)}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.ur)}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.apoio, '#facc15')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.fluvial, '#22d3ee')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.aereo, '#60a5fa')}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {renderZeroAware(r.total, '#4ade80')}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
-
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
-                            style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>TOTAL GERAL DE MEIOS</td>
+                      <td style={{ textAlign: 'right' }}>{totRecursos.abt}</td>
+                      <td style={{ textAlign: 'right' }}>{totRecursos.atf}</td>
+                      <td style={{ textAlign: 'right', color: '#f87171' }}>
+                        {totRecursos.combate}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>{totRecursos.ar}</td>
+                      <td style={{ textAlign: 'right' }}>{totRecursos.ur}</td>
+                      <td style={{ textAlign: 'right', color: '#facc15' }}>
+                        {totRecursos.apoio}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#22d3ee' }}>
+                        {totRecursos.fluvial}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#60a5fa' }}>
+                        {totRecursos.aereo}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#4ade80' }}>
+                        {totRecursos.total}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           )}
 
-          {/* ===================================================================
-              ABA 5: VIATURAS & MEIOS OPERACIONAIS (160 RECURSOS)
-              =================================================================== */}
-          {activeTab === 'recursos' && (
-            <div style={{ padding: '20px 24px' }}>
-              {/* Cards de Resumo dos 160 Meios */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                  gap: 12,
-                  marginBottom: 20,
-                }}
-              >
+          {/* ==============================================================
+              ABA 6: PREVFOGO / IBAMA
+              ============================================================== */}
+          {activeTab === 'prevfogo' && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: 14,
+              }}
+            >
+              {PREVFOGO_RECURSOS_DISPONIVEIS.map((pf) => (
                 <div
+                  key={pf.muni}
+                  onClick={() => onSelectMuni?.(pf.muni)}
                   style={{
-                    background: 'rgba(30, 58, 138, 0.25)',
-                    border: '1.5px solid #3b82f6',
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
                     borderRadius: 12,
-                    padding: '14px 16px',
+                    padding: 15,
+                    cursor: 'pointer',
                   }}
                 >
                   <div
                     style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#93c5fd',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
                       display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      gap: 6,
+                      marginBottom: 10,
+                      borderBottom: '1px solid #1e293b',
+                      paddingBottom: 8,
                     }}
                   >
-                    <Truck size={15} color="#60a5fa" />
-                    Total de Meios Materiais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.total_geral}{' '}
                     <span
                       style={{
-                        fontSize: 13,
-                        color: '#93c5fd',
-                        fontWeight: 600,
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: '#ffffff',
                       }}
                     >
-                      recursos ativos
+                      {pf.muni}
                     </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 4 }}>
-                    Briefing Oficial • 35 Municípios
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1.5px solid #ef4444',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fca5a5',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Flame size={15} color="#f87171" />
-                    Viaturas de Combate
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.combate_incendio.total}{' '}
                     <span
                       style={{
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 13,
-                        color: '#fca5a5',
-                        fontWeight: 600,
+                        fontWeight: 900,
+                        color: '#4ade80',
+                        background: 'rgba(34,197,94,0.16)',
+                        padding: '2px 9px',
+                        borderRadius: 999,
                       }}
                     >
-                      viaturas
+                      {pf.total} brigadistas
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#fecaca', marginTop: 4 }}>
-                    18 ABT • 17 ATF • 3 ATA • 2 AT • 2 ABF • 2 ABS
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1.5px solid #10b981',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
                   <div
                     style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#6ee7b7',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
+                      flexDirection: 'column',
+                      gap: 7,
                     }}
                   >
-                    <Shield size={15} color="#34d399" />
-                    Apoio, Resgate & Salvamento
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.apoio_resgate.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#6ee7b7',
-                        fontWeight: 600,
-                      }}
-                    >
-                      meios
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#a7f3d0', marginTop: 4 }}>
-                    47 AR • 16 UR • 12 MT • 5 DOSA • 5 GSE • 4 Outros
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    border: '1.5px solid #eab308',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: '#fde047',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Plane size={15} color="#facc15" />
-                    Aeronaves & Meios Fluviais
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      marginTop: 4,
-                    }}
-                  >
-                    {RESUMO_RECURSOS_OFICIAL.aeronaves.total +
-                      RESUMO_RECURSOS_OFICIAL.fluvial_especial.total}{' '}
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: '#fde047',
-                        fontWeight: 600,
-                      }}
-                    >
-                      aéreos / barcos
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#fef08a', marginTop: 4 }}>
-                    8 Aviões • 3 Harpias • 13 Embarcações • 3 Jets
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Recursos por Município */}
-              <div
-                style={{
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 18px',
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{ fontSize: 13, fontWeight: 900, color: '#ffffff' }}
-                  >
-                    MATRIZ OFICIAL DE RECURSOS MATERIAIS E VIATURAS POR
-                    MUNICÍPIO
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    Total: <strong>160 Recursos Operacionais</strong>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
-                  <table
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: 12,
-                      textAlign: 'left',
-                    }}
-                  >
-                    <thead>
-                      <tr
+                    {(pf.bases || []).map((b, idx) => (
+                      <div
+                        key={idx}
                         style={{
-                          background: 'rgba(15, 23, 42, 0.95)',
-                          borderBottom: '2px solid rgba(56, 189, 248, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: 11,
-                          textTransform: 'uppercase',
+                          background: 'rgba(30, 41, 59, 0.6)',
+                          borderRadius: 8,
+                          padding: '7px 10px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
                         }}
                       >
-                        <th style={{ padding: '10px 14px' }}>Município</th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Combate a Incêndio
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>
-                          Apoio & Resgate
-                        </th>
-                        <th style={{ padding: '10px 12px' }}>Aeronaves</th>
-                        <th style={{ padding: '10px 12px' }}>Fluvial</th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Total
-                        </th>
-                        <th
-                          style={{ padding: '10px 14px', textAlign: 'center' }}
-                        >
-                          Ação
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {OPERACAO_RECURSOS_MUNICIPIOS.filter((r) => {
-                        if (!searchTerm.trim()) return true;
-                        return r.mun
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase());
-                      }).map((r, idx) => {
-                        const combateItems = [];
-                        if (r.abt) combateItems.push(`${r.abt} ABT`);
-                        if (r.atf) combateItems.push(`${r.atf} ATF`);
-                        if (r.ata) combateItems.push(`${r.ata} ATA`);
-                        if (r.at) combateItems.push(`${r.at} AT`);
-                        if (r.abf) combateItems.push(`${r.abf} ABF`);
-                        if (r.abs) combateItems.push(`${r.abs} ABS`);
-
-                        const apoioItems = [];
-                        if (r.ar) apoioItems.push(`${r.ar} AR 4x4`);
-                        if (r.ur) apoioItems.push(`${r.ur} UR Resgate`);
-                        if (r.mt) apoioItems.push(`${r.mt} Moto MT`);
-                        if (r.dosa) apoioItems.push(`${r.dosa} DOSA`);
-                        if (r.gse) apoioItems.push(`${r.gse} GSE`);
-                        if (r.crs) apoioItems.push(`${r.crs} CRS`);
-                        if (r.autoarp) apoioItems.push(`${r.autoarp} AutoARP`);
-                        if (r.picape_esfron)
-                          apoioItems.push(`${r.picape_esfron} Esfron`);
-                        if (r.quadriciclo)
-                          apoioItems.push(`${r.quadriciclo} Quadri`);
-
-                        const aereosItems = [];
-                        if (r.helicoptero)
-                          aereosItems.push(`${r.helicoptero} Harpia`);
-                        if (r.aviao) aereosItems.push(`${r.aviao} Air Tractor`);
-
-                        const fluvialItems = [];
-                        if (r.embarcacao)
-                          fluvialItems.push(`${r.embarcacao} Embarcação`);
-                        if (r.jetski) fluvialItems.push(`${r.jetski} Jet Ski`);
-
-                        return (
-                          <tr
-                            key={idx}
+                        <div>
+                          <div
                             style={{
-                              borderBottom:
-                                '1px solid rgba(255, 255, 255, 0.05)',
-                              background:
-                                idx % 2 === 0
-                                  ? 'rgba(15, 23, 42, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.25)',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              color: '#e2e8f0',
                             }}
                           >
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                              }}
-                            >
-                              {r.mun}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {combateItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {combateItems.map((ci, cIdx) => (
-                                    <span
-                                      key={cIdx}
-                                      style={{
-                                        background: 'rgba(239, 68, 68, 0.2)',
-                                        color: '#fca5a5',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(239, 68, 68, 0.3)',
-                                      }}
-                                    >
-                                      {ci}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {apoioItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {apoioItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(59, 130, 246, 0.2)',
-                                        color: '#93c5fd',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(59, 130, 246, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {aereosItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {aereosItems.map((ai, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      style={{
-                                        background: 'rgba(234, 179, 8, 0.2)',
-                                        color: '#fde047',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(234, 179, 8, 0.3)',
-                                      }}
-                                    >
-                                      {ai}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td style={{ padding: '10px 12px' }}>
-                              {fluvialItems.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  {fluvialItems.map((fi, fIdx) => (
-                                    <span
-                                      key={fIdx}
-                                      style={{
-                                        background: 'rgba(20, 184, 166, 0.2)',
-                                        color: '#5eead4',
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        border:
-                                          '1px solid rgba(20, 184, 166, 0.3)',
-                                      }}
-                                    >
-                                      {fi}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                color: r.total > 0 ? '#38bdf8' : '#64748b',
-                                fontSize: 13,
-                              }}
-                            >
-                              {r.total}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: '10px 14px',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {onSelectMuni && r.total > 0 ? (
-                                <button
-                                  className="btn-tactical"
-                                  onClick={() => {
-                                    onSelectMuni(r.mun);
-                                    onClose();
-                                  }}
-                                  style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
-                                    borderRadius: 14,
-                                    background: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  }}
-                                >
-                                  Ver no Mapa
-                                </button>
-                              ) : (
-                                <span
-                                  style={{ color: '#475569', fontSize: 11 }}
-                                >
-                                  —
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            {b.local}
+                          </div>
+                          <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+                            {b.detalhe}
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 800,
+                            color: '#86efac',
+                            fontSize: 12.5,
+                          }}
+                        >
+                          {b.efetivo}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           )}
         </div>

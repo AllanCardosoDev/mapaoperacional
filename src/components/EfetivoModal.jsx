@@ -1455,7 +1455,7 @@ export function EfetivoModal({
                                 fontFamily: 'monospace',
                               }}
                             >
-                              {r.cbmam || '-'}
+                              {r.cbmam ?? 0}
                             </span>
                           )}
                         </td>
@@ -1479,7 +1479,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.opamv || '-'}
+                              {r.opamv ?? 0}
                             </span>
                           )}
                         </td>
@@ -1507,7 +1507,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.opam_ref || '-'}
+                              {r.opam_ref ?? 0}
                             </span>
                           )}
                         </td>
@@ -1535,7 +1535,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.prevfogo || '-'}
+                              {r.prevfogo ?? 0}
                             </span>
                           )}
                         </td>
@@ -1559,7 +1559,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.fn || '-'}
+                              {r.fn ?? 0}
                             </span>
                           )}
                         </td>
@@ -1587,7 +1587,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.brig_mun || '-'}
+                              {r.brig_mun ?? 0}
                             </span>
                           )}
                         </td>
@@ -1615,7 +1615,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.brig_semas || '-'}
+                              {r.brig_semas ?? 0}
                             </span>
                           )}
                         </td>
@@ -1871,7 +1871,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.cbmam || '-'}
+                              {r.cbmam ?? 0}
                             </span>
                           )}
                         </td>
@@ -1895,7 +1895,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.opamv || '-'}
+                              {r.opamv ?? 0}
                             </span>
                           )}
                         </td>
@@ -1923,7 +1923,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.opam_ref || '-'}
+                              {r.opam_ref ?? 0}
                             </span>
                           )}
                         </td>
@@ -1951,7 +1951,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.prevfogo || '-'}
+                              {r.prevfogo ?? 0}
                             </span>
                           )}
                         </td>
@@ -1975,7 +1975,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.fn || '-'}
+                              {r.fn ?? 0}
                             </span>
                           )}
                         </td>
@@ -2003,7 +2003,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.brig_mun || '-'}
+                              {r.brig_mun ?? 0}
                             </span>
                           )}
                         </td>
@@ -2031,7 +2031,7 @@ export function EfetivoModal({
                                 fontWeight: 700,
                               }}
                             >
-                              {r.brig_semas || '-'}
+                              {r.brig_semas ?? 0}
                             </span>
                           )}
                         </td>
@@ -2859,7 +2859,7 @@ export function EfetivoModal({
                             fontWeight: 700,
                           }}
                         >
-                          {m.capital || '-'}
+                          {m.capital ?? 0}
                         </td>
                         <td
                           style={{
@@ -2869,7 +2869,7 @@ export function EfetivoModal({
                             fontWeight: 700,
                           }}
                         >
-                          {m.interior || '-'}
+                          {m.interior ?? 0}
                         </td>
                         <td
                           style={{
