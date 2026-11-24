@@ -233,7 +233,12 @@ function harmonizeWithBenchmarks(efetivoArray) {
   if (Array.isArray(efetivoArray)) {
     efetivoArray.forEach((r) => {
       if (!r?.mun) return;
-      const isBase = r.tipo === 'base' || baseNormSet.has(norm(r.mun));
+      const isBase =
+        r.tipo === 'base' ||
+        norm(r.mun).includes('km 53') ||
+        (r.tipo !== 'capital' &&
+          r.tipo !== 'interior' &&
+          baseNormSet.has(norm(r.mun)));
       efMap.set(`${isBase ? 'base' : 'mun'}:${norm(r.mun)}`, r);
     });
   }
@@ -247,39 +252,38 @@ function harmonizeWithBenchmarks(efetivoArray) {
     const raw = efMap.get(key);
     const bm = BENCHMARK_MUNICIPIOS_OPERACIONAL[nome] || {};
     const bm_perm = BENCHMARK_PERMANENTE_CBMAM[nome] || 0;
-    const hasData =
-      raw &&
-      (raw._custom ||
-        [
-          raw.serv_ord,
-          raw.cbmam,
-          raw.opamv,
-          raw.opam_ref,
-          raw.prevfogo,
-          raw.fn,
-          raw.brig_mun,
-          raw.brig_semas,
-        ].some((v) => Number(v) > 0));
 
     const cbmam = Number(
-      hasData ? (raw.cbmam ?? raw.serv_ord ?? bm_perm) : bm_perm
+      raw?._custom
+        ? (raw.cbmam ?? raw.serv_ord ?? bm_perm)
+        : raw?.cbmam || raw?.serv_ord || bm_perm
     );
     const serv_ord = cbmam;
     const opamv = Number(
-      hasData ? (raw.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+      raw?._custom ? (raw.opamv ?? bm.opamv ?? 0) : raw?.opamv || bm.opamv || 0
     );
     const opam_ref = Number(
-      hasData ? (raw.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+      raw?._custom
+        ? (raw.opam_ref ?? bm.opam_ref ?? 0)
+        : raw?.opam_ref || bm.opam_ref || 0
     );
     const prevfogo = Number(
-      hasData ? (raw.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+      raw?._custom
+        ? (raw.prevfogo ?? bm.prevfogo ?? 0)
+        : raw?.prevfogo || bm.prevfogo || 0
     );
-    const fn = Number(hasData ? (raw.fn ?? bm.fn ?? 0) : bm.fn || 0);
+    const fn = Number(
+      raw?._custom ? (raw.fn ?? bm.fn ?? 0) : raw?.fn || bm.fn || 0
+    );
     const brig_mun = Number(
-      hasData ? (raw.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+      raw?._custom
+        ? (raw.brig_mun ?? bm.brig_mun ?? 0)
+        : raw?.brig_mun || bm.brig_mun || 0
     );
     const brig_semas = Number(
-      hasData ? (raw.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
+      raw?._custom
+        ? (raw.brig_semas ?? bm.brig_semas ?? 0)
+        : raw?.brig_semas || bm.brig_semas || 0
     );
     // Total em atuação na operação (Col M da planilha oficial)
     const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
@@ -309,35 +313,32 @@ function harmonizeWithBenchmarks(efetivoArray) {
     const key = `base:${norm(nome)}`;
     const raw = efMap.get(key);
     const bm = BENCHMARK_BASES_OPERACIONAL[nome] || {};
-    const hasData =
-      raw &&
-      (raw._custom ||
-        [
-          raw.serv_ord,
-          raw.cbmam,
-          raw.opamv,
-          raw.opam_ref,
-          raw.prevfogo,
-          raw.fn,
-          raw.brig_mun,
-          raw.brig_semas,
-        ].some((v) => Number(v) > 0));
 
     const opamv = Number(
-      hasData ? (raw.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+      raw?._custom ? (raw.opamv ?? bm.opamv ?? 0) : raw?.opamv || bm.opamv || 0
     );
     const opam_ref = Number(
-      hasData ? (raw.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+      raw?._custom
+        ? (raw.opam_ref ?? bm.opam_ref ?? 0)
+        : raw?.opam_ref || bm.opam_ref || 0
     );
     const prevfogo = Number(
-      hasData ? (raw.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+      raw?._custom
+        ? (raw.prevfogo ?? bm.prevfogo ?? 0)
+        : raw?.prevfogo || bm.prevfogo || 0
     );
-    const fn = Number(hasData ? (raw.fn ?? bm.fn ?? 0) : bm.fn || 0);
+    const fn = Number(
+      raw?._custom ? (raw.fn ?? bm.fn ?? 0) : raw?.fn || bm.fn || 0
+    );
     const brig_mun = Number(
-      hasData ? (raw.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+      raw?._custom
+        ? (raw.brig_mun ?? bm.brig_mun ?? 0)
+        : raw?.brig_mun || bm.brig_mun || 0
     );
     const brig_semas = Number(
-      hasData ? (raw.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
+      raw?._custom
+        ? (raw.brig_semas ?? bm.brig_semas ?? 0)
+        : raw?.brig_semas || bm.brig_semas || 0
     );
     // Total em atuação na base (Col M da planilha oficial)
     const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
@@ -527,8 +528,8 @@ export async function saveRemoteMapState({
         muniNotes,
       })
     );
-  } catch (storageErr) {
-    console.debug('[MapSync] localStorage backup:', storageErr.message);
+  } catch {
+    // ignore local storage backup failure
   }
 
   // 2. Persistência direta no Supabase (mesmo banco do Relatório)

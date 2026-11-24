@@ -55,46 +55,45 @@ export function EfetivoModal({
       );
       const bm = BENCHMARK_MUNICIPIOS_OPERACIONAL[nome] || {};
       const bm_perm = BENCHMARK_PERMANENTE_CBMAM[nome] || 0;
-      const hasFoundData =
-        found &&
-        (found._custom ||
-          [
-            found.cbmam,
-            found.serv_ord,
-            found.opamv,
-            found.opam_ref,
-            found.prevfogo,
-            found.fn,
-            found.brig_mun,
-            found.brig_semas,
-          ].some((v) => Number(v) > 0));
 
       map[`mun:${norm(nome)}`] = {
         nome,
         tipo: isCap ? 'capital' : 'interior',
         cbmam: Number(
-          hasFoundData ? (found.cbmam ?? found.serv_ord ?? bm_perm) : bm_perm
+          found?._custom ? (found.cbmam ?? bm_perm) : found?.cbmam || bm_perm
         ),
         serv_ord: Number(
-          hasFoundData ? (found.serv_ord ?? found.cbmam ?? bm_perm) : bm_perm
+          found?._custom
+            ? (found.serv_ord ?? found.cbmam ?? bm_perm)
+            : found?.cbmam || bm_perm
         ),
         opamv: Number(
-          hasFoundData ? (found.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+          found?._custom
+            ? (found.opamv ?? bm.opamv ?? 0)
+            : found?.opamv || bm.opamv || 0
         ),
         opam_ref: Number(
-          hasFoundData ? (found.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+          found?._custom
+            ? (found.opam_ref ?? bm.opam_ref ?? 0)
+            : found?.opam_ref || bm.opam_ref || 0
         ),
         prevfogo: Number(
-          hasFoundData ? (found.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+          found?._custom
+            ? (found.prevfogo ?? bm.prevfogo ?? 0)
+            : found?.prevfogo || bm.prevfogo || 0
         ),
-        fn: Number(hasFoundData ? (found.fn ?? bm.fn ?? 0) : bm.fn || 0),
+        fn: Number(
+          found?._custom ? (found.fn ?? bm.fn ?? 0) : found?.fn || bm.fn || 0
+        ),
         brig_mun: Number(
-          hasFoundData ? (found.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+          found?._custom
+            ? (found.brig_mun ?? bm.brig_mun ?? 0)
+            : found?.brig_mun || bm.brig_mun || 0
         ),
         brig_semas: Number(
-          hasFoundData
+          found?._custom
             ? (found.brig_semas ?? bm.brig_semas ?? 0)
-            : bm.brig_semas || 0
+            : found?.brig_semas || bm.brig_semas || 0
         ),
       };
     });
@@ -103,23 +102,11 @@ export function EfetivoModal({
     BASES_TEMPORARIAS_LIST.forEach((nome) => {
       const found = (dbEfetivo || []).find(
         (r) =>
-          norm(r.mun) === norm(nome) ||
-          (r.tipo === 'base' && norm(r.mun) === norm(nome))
+          (r.tipo === 'base' || norm(r.mun).includes('km 53')) &&
+          (norm(r.mun) === norm(nome) ||
+            (norm(nome).includes('km 53') && norm(r.mun).includes('km 53')))
       );
       const bm = BENCHMARK_BASES_OPERACIONAL[nome] || {};
-      const hasFoundData =
-        found &&
-        (found._custom ||
-          [
-            found.cbmam,
-            found.serv_ord,
-            found.opamv,
-            found.opam_ref,
-            found.prevfogo,
-            found.fn,
-            found.brig_mun,
-            found.brig_semas,
-          ].some((v) => Number(v) > 0));
 
       map[`base:${norm(nome)}`] = {
         nome,
@@ -127,22 +114,32 @@ export function EfetivoModal({
         cbmam: 0,
         serv_ord: 0,
         opamv: Number(
-          hasFoundData ? (found.opamv ?? bm.opamv ?? 0) : bm.opamv || 0
+          found?._custom
+            ? (found.opamv ?? bm.opamv ?? 0)
+            : found?.opamv || bm.opamv || 0
         ),
         opam_ref: Number(
-          hasFoundData ? (found.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
+          found?._custom
+            ? (found.opam_ref ?? bm.opam_ref ?? 0)
+            : found?.opam_ref || bm.opam_ref || 0
         ),
         prevfogo: Number(
-          hasFoundData ? (found.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
+          found?._custom
+            ? (found.prevfogo ?? bm.prevfogo ?? 0)
+            : found?.prevfogo || bm.prevfogo || 0
         ),
-        fn: Number(hasFoundData ? (found.fn ?? bm.fn ?? 0) : bm.fn || 0),
+        fn: Number(
+          found?._custom ? (found.fn ?? bm.fn ?? 0) : found?.fn || bm.fn || 0
+        ),
         brig_mun: Number(
-          hasFoundData ? (found.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
+          found?._custom
+            ? (found.brig_mun ?? bm.brig_mun ?? 0)
+            : found?.brig_mun || bm.brig_mun || 0
         ),
         brig_semas: Number(
-          hasFoundData
+          found?._custom
             ? (found.brig_semas ?? bm.brig_semas ?? 0)
-            : bm.brig_semas || 0
+            : found?.brig_semas || bm.brig_semas || 0
         ),
       };
     });
@@ -172,40 +169,49 @@ export function EfetivoModal({
           ? 0
           : BENCHMARK_PERMANENTE_CBMAM[nomeOriginal] || 0;
 
-        const hasData =
-          r._custom ||
-          [
-            r.cbmam,
-            r.serv_ord,
-            r.opamv,
-            r.opam_ref,
-            r.prevfogo,
-            r.fn,
-            r.brig_mun,
-            r.brig_semas,
-          ].some((v) => Number(v) > 0);
+        const cbmam = isBase
+          ? 0
+          : Number(r._custom ? (r.cbmam ?? bm_perm) : r.cbmam || bm_perm);
+        const serv_ord = cbmam;
+        const opamv = Number(
+          r._custom ? (r.opamv ?? bm.opamv ?? 0) : r.opamv || bm.opamv || 0
+        );
+        const opam_ref = Number(
+          r._custom
+            ? (r.opam_ref ?? bm.opam_ref ?? 0)
+            : r.opam_ref || bm.opam_ref || 0
+        );
+        const prevfogo = Number(
+          r._custom
+            ? (r.prevfogo ?? bm.prevfogo ?? 0)
+            : r.prevfogo || bm.prevfogo || 0
+        );
+        const fn = Number(
+          r._custom ? (r.fn ?? bm.fn ?? 0) : r.fn || bm.fn || 0
+        );
+        const brig_mun = Number(
+          r._custom
+            ? (r.brig_mun ?? bm.brig_mun ?? 0)
+            : r.brig_mun || bm.brig_mun || 0
+        );
+        const brig_semas = Number(
+          r._custom
+            ? (r.brig_semas ?? bm.brig_semas ?? 0)
+            : r.brig_semas || bm.brig_semas || 0
+        );
 
         next[key] = {
           nome: nomeOriginal,
           tipo: isBase ? 'base' : r.mun === 'Manaus' ? 'capital' : 'interior',
-          cbmam: Number(hasData ? (r.cbmam ?? r.serv_ord ?? bm_perm) : bm_perm),
-          serv_ord: Number(
-            hasData ? (r.serv_ord ?? r.cbmam ?? bm_perm) : bm_perm
-          ),
-          opamv: Number(hasData ? (r.opamv ?? bm.opamv ?? 0) : bm.opamv || 0),
-          opam_ref: Number(
-            hasData ? (r.opam_ref ?? bm.opam_ref ?? 0) : bm.opam_ref || 0
-          ),
-          prevfogo: Number(
-            hasData ? (r.prevfogo ?? bm.prevfogo ?? 0) : bm.prevfogo || 0
-          ),
-          fn: Number(hasData ? (r.fn ?? bm.fn ?? 0) : bm.fn || 0),
-          brig_mun: Number(
-            hasData ? (r.brig_mun ?? bm.brig_mun ?? 0) : bm.brig_mun || 0
-          ),
-          brig_semas: Number(
-            hasData ? (r.brig_semas ?? bm.brig_semas ?? 0) : bm.brig_semas || 0
-          ),
+          cbmam,
+          serv_ord,
+          opamv,
+          opam_ref,
+          prevfogo,
+          fn,
+          brig_mun,
+          brig_semas,
+          _custom: !!r._custom,
         };
       });
       return next;
@@ -222,6 +228,7 @@ export function EfetivoModal({
         [key]: {
           ...current,
           [field]: numVal,
+          _custom: true,
         },
       };
     });
@@ -231,27 +238,57 @@ export function EfetivoModal({
   const municipiosList = useMemo(() => {
     return MUNICIPIOS_POLO_LIST.map((nome) => {
       const data = editedData[`mun:${norm(nome)}`] || {};
-      const cbmam = Number(data.cbmam ?? BENCHMARK_PERMANENTE_CBMAM[nome] ?? 0);
-      const serv_ord = data.serv_ord ?? cbmam;
+      const cbmam = Number(
+        data._custom
+          ? (data.cbmam ?? BENCHMARK_PERMANENTE_CBMAM[nome] ?? 0)
+          : data.cbmam || BENCHMARK_PERMANENTE_CBMAM[nome] || 0
+      );
+      const serv_ord = cbmam;
       const opamv = Number(
-        data.opamv ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opamv ?? 0
+        data._custom
+          ? (data.opamv ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opamv ?? 0)
+          : data.opamv || BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opamv || 0
       );
       const opam_ref = Number(
-        data.opam_ref ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opam_ref ?? 0
+        data._custom
+          ? (data.opam_ref ??
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opam_ref ??
+              0)
+          : data.opam_ref ||
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.opam_ref ||
+              0
       );
       const prevfogo = Number(
-        data.prevfogo ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.prevfogo ?? 0
+        data._custom
+          ? (data.prevfogo ??
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.prevfogo ??
+              0)
+          : data.prevfogo ||
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.prevfogo ||
+              0
       );
       const fn = Number(
-        data.fn ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.fn ?? 0
+        data._custom
+          ? (data.fn ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.fn ?? 0)
+          : data.fn || BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.fn || 0
       );
       const brig_mun = Number(
-        data.brig_mun ?? BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_mun ?? 0
+        data._custom
+          ? (data.brig_mun ??
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_mun ??
+              0)
+          : data.brig_mun ||
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_mun ||
+              0
       );
       const brig_semas = Number(
-        data.brig_semas ??
-          BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_semas ??
-          0
+        data._custom
+          ? (data.brig_semas ??
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_semas ??
+              0)
+          : data.brig_semas ||
+              BENCHMARK_MUNICIPIOS_OPERACIONAL[nome]?.brig_semas ||
+              0
       );
       // Total em atuação na operação (Col M da planilha)
       const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
@@ -278,20 +315,38 @@ export function EfetivoModal({
       const cbmam = 0;
       const serv_ord = 0;
       const opamv = Number(
-        data.opamv ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opamv ?? 0
+        data._custom
+          ? (data.opamv ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opamv ?? 0)
+          : data.opamv || BENCHMARK_BASES_OPERACIONAL[nome]?.opamv || 0
       );
       const opam_ref = Number(
-        data.opam_ref ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opam_ref ?? 0
+        data._custom
+          ? (data.opam_ref ?? BENCHMARK_BASES_OPERACIONAL[nome]?.opam_ref ?? 0)
+          : data.opam_ref || BENCHMARK_BASES_OPERACIONAL[nome]?.opam_ref || 0
       );
       const prevfogo = Number(
-        data.prevfogo ?? BENCHMARK_BASES_OPERACIONAL[nome]?.prevfogo ?? 0
+        data._custom
+          ? (data.prevfogo ?? BENCHMARK_BASES_OPERACIONAL[nome]?.prevfogo ?? 0)
+          : data.prevfogo || BENCHMARK_BASES_OPERACIONAL[nome]?.prevfogo || 0
       );
-      const fn = Number(data.fn ?? BENCHMARK_BASES_OPERACIONAL[nome]?.fn ?? 0);
+      const fn = Number(
+        data._custom
+          ? (data.fn ?? BENCHMARK_BASES_OPERACIONAL[nome]?.fn ?? 0)
+          : data.fn || BENCHMARK_BASES_OPERACIONAL[nome]?.fn || 0
+      );
       const brig_mun = Number(
-        data.brig_mun ?? BENCHMARK_BASES_OPERACIONAL[nome]?.brig_mun ?? 0
+        data._custom
+          ? (data.brig_mun ?? BENCHMARK_BASES_OPERACIONAL[nome]?.brig_mun ?? 0)
+          : data.brig_mun || BENCHMARK_BASES_OPERACIONAL[nome]?.brig_mun || 0
       );
       const brig_semas = Number(
-        data.brig_semas ?? BENCHMARK_BASES_OPERACIONAL[nome]?.brig_semas ?? 0
+        data._custom
+          ? (data.brig_semas ??
+              BENCHMARK_BASES_OPERACIONAL[nome]?.brig_semas ??
+              0)
+          : data.brig_semas ||
+              BENCHMARK_BASES_OPERACIONAL[nome]?.brig_semas ||
+              0
       );
       // Total em atuação na base (Col M da planilha)
       const total = opamv + opam_ref + prevfogo + fn + brig_mun + brig_semas;
