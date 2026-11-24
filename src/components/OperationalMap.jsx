@@ -21,7 +21,25 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { AMAZONAS_DATA } from '../data/amazonasData';
+import { getCrbmByMunicipio, getMuniTier, norm } from '../data/efetivoOficial';
 import { TokenSvg } from './TokenSvg';
+
+const CRBM_FILL_COLORS = {
+  Capital: '#b91c1c',
+  '1º CRBM': '#c2410c',
+  '2º CRBM': '#0369a1',
+  '3º CRBM': '#047857',
+  '4º CRBM': '#6d28d9',
+};
+
+function getTacticalFill(muni, totalEfetivo) {
+  if (muni.name === 'Manaus') return '#7f1d1d';
+  if (totalEfetivo >= 50) return '#9a3412';
+  if (totalEfetivo >= 20) return '#1e40af';
+  if (totalEfetivo > 0) return '#1e3a5f';
+  if (muni.in_arco_fogo) return '#2c1810';
+  return '#131d2f';
+}
 
 // Delimitação para que o mapa NUNCA fique muito pequeno nem se perca no escuro
 const MIN_ZOOM = 0.72;
@@ -52,6 +70,7 @@ const METRO_CLUSTER_OFFSETS = {
 
 export function OperationalMap({
   placedTokens = [],
+  dbEfetivo = [],
   selectedMuniName,
   onSelectMuni,
   onDropToken,
@@ -66,6 +85,10 @@ export function OperationalMap({
   setShowViaturas,
   showEfetivo = true,
   setShowEfetivo,
+  mapTheme = 'politico',
+  setMapTheme,
+  activeFilter = null,
+  isBriefingMode = false,
 }) {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -130,70 +153,202 @@ export function OperationalMap({
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
-  // Mapa de recursos agrupados por município
+  // Hover Card Tático flutuante instantâneo
+  const [hoveredMuni, setHoveredMuni] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+
+  const handleMuniMouseEnter = (e, muni) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setHoverPos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setHoveredMuni(muni);
+  };
+
+  const handleMuniMouseMove = (e) => {
+    if (!hoveredMuni || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setHoverPos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const handleMuniMouseLeave = () => {
+    setHoveredMuni(null);
+  };
+
+  // Mapa de efetivo e meios consolidados por município (Banco Oficial + Tokens de Viaturas/Aeronaves)
   const muniResourcesSummary = useMemo(() => {
     const map = new Map();
-    placedTokens.forEach((tk) => {
-      let mName = tk.muni;
-      if (!mName) return;
-      if (mName === 'Careiro') mName = 'Careiro Castanho';
-      if (mName === 'Careiro da várzea' || mName === 'Careiro da Varzea')
-        mName = 'Careiro da Várzea';
-      if (mName === 'Autazes Posto Km 53') mName = 'Autazes';
+    const ensureEntry = (mName) => {
       if (!map.has(mName)) {
         map.set(mName, {
           muni: mName,
+          tier: getMuniTier(mName),
+          crbm: getCrbmByMunicipio(mName),
           totalItems: 0,
+          cbmamPerm: 0,
+          opamv: 0,
+          opamRef: 0,
           militares: 0,
           seg: 0,
           brigadistas: 0,
           brigadistasSema: 0,
           prevfogo: 0,
           fn: 0,
+          totalOperacao: 0,
           aeronaves: 0,
           viaturas: 0,
           fluvial: 0,
           tokens: [],
         });
       }
-      const entry = map.get(mName);
-      entry.totalItems += 1;
+      return map.get(mName);
+    };
+
+    const normalizeMuniName = (raw) => {
+      if (!raw) return null;
+      const n = norm(raw);
+      if (n === 'careiro') return 'Careiro Castanho';
+      if (n === 'careiro da varzea') return 'Careiro da Várzea';
+      if (n.includes('km 53')) return 'Autazes';
+      const exact = AMAZONAS_DATA.municipalities.find(
+        (m) => norm(m.name) === n
+      );
+      return exact ? exact.name : raw;
+    };
+
+    // 1. Alimenta primeiro com dbEfetivo (fonte única da verdade do Supabase)
+    if (Array.isArray(dbEfetivo) && dbEfetivo.length > 0) {
+      dbEfetivo.forEach((r) => {
+        const mName = normalizeMuniName(r.mun);
+        if (!mName) return;
+        const entry = ensureEntry(mName);
+        const op1 = Number(r.opamv || 0);
+        const op2 = Number(r.opam_ref || 0);
+        const pf = Number(r.prevfogo || 0);
+        const fnVal = Number(r.fn || 0);
+        const bMun = Number(r.brig_mun || 0);
+        const bSema = Number(r.brig_semas || 0);
+        const cbmamP = Number(r.cbmam || 0);
+        const rowOpTotal = op1 + op2 + pf + fnVal + bMun + bSema;
+
+        entry.cbmamPerm += cbmamP;
+        entry.opamv += op1;
+        entry.opamRef += op2;
+        entry.militares += op1 + op2;
+        entry.prevfogo += pf;
+        entry.fn += fnVal;
+        entry.brigadistas += bMun;
+        entry.brigadistasSema += bSema;
+        entry.totalOperacao += rowOpTotal;
+        if (rowOpTotal > 0 || cbmamP > 0) {
+          entry.totalItems += 1;
+        }
+      });
+    }
+
+    // 2. Complementa com meios (aeronaves, viaturas, fluvial) e fallback de tokens
+    placedTokens.forEach((tk) => {
+      const mName = normalizeMuniName(tk.muni);
+      if (!mName) return;
+      const entry = ensureEntry(mName);
       entry.tokens.push(tk);
 
+      const useTokensForPersonnel =
+        !Array.isArray(dbEfetivo) || dbEfetivo.length === 0;
+      if (useTokensForPersonnel) {
+        if (
+          tk.type === 'efetivo_militar' ||
+          tk.type === 'efetivo' ||
+          tk.type === 'serv_ord' ||
+          tk.type === 'efetivo_opam'
+        ) {
+          const c = tk.count || 10;
+          entry.militares += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        } else if (tk.type === 'efetivo_seg' || tk.type === 'seg') {
+          const c = tk.count || 6;
+          entry.seg += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        } else if (
+          tk.type === 'efetivo_brigadista' ||
+          tk.type === 'brigadista'
+        ) {
+          const c = tk.count || 10;
+          entry.brigadistas += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        } else if (tk.type === 'efetivo_prevfogo' || tk.type === 'prevfogo') {
+          const c = tk.count || 10;
+          entry.prevfogo += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        } else if (tk.type === 'efetivo_fn' || tk.type === 'fn') {
+          const c = tk.count || 6;
+          entry.fn += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        } else if (
+          tk.type === 'efetivo_brigadista_sema' ||
+          tk.type === 'brigadista_sema'
+        ) {
+          const c = tk.count || 10;
+          entry.brigadistasSema += c;
+          entry.totalOperacao += c;
+          entry.totalItems += 1;
+        }
+      }
+
       if (
-        tk.type === 'efetivo_militar' ||
-        tk.type === 'efetivo' ||
-        tk.type === 'serv_ord' ||
-        tk.type === 'efetivo_opam'
-      ) {
-        entry.militares += tk.count || 10;
-      } else if (tk.type === 'efetivo_seg' || tk.type === 'seg') {
-        entry.seg += tk.count || 6;
-      } else if (tk.type === 'efetivo_brigadista' || tk.type === 'brigadista') {
-        entry.brigadistas += tk.count || 10;
-      } else if (tk.type === 'efetivo_prevfogo' || tk.type === 'prevfogo') {
-        entry.prevfogo += tk.count || 10;
-      } else if (tk.type === 'efetivo_fn' || tk.type === 'fn') {
-        entry.fn += tk.count || 6;
-      } else if (
-        tk.type === 'efetivo_brigadista_sema' ||
-        tk.type === 'brigadista_sema'
-      ) {
-        entry.brigadistasSema += tk.count || 10;
-      } else if (
         tk.type === 'air_tractor' ||
         tk.type === 'kc390' ||
         tk.type === 'helicoptero'
       ) {
         entry.aeronaves += 1;
+        entry.totalItems += 1;
       } else if (tk.type && tk.type.startsWith('vtr_')) {
         entry.viaturas += 1;
+        entry.totalItems += 1;
       } else if (tk.type === 'embarcacao') {
         entry.fluvial += 1;
+        entry.totalItems += 1;
       }
     });
     return map;
-  }, [placedTokens]);
+  }, [placedTokens, dbEfetivo]);
+
+  // Verifica se um município corresponde ao filtro ativo da sidebar
+  const matchesActiveFilter = useCallback(
+    (muni) => {
+      if (!activeFilter || activeFilter === 'todos') return true;
+      const summary = muniResourcesSummary.get(muni.name);
+      const crbm = getCrbmByMunicipio(muni.name);
+      const tier = getMuniTier(muni.name);
+      if (activeFilter === 'arco_fogo') return !!muni.in_arco_fogo;
+      if (activeFilter === 'bases') return tier === 'base';
+      if (activeFilter === 'polos')
+        return tier === 'polo' || tier === 'capital';
+      if (activeFilter === 'prevfogo') return (summary?.prevfogo || 0) > 0;
+      if (activeFilter === 'fn') return (summary?.fn || 0) > 0;
+      if (activeFilter === 'brigadistas') {
+        return (
+          (summary?.brigadistas || 0) + (summary?.brigadistasSema || 0) > 0
+        );
+      }
+      if (activeFilter === 'aeronaves') return (summary?.aeronaves || 0) > 0;
+      if (activeFilter.includes('CRBM') || activeFilter === 'Capital') {
+        return crbm === activeFilter;
+      }
+      return true;
+    },
+    [activeFilter, muniResourcesSummary]
+  );
 
   // Filtragem de busca
   useEffect(() => {
@@ -678,31 +833,285 @@ export function OperationalMap({
         </div>
       </div>
 
-      {/* Legenda Tática Inferior */}
+      {/* Legenda Tática Inferior Adaptativa */}
       <div className="map-bottom-legend">
-        <div className="legend-item">
-          <div className="legend-swatch legend-capital" />
-          <span>Capital / Solimões</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch legend-medio" />
-          <span>Médio Amazonas / Rio Negro</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch legend-alto" />
-          <span>Alto Solimões / Juruá</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch legend-sul" />
-          <span>Sul do AM / Arco do Fogo</span>
-        </div>
+        {mapTheme === 'crbm' ? (
+          <>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#b91c1c' }}
+              />
+              <span>Capital</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#c2410c' }}
+              />
+              <span>1º CRBM (Sul)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#0369a1' }}
+              />
+              <span>2º CRBM (Metrop./Médio)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#047857' }}
+              />
+              <span>3º CRBM (Solimões)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#6d28d9' }}
+              />
+              <span>4º CRBM (Rio Negro)</span>
+            </div>
+          </>
+        ) : mapTheme === 'tatico' ? (
+          <>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#7f1d1d' }}
+              />
+              <span>Capital / Comando</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#9a3412' }}
+              />
+              <span>Alta Mobilização (50+)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#1e40af' }}
+              />
+              <span>Mobilização Média (20–49)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#1e3a5f' }}
+              />
+              <span>Presença Ativa (1–19)</span>
+            </div>
+            <div className="legend-item">
+              <div
+                className="legend-swatch"
+                style={{ background: '#131d2f', border: '1px solid #334155' }}
+              />
+              <span>Monitoramento</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="legend-item">
+              <div className="legend-swatch legend-capital" />
+              <span>Capital / Solimões</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-swatch legend-medio" />
+              <span>Médio Amazonas / Rio Negro</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-swatch legend-alto" />
+              <span>Alto Solimões / Juruá</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-swatch legend-sul" />
+              <span>Sul do AM / Arco do Fogo</span>
+            </div>
+          </>
+        )}
+
+        {/* Legenda de Hierarquia dos Pins */}
+        {showEfetivo && (
+          <>
+            <span className="legend-sep">|</span>
+            <div className="legend-item" title="Unidade Permanente CBMAM">
+              <span className="legend-pin-dot polo" />
+              <span>Polo CBMAM</span>
+            </div>
+            <div className="legend-item" title="Base Temporária / Provisória">
+              <span className="legend-pin-diamond" />
+              <span>Base Temporária</span>
+            </div>
+          </>
+        )}
+
         {showArcoDoFogo && (
           <div className="legend-item legend-arco">
-            <Flame size={14} />
-            <span>Operação Arco do Fogo</span>
+            <Flame size={13} />
+            <span>Arco do Fogo</span>
+          </div>
+        )}
+
+        {setMapTheme && !isBriefingMode && (
+          <div className="legend-theme-pills">
+            {[
+              { id: 'politico', label: 'Político' },
+              { id: 'tatico', label: 'Tático C2' },
+              { id: 'crbm', label: 'CRBM' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`legend-theme-btn ${mapTheme === t.id ? 'active' : ''}`}
+                onClick={() => setMapTheme(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         )}
       </div>
+
+      {/* HOVER CARD TÁTICO INSTANTÂNEO (GLASSMORPHISM) */}
+      {hoveredMuni &&
+        !isPanning &&
+        !draggingPlacedTokenId &&
+        (() => {
+          const sum = muniResourcesSummary.get(hoveredMuni.name);
+          const tier = getMuniTier(hoveredMuni.name);
+          const crbm = getCrbmByMunicipio(hoveredMuni.name);
+          const opTotal = sum?.totalOperacao || 0;
+          const cbmamPerm = sum?.cbmamPerm || 0;
+          const cardW = 264;
+          const cardH = 185;
+          const left =
+            hoverPos.x + 18 + cardW > viewportDims.width
+              ? Math.max(12, hoverPos.x - cardW - 18)
+              : hoverPos.x + 18;
+          const top =
+            hoverPos.y + 18 + cardH > viewportDims.height
+              ? Math.max(12, hoverPos.y - cardH - 12)
+              : hoverPos.y + 14;
+
+          const tierBadge =
+            tier === 'capital'
+              ? {
+                  label: 'CAPITAL',
+                  bg: 'rgba(220,38,38,0.28)',
+                  color: '#fca5a5',
+                  border: '#ef4444',
+                }
+              : tier === 'polo'
+                ? {
+                    label: 'POLO CBMAM',
+                    bg: 'rgba(2,132,199,0.25)',
+                    color: '#7dd3fc',
+                    border: '#38bdf8',
+                  }
+                : tier === 'base'
+                  ? {
+                      label: 'BASE TEMPORÁRIA',
+                      bg: 'rgba(245,158,11,0.25)',
+                      color: '#fcd34d',
+                      border: '#f59e0b',
+                    }
+                  : {
+                      label: 'INTERIOR',
+                      bg: 'rgba(100,116,139,0.25)',
+                      color: '#cbd5e1',
+                      border: '#475569',
+                    };
+
+          return (
+            <div className="tactical-hover-card" style={{ left, top }}>
+              <div className="thc-header">
+                <div className="thc-title-wrap">
+                  <span className="thc-muni-name">{hoveredMuni.name}</span>
+                  <span className="thc-macro">
+                    {crbm ? `${crbm} • ` : ''}
+                    {hoveredMuni.region_info?.macro || 'Amazonas'}
+                  </span>
+                </div>
+                <span
+                  className="thc-tier-badge"
+                  style={{
+                    background: tierBadge.bg,
+                    color: tierBadge.color,
+                    borderColor: tierBadge.border,
+                  }}
+                >
+                  {tierBadge.label}
+                </span>
+              </div>
+
+              {hoveredMuni.in_arco_fogo && (
+                <div className="thc-arco-alert">
+                  <Flame size={11} />
+                  <span>Zona Crítica — Corredor Arco do Fogo</span>
+                </div>
+              )}
+
+              <div className="thc-metrics-grid">
+                <div className="thc-metric primary">
+                  <span className="thc-metric-label">Em Atuação</span>
+                  <span className="thc-metric-val">{opTotal}</span>
+                </div>
+                <div className="thc-metric perm">
+                  <span className="thc-metric-label">CBMAM Polo</span>
+                  <span className="thc-metric-val">{cbmamPerm}</span>
+                </div>
+              </div>
+
+              {opTotal > 0 ? (
+                <div className="thc-chips">
+                  {(sum?.militares || 0) > 0 && (
+                    <span className="thc-chip chip-blue">
+                      OPAM: <b>{sum.militares}</b>
+                    </span>
+                  )}
+                  {(sum?.prevfogo || 0) > 0 && (
+                    <span className="thc-chip chip-green">
+                      Prevfogo: <b>{sum.prevfogo}</b>
+                    </span>
+                  )}
+                  {(sum?.fn || 0) > 0 && (
+                    <span className="thc-chip chip-cyan">
+                      FN: <b>{sum.fn}</b>
+                    </span>
+                  )}
+                  {(sum?.brigadistas || 0) > 0 && (
+                    <span className="thc-chip chip-amber">
+                      Brig. Mun: <b>{sum.brigadistas}</b>
+                    </span>
+                  )}
+                  {(sum?.brigadistasSema || 0) > 0 && (
+                    <span className="thc-chip chip-emerald">
+                      Brig. SEMA: <b>{sum.brigadistasSema}</b>
+                    </span>
+                  )}
+                  {(sum?.aeronaves || 0) > 0 && (
+                    <span className="thc-chip chip-sky">
+                      Aeronaves: <b>{sum.aeronaves}</b>
+                    </span>
+                  )}
+                  {(sum?.viaturas || 0) > 0 && (
+                    <span className="thc-chip chip-slate">
+                      VTRs: <b>{sum.viaturas}</b>
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="thc-empty">Sem tropa de reforço registrada</div>
+              )}
+
+              <div className="thc-footer">
+                Clique para abrir a ficha completa
+              </div>
+            </div>
+          );
+        })()}
 
       {/* CANVAS SVG DO MAPA */}
       <svg
@@ -1186,30 +1595,43 @@ export function OperationalMap({
 
         {/* ------------------------------------------------------------------
             POLÍGONOS DOS 62 MUNICÍPIOS DO AMAZONAS (IBGE OFICIAL)
+            Suporta 3 temas: Político (padrão), Tático C2 e CRBM
             ------------------------------------------------------------------ */}
         <g id="municipalities-layer">
           {AMAZONAS_DATA.municipalities.map((muni) => {
             const isSelected = selectedMuniName === muni.name;
             const isDragOver = dragOverMuniName === muni.name;
             const summary = muniResourcesSummary.get(muni.name);
-            const hasResources = summary && summary.totalItems > 0;
+            const totalOp = summary?.totalOperacao || 0;
+            const hasResources =
+              (summary && summary.totalItems > 0) || totalOp > 0;
+            const isMatch = matchesActiveFilter(muni);
+            const crbm = getCrbmByMunicipio(muni.name);
+
+            let polyFill = muni.color;
+            if (mapTheme === 'tatico') {
+              polyFill = getTacticalFill(muni, totalOp);
+            } else if (mapTheme === 'crbm') {
+              polyFill = crbm ? CRBM_FILL_COLORS[crbm] || '#1e293b' : '#141e30';
+            }
 
             return (
               <path
                 key={muni.id}
                 d={muni.path}
-                fill={muni.color}
-                className={`municipality-polygon ${isSelected ? 'selected' : ''} ${isDragOver ? 'dragover' : ''} ${hasResources ? 'has-resources' : ''}`}
+                fill={polyFill}
+                className={`municipality-polygon theme-${mapTheme} ${isSelected ? 'selected' : ''} ${isDragOver ? 'dragover' : ''} ${hasResources ? 'has-resources' : ''} ${!isMatch ? 'filter-dimmed' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectMuni(muni.name);
                 }}
+                onMouseEnter={(e) => handleMuniMouseEnter(e, muni)}
+                onMouseMove={handleMuniMouseMove}
+                onMouseLeave={handleMuniMouseLeave}
                 onDragOver={(e) => handleDragOver(e, muni.name)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, muni)}
-              >
-                <title>{`${muni.name} - ${muni.region_info?.macro} ${hasResources ? `(${summary.totalItems} recursos alocados)` : ''}`}</title>
-              </path>
+              />
             );
           })}
         </g>
@@ -1221,15 +1643,13 @@ export function OperationalMap({
           <g id="labels-layer">
             {AMAZONAS_DATA.municipalities.map((m) => {
               const summary = muniResourcesSummary.get(m.name);
-              const totalEfetivoDiario = summary
-                ? (summary.militares || 0) +
-                  (summary.seg || 0) +
-                  (summary.brigadistas || 0) +
-                  (summary.brigadistasSema || 0) +
-                  (summary.prevfogo || 0) +
-                  (summary.fn || 0)
-                : 0;
-              const hasPin = showEfetivo && totalEfetivoDiario > 0;
+              const totalEfetivoDiario = summary?.totalOperacao || 0;
+              const cbmamPerm = summary?.cbmamPerm || 0;
+              const isMatch = matchesActiveFilter(m);
+              const hasPin =
+                showEfetivo &&
+                isMatch &&
+                (totalEfetivoDiario > 0 || cbmamPerm > 0);
 
               const offset = METRO_CLUSTER_OFFSETS[m.name] || { x: 0, y: 0 };
               const labelX = m.cx + (hasPin ? offset.x * clusterSpread : 0);
@@ -1247,8 +1667,11 @@ export function OperationalMap({
                   key={`label-${m.id}`}
                   x={labelX}
                   y={labelY}
-                  style={{ fontSize: `${labelFontSize}px` }}
-                  className={`muni-label ${hasPin ? 'with-pin' : ''}`}
+                  style={{
+                    fontSize: `${labelFontSize}px`,
+                    opacity: isMatch ? 1 : 0.28,
+                  }}
+                  className={`muni-label theme-${mapTheme} ${hasPin ? 'with-pin' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectMuni(m.name);
@@ -1262,28 +1685,64 @@ export function OperationalMap({
         )}
 
         {/* ------------------------------------------------------------------
-            CAMADA TÁTICA: ARCO DO FOGO
+            CAMADA TÁTICA: CORREDOR ARCO DO FOGO (TRANSLÚCIDO, SEM OBSTRUÇÃO)
             ------------------------------------------------------------------ */}
         {showArcoDoFogo && (
-          <g id="arco-do-fogo-layer" className="arco-fogo-group">
+          <g
+            id="arco-do-fogo-layer"
+            className="arco-fogo-group"
+            pointerEvents="none"
+          >
+            {/* Halo térmico suave translúcido */}
             <path
-              d="M 1820 1140 Q 1580 1090 1390 1090 Q 980 1200 680 1260"
-              className="arco-arrow-body"
+              d="M 1830 1145 Q 1580 1100 1390 1105 Q 980 1210 675 1272"
+              fill="none"
+              stroke="url(#arco-fire-grad)"
+              strokeWidth="44"
+              strokeLinecap="round"
+              opacity="0.22"
+            />
+            {/* Linha tática tracejada nítida */}
+            <path
+              d="M 1830 1145 Q 1580 1100 1390 1105 Q 980 1210 675 1272"
+              fill="none"
+              stroke="#fb923c"
+              strokeWidth="3"
+              strokeDasharray="12 8"
+              strokeLinecap="round"
+              opacity="0.85"
               markerEnd="url(#fire-arrowhead)"
             />
-            <path
-              d="M 1820 1140 Q 1580 1090 1390 1090 Q 980 1200 680 1260"
-              className="arco-arrow-core"
-            />
-            <g transform="translate(1000, 1200) rotate(8)">
-              <text className="arco-text-label">ARCO DO FOGO</text>
+            {/* Etiqueta técnica posicionada abaixo da faixa sem cobrir municípios */}
+            <g transform="translate(1055, 1265) rotate(8)">
+              <rect
+                x="-122"
+                y="-14"
+                width="244"
+                height="22"
+                rx="11"
+                fill="rgba(15, 23, 42, 0.88)"
+                stroke="rgba(249, 115, 22, 0.7)"
+                strokeWidth="1.2"
+              />
+              <text
+                x="0"
+                y="1"
+                textAnchor="middle"
+                fill="#fdba74"
+                fontSize="10.5"
+                fontWeight="800"
+                fontFamily="'JetBrains Mono', monospace"
+                letterSpacing="1.6"
+              >
+                CORREDOR ARCO DO FOGO
+              </text>
             </g>
           </g>
         )}
 
         {/* ------------------------------------------------------------------
-            ÍCONES OFICIAIS CBMAM E QUANTIDADE DO EFETIVO DIÁRIO
-            (Ativado/Desativado pelo botão de Efetivo)
+            PINS HIERÁRQUICOS CBMAM (CAPITAL • POLOS • BASES TEMPORÁRIAS)
             ------------------------------------------------------------------ */}
         {showEfetivo && (
           <g id="cbmam-muni-pins">
@@ -1291,23 +1750,23 @@ export function OperationalMap({
               const summary = muniResourcesSummary.get(muni.name);
               if (!summary) return null;
 
-              const totalEfetivoDiario =
-                (summary.militares || 0) +
-                (summary.seg || 0) +
-                (summary.brigadistas || 0) +
-                (summary.brigadistasSema || 0) +
-                (summary.prevfogo || 0) +
-                (summary.fn || 0);
+              const totalEfetivoDiario = summary.totalOperacao || 0;
+              const cbmamPerm = summary.cbmamPerm || 0;
+              const displayValue =
+                totalEfetivoDiario > 0 ? totalEfetivoDiario : cbmamPerm;
 
-              if (totalEfetivoDiario <= 0) return null;
+              if (displayValue <= 0) return null;
+              if (!matchesActiveFilter(muni)) return null;
 
+              const tier = summary.tier || getMuniTier(muni.name);
+              const isCapital = tier === 'capital';
+              const isBase = tier === 'base';
               const isSelected = selectedMuniName === muni.name;
+              const hasAir = (summary.aeronaves || 0) > 0;
+              const hasVtr = (summary.viaturas || 0) > 0;
+
               const badgeWidth =
-                totalEfetivoDiario >= 100
-                  ? 54
-                  : totalEfetivoDiario >= 10
-                    ? 42
-                    : 34;
+                displayValue >= 100 ? 52 : displayValue >= 10 ? 40 : 32;
 
               const offset = METRO_CLUSTER_OFFSETS[muni.name] || { x: 0, y: 0 };
               const pinX = muni.cx + offset.x * clusterSpread;
@@ -1316,21 +1775,22 @@ export function OperationalMap({
               return (
                 <g
                   key={`cbmam-pin-${muni.id}`}
-                  className={`cbmam-pin-marker ${isSelected ? 'selected' : ''}`}
+                  className={`cbmam-pin-marker tier-${tier} ${isSelected ? 'selected' : ''}`}
                   transform={`translate(${pinX}, ${pinY}) scale(${pinScale})`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectMuni(muni.name);
                   }}
+                  onMouseEnter={(e) => handleMuniMouseEnter(e, muni)}
+                  onMouseMove={handleMuniMouseMove}
+                  onMouseLeave={handleMuniMouseLeave}
                 >
-                  <title>{`${muni.name}\nEfetivo Diário: ${totalEfetivoDiario} operacionais\n• Militares CBMAM: ${(summary.militares || 0) + (summary.seg || 0)}\n• Brigadistas: ${(summary.brigadistas || 0) + (summary.brigadistasSema || 0)}${summary.prevfogo > 0 ? `\n• Prevfogo/IBAMA: ${summary.prevfogo}` : ''}${summary.fn > 0 ? `\n• Força Nacional: ${summary.fn}` : ''}${summary.viaturas > 0 ? `\n• Viaturas: ${summary.viaturas}` : ''}${summary.aeronaves > 0 ? `\n• Aeronaves: ${summary.aeronaves}` : ''}\nClique para abrir a ficha completa do município`}</title>
-
-                  {/* Halo Dourado Estático no município selecionado */}
+                  {/* Halo de seleção */}
                   {isSelected && (
                     <circle
                       cx="0"
                       cy="-14"
-                      r="30"
+                      r={isCapital ? 34 : 29}
                       fill="none"
                       stroke="#facc15"
                       strokeWidth="3"
@@ -1339,61 +1799,142 @@ export function OperationalMap({
                     />
                   )}
 
-                  {/* 1. Base Circular Branca com Borda Vermelha Oficial (Estilo CBMAM) */}
-                  <circle
-                    cx="0"
-                    cy="-14"
-                    r="22"
-                    fill="#ffffff"
-                    stroke={isSelected ? '#facc15' : '#dc2626'}
-                    strokeWidth={isSelected ? '3.5' : '2.5'}
-                    className="cbmam-pin-disc"
-                    filter={
-                      isSelected
-                        ? 'url(#cbmam-pin-glow-gold)'
-                        : 'url(#cbmam-pin-shadow)'
-                    }
-                  />
+                  {isBase ? (
+                    /* BASE TEMPORÁRIA: Diamante Tático Âmbar-Laranja */
+                    <>
+                      <polygon
+                        points="0,-34 20,-14 0,6 -20,-14"
+                        fill="#1e1509"
+                        stroke={isSelected ? '#facc15' : '#f59e0b'}
+                        strokeWidth={isSelected ? '3.2' : '2.4'}
+                        filter={
+                          isSelected
+                            ? 'url(#cbmam-pin-glow-gold)'
+                            : 'url(#cbmam-pin-shadow)'
+                        }
+                      />
+                      <image
+                        href="/brasao-cbmam.png"
+                        x="-11"
+                        y="-25"
+                        width="22"
+                        height="22"
+                        preserveAspectRatio="xMidYMid meet"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                      <rect
+                        x={-badgeWidth / 2}
+                        y="7"
+                        width={badgeWidth}
+                        height="19"
+                        rx="9.5"
+                        fill="#d97706"
+                        stroke={isSelected ? '#facc15' : '#fef3c7'}
+                        strokeWidth="1.8"
+                        className="cbmam-pin-pill"
+                        filter="url(#cbmam-pin-shadow)"
+                      />
+                      <text
+                        x="0"
+                        y="20.5"
+                        fontSize="11.5"
+                        fontWeight="900"
+                        fontFamily="'JetBrains Mono', monospace"
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {displayValue}
+                      </text>
+                    </>
+                  ) : (
+                    /* CAPITAL (Anel Duplo Dourado-Rubro) ou POLO CBMAM */
+                    <>
+                      {isCapital && (
+                        <circle
+                          cx="0"
+                          cy="-14"
+                          r="27"
+                          fill="none"
+                          stroke="#facc15"
+                          strokeWidth="2.5"
+                          opacity="0.95"
+                        />
+                      )}
+                      <circle
+                        cx="0"
+                        cy="-14"
+                        r={isCapital ? 23 : 20}
+                        fill="#ffffff"
+                        stroke={isSelected || isCapital ? '#facc15' : '#dc2626'}
+                        strokeWidth={isSelected || isCapital ? '3.2' : '2.4'}
+                        className="cbmam-pin-disc"
+                        filter={
+                          isSelected || isCapital
+                            ? 'url(#cbmam-pin-glow-gold)'
+                            : 'url(#cbmam-pin-shadow)'
+                        }
+                      />
+                      <image
+                        href="/brasao-cbmam.png"
+                        x={isCapital ? '-17' : '-15'}
+                        y={isCapital ? '-31' : '-29'}
+                        width={isCapital ? '34' : '30'}
+                        height={isCapital ? '34' : '30'}
+                        preserveAspectRatio="xMidYMid meet"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                      <rect
+                        x={-badgeWidth / 2}
+                        y="7"
+                        width={badgeWidth}
+                        height="19"
+                        rx="9.5"
+                        fill={isCapital ? '#b91c1c' : '#dc2626'}
+                        stroke={isSelected || isCapital ? '#facc15' : '#ffffff'}
+                        strokeWidth="1.8"
+                        className="cbmam-pin-pill"
+                        filter="url(#cbmam-pin-shadow)"
+                      />
+                      <text
+                        x="0"
+                        y="20.5"
+                        fontSize="11.5"
+                        fontWeight="900"
+                        fontFamily="'JetBrains Mono', monospace"
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {displayValue}
+                      </text>
+                    </>
+                  )}
 
-                  {/* 2. Brasão Oficial do CBMAM perfeitamente nítido e destacado */}
-                  <image
-                    href="/brasao-cbmam.png"
-                    x="-17"
-                    y="-31"
-                    width="34"
-                    height="34"
-                    preserveAspectRatio="xMidYMid meet"
-                    style={{ pointerEvents: 'none' }}
-                  />
-
-                  {/* 3. Pílula com o Efetivo Diário (Vermelho CBMAM com Borda Branca) */}
-                  <rect
-                    x={-badgeWidth / 2}
-                    y="7"
-                    width={badgeWidth}
-                    height="20"
-                    rx="10"
-                    fill="#dc2626"
-                    stroke={isSelected ? '#facc15' : '#ffffff'}
-                    strokeWidth="2"
-                    className="cbmam-pin-pill"
-                    filter="url(#cbmam-pin-shadow)"
-                  />
-
-                  {/* 4. Número do Efetivo Diário (Branco Brilhante em Negrito de Alto Impacto) */}
-                  <text
-                    x="0"
-                    y="21"
-                    fontSize="12"
-                    fontWeight="900"
-                    fontFamily="'Inter', system-ui, -apple-system, sans-serif"
-                    fill="#ffffff"
-                    textAnchor="middle"
-                    letterSpacing="0.3"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {totalEfetivoDiario}
-                  </text>
+                  {/* Mini-badge tático se houver aeronave ou viatura no município */}
+                  {(hasAir || hasVtr) && (
+                    <g transform="translate(18, -32)">
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r="8.5"
+                        fill="#0284c7"
+                        stroke="#e0f2fe"
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x="0"
+                        y="3.5"
+                        textAnchor="middle"
+                        fontSize="9"
+                        fontWeight="900"
+                        fill="#ffffff"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {hasAir ? '✈' : 'V'}
+                      </text>
+                    </g>
+                  )}
                 </g>
               );
             })}

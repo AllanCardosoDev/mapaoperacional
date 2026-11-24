@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 export function TokenSvg({ type, count = 10, width, height, className = '' }) {
+  const rawUid = useId();
+  const uid = rawUid.replace(/:/g, '');
   switch (type) {
     case 'air_tractor':
       return (
@@ -12,7 +14,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
         >
           <defs>
             <filter
-              id={`stk-shd-${type}`}
+              id={`stk-shd-${type}-${uid}`}
               x="-10%"
               y="-10%"
               width="130%"
@@ -32,7 +34,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter={`url(#stk-shd-${type})`}
+            filter={`url(#stk-shd-${type}-${uid})`}
           />
           <path
             d="M 20 42 L 35 38 L 80 25 L 125 25 Q 148 29 150 40 Q 146 50 120 51 L 80 52 L 65 62 L 54 62 L 62 52 L 32 52 Q 22 49 20 42 Z"
@@ -72,7 +74,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="47"
             fontSize="7.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#0f172a"
             letterSpacing="0.5"
           >
@@ -90,7 +92,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="helo-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`helo-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -105,7 +113,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#helo-shd)"
+            filter={`url(#helo-shd-${uid})`}
           />
           <path
             d="M 18 36 Q 16 30 28 28 L 78 28 Q 95 30 100 38 L 145 44 L 148 48 L 138 50 L 95 46 Q 85 54 60 54 L 32 52 Q 18 48 18 36 Z"
@@ -161,7 +169,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="41"
             fontSize="5.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#000000"
           >
             HARPIA
@@ -178,7 +186,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="kc-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`kc-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -193,7 +207,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#cbd5e1"
             strokeWidth="2.5"
-            filter="url(#kc-shd)"
+            filter={`url(#kc-shd-${uid})`}
           />
           <path
             d="M 18 42 Q 18 35 35 34 L 125 34 L 145 22 L 158 18 L 160 25 L 148 44 L 135 50 L 40 50 Q 22 49 18 42 Z"
@@ -223,7 +237,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="47"
             fontSize="8"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
             letterSpacing="0.5"
           >
@@ -248,7 +262,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="ef-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`ef-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -267,7 +287,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#ef-shd)"
+            filter={`url(#ef-shd-${uid})`}
           />
           <rect
             x="8"
@@ -316,7 +336,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="73"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#dc2626"
             textAnchor="middle"
             letterSpacing="0.2"
@@ -337,7 +357,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="seg-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`seg-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -356,7 +382,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#facc15"
             strokeWidth="2.5"
-            filter="url(#seg-shd)"
+            filter={`url(#seg-shd-${uid})`}
           />
           <rect
             x="8"
@@ -404,7 +430,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="73"
             fontSize="8"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ca8a04"
             textAnchor="middle"
             letterSpacing="0.5"
@@ -425,7 +451,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="br-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`br-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -444,7 +476,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#fed7aa"
             strokeWidth="2.5"
-            filter="url(#br-shd)"
+            filter={`url(#br-shd-${uid})`}
           />
           <rect
             x="8"
@@ -491,7 +523,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="73"
             fontSize="7.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ea580c"
             textAnchor="middle"
             letterSpacing="0.3"
@@ -513,7 +545,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="sema-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`sema-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -532,7 +570,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#86efac"
             strokeWidth="2.5"
-            filter="url(#sema-shd)"
+            filter={`url(#sema-shd-${uid})`}
           />
           {/* Lado Esquerdo: Identidade Visual SEMA Amazonas (Verde + Laranja) */}
           <rect
@@ -558,7 +596,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="74"
             fontSize="6.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#facc15"
             textAnchor="middle"
           >
@@ -591,7 +629,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="73"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#047857"
             textAnchor="middle"
             letterSpacing="0.2"
@@ -611,7 +649,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="pf-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`pf-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -630,7 +674,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#bbf7d0"
             strokeWidth="2.5"
-            filter="url(#pf-shd)"
+            filter={`url(#pf-shd-${uid})`}
           />
           <rect
             x="8"
@@ -654,7 +698,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="74"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#facc15"
             textAnchor="middle"
           >
@@ -686,7 +730,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="73"
             fontSize="7.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#15803d"
             textAnchor="middle"
             letterSpacing="0.3"
@@ -705,7 +749,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="abt-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`abt-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -720,7 +770,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#abt-shd)"
+            filter={`url(#abt-shd-${uid})`}
           />
           <rect x="52" y="28" width="86" height="35" rx="3" fill="#dc2626" />
           <path d="M 12 52 L 18 34 L 52 34 L 52 63 L 12 63 Z" fill="#b91c1c" />
@@ -738,7 +788,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="26"
             fontSize="8"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
           >
             ABT-CBMAM
@@ -755,7 +805,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="vf-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`vf-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -770,7 +826,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#vf-shd)"
+            filter={`url(#vf-shd-${uid})`}
           />
           <path
             d="M 14 50 L 22 34 L 52 30 L 88 30 L 92 42 L 130 42 L 130 58 L 14 58 Z"
@@ -787,7 +843,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="52"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#facc15"
           >
             FLORESTAL 4X4
@@ -804,7 +860,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="ur-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`ur-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -819,7 +881,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#ur-shd)"
+            filter={`url(#ur-shd-${uid})`}
           />
           <path
             d="M 14 50 L 20 34 L 50 32 L 128 32 L 128 58 L 14 58 Z"
@@ -837,7 +899,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="50"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
           >
             RESGATE UR
@@ -854,7 +916,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="bt-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`bt-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -869,7 +937,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#bt-shd)"
+            filter={`url(#bt-shd-${uid})`}
           />
           <path
             d="M 14 38 L 45 28 L 105 28 L 138 38 L 128 54 L 20 54 Z"
@@ -883,7 +951,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="42"
             fontSize="7"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
           >
             CBMAM FLUVIAL
@@ -900,7 +968,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="cbi-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`cbi-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -917,7 +991,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#cbi-shd)"
+            filter={`url(#cbi-shd-${uid})`}
           />
           <circle cx="50" cy="50" r="44" fill="#dc2626" />
           <circle cx="50" cy="50" r="36" fill="#ffffff" />
@@ -945,7 +1019,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="80"
             fontSize="10.5"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
             textAnchor="middle"
           >
@@ -963,7 +1037,13 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
           className={className}
         >
           <defs>
-            <filter id="cibm-shd" x="-10%" y="-10%" width="130%" height="130%">
+            <filter
+              id={`cibm-shd-${uid}`}
+              x="-10%"
+              y="-10%"
+              width="130%"
+              height="130%"
+            >
               <feDropShadow
                 dx="2"
                 dy="2.5"
@@ -980,7 +1060,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             fill="#ffffff"
             stroke="#e2e8f0"
             strokeWidth="2.5"
-            filter="url(#cibm-shd)"
+            filter={`url(#cibm-shd-${uid})`}
           />
           <path
             d="M 50 10 Q 85 10 85 45 Q 85 75 50 90 Q 15 75 15 45 Q 15 10 50 10 Z"
@@ -997,7 +1077,7 @@ export function TokenSvg({ type, count = 10, width, height, className = '' }) {
             y="78"
             fontSize="9"
             fontWeight="900"
-            fontFamily="Arial, sans-serif"
+            fontFamily="'Inter', system-ui, sans-serif"
             fill="#ffffff"
             textAnchor="middle"
           >

@@ -23,6 +23,9 @@ export function TacticalSidebar({
   onToggleSidebar,
   onOpenEfetivo,
   onOpenAeronaves,
+  stats = {},
+  activeFilter = 'todos',
+  onChangeFilter = () => {},
 }) {
   const [activeTab, setActiveTab] = useState('efetivo'); // Abre direto em efetivo por padrão ou aeronaves
   const [personnelCategory, setPersonnelCategory] = useState('efetivo_militar'); // 'efetivo_militar' | 'efetivo_seg' | 'efetivo_brigadista' | 'efetivo_brigadista_sema' | 'efetivo_prevfogo'
@@ -178,10 +181,10 @@ export function TacticalSidebar({
                     alignItems: 'center',
                     gap: 4,
                   }}
-                  title="Ver Painel Completo de Efetivo (886 Operacionais)"
+                  title={`Ver Painel Completo de Efetivo (${stats?.totalEfetivo ?? 742} em atuação)`}
                 >
                   <Users size={11} />
-                  <span>Total 886 ↗</span>
+                  <span>Total {stats?.totalEfetivo ?? 742} ↗</span>
                 </button>
               )}
             </div>
@@ -543,6 +546,47 @@ export function TacticalSidebar({
           </div>
         )}
 
+        {/* Filtros Rápidos no Mapa (CRBM e Forças) */}
+        <div className="sidebar-filter-section">
+          <div className="resource-section-title" style={{ marginBottom: 6 }}>
+            <span>Filtrar no Mapa</span>
+            {activeFilter !== 'todos' && (
+              <button
+                type="button"
+                className="filter-clear-btn"
+                onClick={() => onChangeFilter('todos')}
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="sidebar-filter-chips">
+            {[
+              { id: 'todos', label: 'Todos' },
+              { id: '1º CRBM', label: '1º CRBM' },
+              { id: '2º CRBM', label: '2º CRBM' },
+              { id: '3º CRBM', label: '3º CRBM' },
+              { id: '4º CRBM', label: '4º CRBM' },
+              { id: 'bases', label: 'Bases' },
+              { id: 'arco_fogo', label: 'Arco Fogo' },
+              { id: 'prevfogo', label: 'Prevfogo' },
+              { id: 'fn', label: 'Força Nac.' },
+              { id: 'brigadistas', label: 'Brigadistas' },
+            ].map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                className={`filter-chip-btn ${activeFilter === chip.id ? 'active' : ''}`}
+                onClick={() =>
+                  onChangeFilter(activeFilter === chip.id ? 'todos' : chip.id)
+                }
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Lista de Municípios com Força Mobilizada */}
         <div className="resource-section" style={{ marginTop: 'auto' }}>
           <div className="resource-section-title">
@@ -554,7 +598,7 @@ export function TacticalSidebar({
 
           <div
             style={{
-              maxHeight: 180,
+              maxHeight: 185,
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
@@ -573,49 +617,48 @@ export function TacticalSidebar({
                 Nenhum recurso alocado ainda.
               </div>
             ) : (
-              deployedMunis.map(({ name, count, inArco }) => (
-                <div
-                  key={name}
-                  onClick={() => onSelectMuni(name)}
-                  style={{
-                    background: inArco
-                      ? 'rgba(234, 88, 12, 0.15)'
-                      : 'rgba(15, 23, 42, 0.75)',
-                    border: inArco
-                      ? '1px solid rgba(234, 88, 12, 0.5)'
-                      : '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 8,
-                    padding: '6px 10px',
-                    fontSize: 11,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    {inArco && <Flame size={12} color="#ea580c" />}
-                    <span style={{ fontWeight: 700, color: '#f8fafc' }}>
-                      {name}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      background: 'rgba(30, 41, 59, 0.9)',
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      color: '#38bdf8',
-                    }}
-                  >
-                    {count} rec.
-                  </span>
-                </div>
-              ))
+              (() => {
+                const maxEf = Math.max(
+                  1,
+                  ...deployedMunis.map((d) => d.efetivo || d.count || 1)
+                );
+                return deployedMunis.map(({ name, count, efetivo, inArco }) => {
+                  const metric = efetivo ?? count;
+                  const pct = Math.min(100, Math.round((metric / maxEf) * 100));
+                  return (
+                    <div
+                      key={name}
+                      onClick={() => onSelectMuni(name)}
+                      className={`deployed-muni-row ${inArco ? 'in-arco' : ''}`}
+                    >
+                      <div className="deployed-muni-top">
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          {inArco && <Flame size={11} color="#f97316" />}
+                          <span className="deployed-muni-name">{name}</span>
+                        </div>
+                        <span className="deployed-muni-badge">
+                          {efetivo ? `${efetivo} op.` : `${count} rec.`}
+                        </span>
+                      </div>
+                      <div className="deployed-muni-bar-track">
+                        <div
+                          className="deployed-muni-bar-fill"
+                          style={{
+                            width: `${pct}%`,
+                            background: inArco ? '#f97316' : '#38bdf8',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                });
+              })()
             )}
           </div>
         </div>

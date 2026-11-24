@@ -757,3 +757,41 @@ export function getOficialEfetivoArray() {
 
   return result;
 }
+
+// Mapeamento canônico de CRBM por município (incluindo bases temporárias vinculadas)
+const BASE_CRBM_MAP = {
+  'autazes posto km 53': '2º CRBM',
+  anama: '2º CRBM',
+  barreirinha: '2º CRBM',
+  'boa vista do ramos': '2º CRBM',
+  'boca do acre': '1º CRBM',
+  borba: '2º CRBM',
+  caapiranga: '2º CRBM',
+  canutama: '1º CRBM',
+  'careiro castanho': '2º CRBM',
+  careiro: '2º CRBM',
+  'careiro da varzea': '2º CRBM',
+  'sao sebastiao do uatuma': '2º CRBM',
+  urucurituba: '2º CRBM',
+};
+
+const POLO_NORM_SET = new Set(MUNICIPIOS_POLO_LIST.map((m) => norm(m)));
+const BASE_NORM_SET = new Set(BASES_TEMPORARIAS_LIST.map((b) => norm(b)));
+
+export function getCrbmByMunicipio(muniName) {
+  const n = norm(muniName);
+  if (!n) return null;
+  if (n === 'manaus') return 'Capital';
+  const entry = CRBM_DETALHAMENTO.find((c) => norm(c.municipio) === n);
+  if (entry) return entry.crbm;
+  if (BASE_CRBM_MAP[n]) return BASE_CRBM_MAP[n];
+  return null;
+}
+
+export function getMuniTier(muniName) {
+  const n = norm(muniName);
+  if (n === 'manaus') return 'capital';
+  if (POLO_NORM_SET.has(n)) return 'polo';
+  if (BASE_NORM_SET.has(n) || n === 'careiro') return 'base';
+  return 'outro';
+}

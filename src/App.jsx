@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  lazy,
+  Suspense,
+} from 'react';
 import { Header } from './components/Header';
 import { TacticalSidebar } from './components/TacticalSidebar';
 import { OperationalMap } from './components/OperationalMap';
-import { MunicipalityDrawer } from './components/MunicipalityDrawer';
-import { TokenEditModal } from './components/TokenEditModal';
-import { RelatorioOficialModal } from './components/RelatorioOficialModal';
-import { EfetivoModal } from './components/EfetivoModal';
-import { AeronavesModal } from './components/AeronavesModal';
+import { BriefingOverlay } from './components/BriefingOverlay';
 import { AMAZONAS_DATA } from './data/amazonasData';
 import { INITIAL_REAL_SCENARIO } from './data/tacticalAssets';
 import { exportSvgToPng } from './utils/exportMap';
@@ -18,7 +21,34 @@ import {
   generateTokensFromEfetivo,
 } from './services/mapSyncService';
 import { supabase } from './services/supabaseClient';
-import { getOficialEfetivoArray } from './data/efetivoOficial';
+import { getOficialEfetivoArray, norm } from './data/efetivoOficial';
+
+// Lazy-loading dos modais pesados para reduzir drasticamente o bundle inicial
+const MunicipalityDrawer = lazy(() =>
+  import('./components/MunicipalityDrawer').then((m) => ({
+    default: m.MunicipalityDrawer,
+  }))
+);
+const TokenEditModal = lazy(() =>
+  import('./components/TokenEditModal').then((m) => ({
+    default: m.TokenEditModal,
+  }))
+);
+const RelatorioOficialModal = lazy(() =>
+  import('./components/RelatorioOficialModal').then((m) => ({
+    default: m.RelatorioOficialModal,
+  }))
+);
+const EfetivoModal = lazy(() =>
+  import('./components/EfetivoModal').then((m) => ({
+    default: m.EfetivoModal,
+  }))
+);
+const AeronavesModal = lazy(() =>
+  import('./components/AeronavesModal').then((m) => ({
+    default: m.AeronavesModal,
+  }))
+);
 
 const STORAGE_KEY_TOKENS = 'cbmam_operational_tokens_v9_04112026_891';
 const STORAGE_KEY_STATUSES = 'cbmam_muni_statuses_v8';
@@ -128,6 +158,33 @@ export default function App() {
 
   // Controle de expansão/subida da barra superior para ver o mapa na totalidade
   const [isHeaderOpen, setIsHeaderOpen] = useState(true);
+
+  // Tema do mapa: Político colorido como padrão, com opção Tático C2 e CRBM
+  const [mapTheme, setMapTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cbmam_map_theme_v1');
+      if (saved === 'politico' || saved === 'tatico' || saved === 'crbm') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'politico';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cbmam_map_theme_v1', mapTheme);
+    } catch {
+      // ignore
+    }
+  }, [mapTheme]);
+
+  // Filtro ativo na barra lateral (CRBM / Força / Bases / Arco do Fogo)
+  const [activeFilter, setActiveFilter] = useState('todos');
+
+  // Modo Sala de Situação / Telão (apresentação limpa)
+  const [isBriefingMode, setIsBriefingMode] = useState(false);
 
   // Modais de Efetivo e Aeronaves
   const [showRelatorioModal, setShowRelatorioModal] = useState(false);
@@ -311,12 +368,51 @@ export default function App() {
     });
   }, [tokens, selectedMuniName]);
 
-  // Lista de municípios com recursos para a barra lateral
+  // Lista de municípios com efetivo/recursos para a barra lateral (sincronizada com o banco)
   const deployedMunis = useMemo(() => {
     const map = new Map();
+    const resolveName = (raw) => {
+      if (!raw) return 'Outros';
+      const n = norm(raw);
+      if (n === 'careiro') return 'Careiro Castanho';
+      if (n === 'careiro da varzea') return 'Careiro da Várzea';
+      if (n.includes('km 53')) return 'Autazes';
+      const found = AMAZONAS_DATA.municipalities.find(
+        (m) => norm(m.name) === n
+      );
+      return found ? found.name : raw;
+    };
+
+    if (Array.isArray(dbEfetivo) && dbEfetivo.length > 0) {
+      dbEfetivo.forEach((r) => {
+        const ef =
+          Number(r.opamv || 0) +
+          Number(r.opam_ref || 0) +
+          Number(r.prevfogo || 0) +
+          Number(r.fn || 0) +
+          Number(r.brig_mun || 0) +
+          Number(r.brig_semas || 0);
+        if (ef <= 0) return;
+        const mName = resolveName(r.mun);
+        if (!map.has(mName)) {
+          const muniObj = AMAZONAS_DATA.municipalities.find(
+            (m) => m.name === mName
+          );
+          map.set(mName, {
+            name: mName,
+            count: 0,
+            efetivo: 0,
+            inArco: muniObj ? muniObj.in_arco_fogo : false,
+          });
+        }
+        const entry = map.get(mName);
+        entry.efetivo += ef;
+        entry.count += 1;
+      });
+    }
+
     tokens.forEach((tk) => {
-      let mName = tk.muni || 'Outros';
-      if (mName === 'Careiro') mName = 'Careiro Castanho';
+      const mName = resolveName(tk.muni);
       if (!map.has(mName)) {
         const muniObj = AMAZONAS_DATA.municipalities.find(
           (m) => m.name === mName
@@ -324,13 +420,17 @@ export default function App() {
         map.set(mName, {
           name: mName,
           count: 0,
+          efetivo: 0,
           inArco: muniObj ? muniObj.in_arco_fogo : false,
         });
       }
       map.get(mName).count += 1;
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [tokens]);
+
+    return Array.from(map.values()).sort(
+      (a, b) => (b.efetivo || 0) - (a.efetivo || 0) || b.count - a.count
+    );
+  }, [tokens, dbEfetivo]);
 
   // Estatísticas e KPIs em tempo real por categoria (Militares CBMAM, Força Nacional, Prevfogo, Brigadistas)
   const stats = useMemo(() => {
@@ -589,9 +689,9 @@ export default function App() {
     }
   };
 
-  // Ação: Exportar Imagem HD
+  // Ação: Exportar Imagem 4K Executiva
   const handleExportImage = () => {
-    exportSvgToPng();
+    exportSvgToPng(stats, selectedDate);
   };
 
   // Ação: Salvar Missão (Download JSON)
@@ -728,59 +828,99 @@ export default function App() {
     }
   };
 
+  const handleEnterBriefingMode = () => {
+    setIsBriefingMode(true);
+    setSelectedMuniName(null);
+    if (
+      document.documentElement.requestFullscreen &&
+      !document.fullscreenElement
+    ) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+
+  const handleExitBriefingMode = () => {
+    setIsBriefingMode(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
   return (
-    <div className="app-container">
-      {/* Cabeçalho Oficial com KPIs e Compartilhamento de Link */}
-      <Header
-        stats={stats}
-        showAllTokens={showAllTokens}
-        onToggleShowAllTokens={() => setShowAllTokens(!showAllTokens)}
-        showEfetivo={showEfetivo}
-        onToggleShowEfetivo={() => setShowEfetivo(!showEfetivo)}
-        showViaturas={showViaturas}
-        onToggleShowViaturas={() => setShowViaturas(!showViaturas)}
-        onOpenRelatorio={() => setShowRelatorioModal(true)}
-        onShareLink={handleShareLink}
-        onLoadRealScenario={handleLoadRealScenario}
-        onExportImage={handleExportImage}
-        onSaveMission={handleSaveMission}
-        onLoadMission={handleLoadMission}
-        onClearMap={handleClearMap}
-        onToggleFullscreen={handleToggleFullscreen}
-        isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-        onOpenEfetivo={() => {
-          setEfetivoEditMode(false);
-          setShowEfetivoModal(true);
-        }}
-        onOpenEditEfetivo={() => {
-          setEfetivoEditMode(true);
-          setShowEfetivoModal(true);
-        }}
-        onOpenAeronaves={() => setShowAeronavesModal(true)}
-        isHeaderOpen={isHeaderOpen}
-        onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
-        selectedDate={selectedDate}
-      />
+    <div className={`app-container ${isBriefingMode ? 'briefing-active' : ''}`}>
+      {/* Modo Sala de Situação / Telão ou Cabeçalho Executivo */}
+      {isBriefingMode ? (
+        <BriefingOverlay
+          stats={stats}
+          selectedDate={selectedDate}
+          mapTheme={mapTheme}
+          onChangeMapTheme={setMapTheme}
+          onExportImage={handleExportImage}
+          onExit={handleExitBriefingMode}
+        />
+      ) : (
+        <Header
+          stats={stats}
+          showEfetivo={showEfetivo}
+          onToggleShowEfetivo={() => setShowEfetivo(!showEfetivo)}
+          showViaturas={showViaturas}
+          onToggleShowViaturas={() => setShowViaturas(!showViaturas)}
+          showArcoDoFogo={showArcoDoFogo}
+          onToggleArcoDoFogo={() => setShowArcoDoFogo(!showArcoDoFogo)}
+          showLabels={showLabels}
+          onToggleLabels={() => setShowLabels(!showLabels)}
+          mapTheme={mapTheme}
+          onChangeMapTheme={setMapTheme}
+          onOpenRelatorio={() => setShowRelatorioModal(true)}
+          onShareLink={handleShareLink}
+          onLoadRealScenario={handleLoadRealScenario}
+          onExportImage={handleExportImage}
+          onSaveMission={handleSaveMission}
+          onLoadMission={handleLoadMission}
+          onClearMap={handleClearMap}
+          onToggleFullscreen={handleToggleFullscreen}
+          onEnterBriefingMode={handleEnterBriefingMode}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onOpenEfetivo={() => {
+            setEfetivoEditMode(false);
+            setShowEfetivoModal(true);
+          }}
+          onOpenEditEfetivo={() => {
+            setEfetivoEditMode(true);
+            setShowEfetivoModal(true);
+          }}
+          onOpenAeronaves={() => setShowAeronavesModal(true)}
+          isHeaderOpen={isHeaderOpen}
+          onToggleHeader={() => setIsHeaderOpen(!isHeaderOpen)}
+          selectedDate={selectedDate}
+        />
+      )}
 
       {/* Espaço de Trabalho Tático */}
       <div className="app-workspace">
-        {/* Barra Lateral: Hangar e Seletor de Efetivo */}
-        <TacticalSidebar
-          isOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onDragStartToken={handleDragStartToken}
-          selectedMuni={selectedMuni}
-          onAddTokenToMuni={handleAddTokenToMuni}
-          deployedMunis={deployedMunis}
-          onSelectMuni={setSelectedMuniName}
-          onOpenEfetivo={() => setShowEfetivoModal(true)}
-          onOpenAeronaves={() => setShowAeronavesModal(true)}
-        />
+        {/* Barra Lateral: Hangar, Filtros e Mobilização (oculta no Modo Telão) */}
+        {!isBriefingMode && (
+          <TacticalSidebar
+            isOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            onDragStartToken={handleDragStartToken}
+            selectedMuni={selectedMuni}
+            onAddTokenToMuni={handleAddTokenToMuni}
+            deployedMunis={deployedMunis}
+            onSelectMuni={setSelectedMuniName}
+            onOpenEfetivo={() => setShowEfetivoModal(true)}
+            onOpenAeronaves={() => setShowAeronavesModal(true)}
+            stats={stats}
+            activeFilter={activeFilter}
+            onChangeFilter={setActiveFilter}
+          />
+        )}
 
         {/* Mapa Operacional Central */}
         <OperationalMap
           placedTokens={tokens}
+          dbEfetivo={dbEfetivo}
           selectedMuniName={selectedMuniName}
           onSelectMuni={setSelectedMuniName}
           onDropToken={handleDropToken}
@@ -797,76 +937,81 @@ export default function App() {
           setShowEfetivo={setShowEfetivo}
           showViaturas={showViaturas}
           setShowViaturas={setShowViaturas}
+          mapTheme={mapTheme}
+          setMapTheme={setMapTheme}
+          activeFilter={activeFilter}
+          isBriefingMode={isBriefingMode}
         />
 
-        {/* Gaveta Lateral de Detalhes do Município Selecionado */}
+        {/* Gaveta Lateral de Detalhes do Município Selecionado (Lazy) */}
         {selectedMuni && (
-          <MunicipalityDrawer
-            muni={selectedMuni}
-            muniTokens={selectedMuniTokens}
-            muniStatus={muniStatuses[selectedMuni.name] || 'normal'}
-            onUpdateMuniStatus={handleUpdateMuniStatus}
-            muniNotes={muniNotes[selectedMuni.name] || ''}
-            onUpdateMuniNotes={handleUpdateMuniNotes}
-            onAddToken={handleAddTokenToMuni}
-            onRemoveToken={handleDeleteToken}
-            onClose={() => setSelectedMuniName(null)}
-            dbEfetivo={dbEfetivo}
-            dbRecursos={dbRecursos}
-          />
+          <Suspense fallback={null}>
+            <MunicipalityDrawer
+              muni={selectedMuni}
+              muniTokens={selectedMuniTokens}
+              muniStatus={muniStatuses[selectedMuni.name] || 'normal'}
+              onUpdateMuniStatus={handleUpdateMuniStatus}
+              muniNotes={muniNotes[selectedMuni.name] || ''}
+              onUpdateMuniNotes={handleUpdateMuniNotes}
+              onAddToken={handleAddTokenToMuni}
+              onRemoveToken={handleDeleteToken}
+              onClose={() => setSelectedMuniName(null)}
+              dbEfetivo={dbEfetivo}
+              dbRecursos={dbRecursos}
+            />
+          </Suspense>
         )}
       </div>
 
-      {/* Modal de Edição de Token */}
-      {editingToken && (
-        <TokenEditModal
-          token={editingToken}
-          onSave={handleSaveTokenChanges}
-          onDelete={handleDeleteToken}
-          onDuplicate={handleDuplicateToken}
-          onClose={() => setEditingToken(null)}
-        />
-      )}
+      {/* Modais sob demanda (Code Splitting / Lazy Loading) */}
+      <Suspense fallback={null}>
+        {editingToken && (
+          <TokenEditModal
+            token={editingToken}
+            onSave={handleSaveTokenChanges}
+            onDelete={handleDeleteToken}
+            onDuplicate={handleDuplicateToken}
+            onClose={() => setEditingToken(null)}
+          />
+        )}
 
-      {/* Modal do Relatório Oficial de Efetivo e Combates Ativos */}
-      {showRelatorioModal && (
-        <RelatorioOficialModal
-          tokens={tokens}
-          muniStatuses={muniStatuses}
-          muniNotes={muniNotes}
-          onClose={() => setShowRelatorioModal(false)}
-          onSelectMuni={(name) => {
-            setSelectedMuniName(name);
-            setShowRelatorioModal(false);
-          }}
-        />
-      )}
+        {showRelatorioModal && (
+          <RelatorioOficialModal
+            tokens={tokens}
+            muniStatuses={muniStatuses}
+            muniNotes={muniNotes}
+            onClose={() => setShowRelatorioModal(false)}
+            onSelectMuni={(name) => {
+              setSelectedMuniName(name);
+              setShowRelatorioModal(false);
+            }}
+          />
+        )}
 
-      {/* Modal de Efetivo & Modificação Dinâmica no Banco de Dados */}
-      {showEfetivoModal && (
-        <EfetivoModal
-          onClose={() => setShowEfetivoModal(false)}
-          dbEfetivo={dbEfetivo}
-          reportDate={selectedDate}
-          initialEditMode={efetivoEditMode}
-          onSaveEfetivo={handleSaveEfetivo}
-          onSelectMuni={(name) => {
-            setSelectedMuniName(name);
-            setShowEfetivoModal(false);
-          }}
-        />
-      )}
+        {showEfetivoModal && (
+          <EfetivoModal
+            onClose={() => setShowEfetivoModal(false)}
+            dbEfetivo={dbEfetivo}
+            reportDate={selectedDate}
+            initialEditMode={efetivoEditMode}
+            onSaveEfetivo={handleSaveEfetivo}
+            onSelectMuni={(name) => {
+              setSelectedMuniName(name);
+              setShowEfetivoModal(false);
+            }}
+          />
+        )}
 
-      {/* Modal de Localização das Aeronaves (Onde estão as Aeronaves) */}
-      {showAeronavesModal && (
-        <AeronavesModal
-          onClose={() => setShowAeronavesModal(false)}
-          onSelectMuni={(name) => {
-            setSelectedMuniName(name);
-            setShowAeronavesModal(false);
-          }}
-        />
-      )}
+        {showAeronavesModal && (
+          <AeronavesModal
+            onClose={() => setShowAeronavesModal(false)}
+            onSelectMuni={(name) => {
+              setSelectedMuniName(name);
+              setShowAeronavesModal(false);
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
